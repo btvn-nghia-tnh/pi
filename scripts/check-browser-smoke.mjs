@@ -41,6 +41,17 @@ function includesNodePackage(inputs, packageName) {
 }
 
 try {
+	// The web GUI bundle must stay browser-safe.
+	await build({
+		entryPoints: ["packages/web/src/main.ts"],
+		bundle: true,
+		platform: "browser",
+		format: "esm",
+		logLevel: "silent",
+		outfile: join(tmpdir(), "pi-web-browser-smoke.js"),
+		plugins: [generatedCatalogDataPlugin],
+	});
+
 	await build({
 		entryPoints: ["scripts/browser-smoke-entry.ts"],
 		bundle: true,

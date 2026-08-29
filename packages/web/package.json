@@ -1,0 +1,14 @@
+{
+	"name": "@earendil-works/pi-web",
+	"version": "0.84.4",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "node build.mjs",
+		"check": "tsgo --noEmit",
+		"test": "node --test test/*.test.ts"
+	},
+	"devDependencies": {
+		"diff": "8.0.4"
+	}
+}
