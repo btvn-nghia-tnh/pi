@@ -97,7 +97,7 @@ async function startTestServer(options?: { token?: boolean }): Promise<ServerFix
 		sessionManager: SessionManager.create(tempDir, tempDir),
 	});
 
-	const token = options?.token === false ? false : true;
+	const token = options?.token !== false;
 	const handle = await startWebServer(runtime, {
 		port: 0,
 		host: "127.0.0.1",

@@ -107,22 +107,14 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 					JSON.stringify({
 						type: "connected",
 						version: VERSION,
-						state:
-							stateResponse && stateResponse.success && "data" in stateResponse ? stateResponse.data : undefined,
+						state: stateResponse?.success && "data" in stateResponse ? stateResponse.data : undefined,
 						messages:
-							messagesResponse && messagesResponse.success && "data" in messagesResponse
+							messagesResponse?.success && "data" in messagesResponse
 								? (messagesResponse.data as { messages: unknown }).messages
 								: [],
-						contextInfo:
-							contextResponse && contextResponse.success && "data" in contextResponse
-								? contextResponse.data
-								: undefined,
-						trust:
-							trustResponse && trustResponse.success && "data" in trustResponse ? trustResponse.data : undefined,
-						keybindings:
-							themesResponse && themesResponse.success && "data" in themesResponse
-								? themesResponse.data
-								: undefined,
+						contextInfo: contextResponse?.success && "data" in contextResponse ? contextResponse.data : undefined,
+						trust: trustResponse?.success && "data" in trustResponse ? trustResponse.data : undefined,
+						keybindings: themesResponse?.success && "data" in themesResponse ? themesResponse.data : undefined,
 					}),
 				);
 			})

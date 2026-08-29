@@ -91,7 +91,7 @@ export function serveStatic(request: IncomingMessage, response: ServerResponse, 
 		return true;
 	}
 
-	let stats;
+	let stats: ReturnType<typeof statSync> | undefined;
 	try {
 		stats = statSync(filePath);
 	} catch {
