@@ -490,6 +490,25 @@ export class SettingsManager {
 		return structuredClone(this.projectSettings);
 	}
 
+	/** Effective settings: project merged over global. */
+	getEffectiveSettings(): Settings {
+		return structuredClone(this.settings);
+	}
+
+	/** Settings file paths per scope, when storage is file-backed. */
+	getSettingsFilePaths(): Partial<Record<"global" | "project", string>> {
+		return { ...this.settingsPaths };
+	}
+
+	/** Errors encountered while loading settings files. */
+	getSettingsLoadErrors(): ReadonlyArray<{ scope: "global" | "project"; path?: string; message: string }> {
+		return this.errors.map((error) => ({
+			scope: error.scope,
+			path: error.path,
+			message: error.error.message,
+		}));
+	}
+
 	isProjectTrusted(): boolean {
 		return this.projectTrusted;
 	}

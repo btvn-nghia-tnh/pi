@@ -71,7 +71,50 @@ export type RpcCommand =
 	| { id?: string; type: "get_messages" }
 
 	// Commands (available for invocation via prompt)
-	| { id?: string; type: "get_commands" };
+	| { id?: string; type: "get_commands" }
+
+	// Web GUI parity: session management
+	| { id?: string; type: "list_sessions"; scope?: "cwd" | "all" }
+	| { id?: string; type: "delete_session"; sessionPath: string }
+	| { id?: string; type: "rename_session"; sessionPath: string; name: string }
+	| {
+			id?: string;
+			type: "navigate_tree";
+			targetId: string;
+			summarize?: boolean;
+			customInstructions?: string;
+			replaceInstructions?: boolean;
+			label?: string;
+	  }
+	| { id?: string; type: "import_session"; path: string; cwd?: string }
+
+	// Web GUI parity: context and info
+	| { id?: string; type: "get_context_info" }
+	| { id?: string; type: "get_changelog" }
+	| { id?: string; type: "get_keybindings" }
+	| { id?: string; type: "search_files"; query?: string; limit?: number }
+	| { id?: string; type: "get_session_dir" }
+	| { id?: string; type: "reload" }
+	| { id?: string; type: "export_session"; path?: string }
+	| { id?: string; type: "share_session" }
+
+	// Web GUI parity: settings and themes
+	| { id?: string; type: "get_settings" }
+	| { id?: string; type: "set_settings"; scope: "global" | "project"; values: Record<string, unknown> }
+	| { id?: string; type: "get_themes" }
+	| { id?: string; type: "set_theme"; name: string }
+
+	// Web GUI parity: auth and trust
+	| { id?: string; type: "auth_status" }
+	| { id?: string; type: "auth_login"; provider: string; method: "api_key" | "oauth" }
+	| { id?: string; type: "auth_logout"; provider: string }
+	| { id?: string; type: "get_trust" }
+	| {
+			id?: string;
+			type: "set_trust";
+			trusted: boolean;
+			optionIndex?: number;
+	  };
 
 // ============================================================================
 // RPC Slash Command (for get_commands response)
@@ -235,6 +278,66 @@ export type RpcResponse =
 			data: { commands: RpcSlashCommand[] };
 	  }
 
+	// Web GUI parity: session management
+	| { id?: string; type: "response"; command: "list_sessions"; success: true; data: { sessions: RpcSessionSummary[] } }
+	| { id?: string; type: "response"; command: "delete_session"; success: true; data: { method: "trash" | "unlink" } }
+	| { id?: string; type: "response"; command: "rename_session"; success: true }
+	| {
+			id?: string;
+			type: "response";
+			command: "navigate_tree";
+			success: true;
+			data: { editorText?: string; cancelled: boolean };
+	  }
+	| { id?: string; type: "response"; command: "import_session"; success: true; data: { cancelled: boolean } }
+
+	// Web GUI parity: context and info
+	| { id?: string; type: "response"; command: "get_context_info"; success: true; data: RpcContextInfo }
+	| { id?: string; type: "response"; command: "get_changelog"; success: true; data: { markdown: string } }
+	| {
+			id?: string;
+			type: "response";
+			command: "get_keybindings";
+			success: true;
+			data: { bindings: RpcKeybindingInfo[] };
+	  }
+	| { id?: string; type: "response"; command: "search_files"; success: true; data: { files: string[] } }
+	| { id?: string; type: "response"; command: "get_session_dir"; success: true; data: { dir: string } }
+	| { id?: string; type: "response"; command: "reload"; success: true }
+	| { id?: string; type: "response"; command: "export_session"; success: true; data: { path: string } }
+	| {
+			id?: string;
+			type: "response";
+			command: "share_session";
+			success: true;
+			data: { url?: string; gistUrl?: string };
+	  }
+
+	// Web GUI parity: settings and themes
+	| { id?: string; type: "response"; command: "get_settings"; success: true; data: RpcSettingsSnapshot }
+	| { id?: string; type: "response"; command: "set_settings"; success: true }
+	| {
+			id?: string;
+			type: "response";
+			command: "get_themes";
+			success: true;
+			data: { themes: RpcThemeInfo[]; current: string };
+	  }
+	| { id?: string; type: "response"; command: "set_theme"; success: true }
+
+	// Web GUI parity: auth and trust
+	| {
+			id?: string;
+			type: "response";
+			command: "auth_status";
+			success: true;
+			data: { providers: RpcAuthProviderStatus[] };
+	  }
+	| { id?: string; type: "response"; command: "auth_login"; success: true }
+	| { id?: string; type: "response"; command: "auth_logout"; success: true }
+	| { id?: string; type: "response"; command: "get_trust"; success: true; data: RpcTrustState }
+	| { id?: string; type: "response"; command: "set_trust"; success: true }
+
 	// Error response (any command can fail)
 	| { id?: string; type: "response"; command: string; success: false; error: string };
 
@@ -278,7 +381,63 @@ export type RpcExtensionUIRequest =
 			widgetPlacement?: "aboveEditor" | "belowEditor";
 	  }
 	| { type: "extension_ui_request"; id: string; method: "setTitle"; title: string }
-	| { type: "extension_ui_request"; id: string; method: "set_editor_text"; text: string };
+	| { type: "extension_ui_request"; id: string; method: "set_editor_text"; text: string }
+	| {
+			type: "extension_ui_request";
+			id: string;
+			method: "setWorkingIndicator";
+			frames: string[] | undefined;
+			intervalMs?: number;
+	  };
+
+// Auth prompt bridging (web GUI): dialogs answer via extension_ui_response,
+// notify kinds are fire and forget.
+export type RpcAuthUIRequest =
+	| {
+			type: "extension_ui_request";
+			id: string;
+			method: "auth_prompt";
+			promptType: "text" | "secret" | "manual_code";
+			message: string;
+			placeholder?: string;
+			timeout?: number;
+	  }
+	| {
+			type: "extension_ui_request";
+			id: string;
+			method: "auth_prompt";
+			promptType: "select";
+			message: string;
+			options: Array<{ id: string; label: string; description?: string }>;
+			timeout?: number;
+	  }
+	| {
+			type: "extension_ui_request";
+			id: string;
+			method: "auth_event";
+			event: "auth_url";
+			url: string;
+			instructions?: string;
+	  }
+	| {
+			type: "extension_ui_request";
+			id: string;
+			method: "auth_event";
+			event: "device_code";
+			userCode: string;
+			verificationUri: string;
+			intervalSeconds?: number;
+			expiresInSeconds?: number;
+	  }
+	| {
+			type: "extension_ui_request";
+			id: string;
+			method: "auth_event";
+			event: "info";
+			message: string;
+			links?: Array<{ url: string; label?: string }>;
+	  }
+	| { type: "extension_ui_request"; id: string; method: "auth_event"; event: "progress"; message: string };
 
 // ============================================================================
 // Extension UI Commands (stdin)
@@ -289,6 +448,79 @@ export type RpcExtensionUIResponse =
 	| { type: "extension_ui_response"; id: string; value: string }
 	| { type: "extension_ui_response"; id: string; confirmed: boolean }
 	| { type: "extension_ui_response"; id: string; cancelled: true };
+
+// ============================================================================
+// Web GUI parity payload types
+// ============================================================================
+
+/** Session listing entry for list_sessions. */
+export interface RpcSessionSummary {
+	file: string;
+	id: string;
+	name?: string;
+	cwd: string;
+	parentSession?: string;
+	created: string;
+	modified: string;
+	messageCount: number;
+	firstMessage: string;
+}
+
+/** Startup context for the web GUI header. */
+export interface RpcContextInfo {
+	version: string;
+	cwd: string;
+	gitBranch?: string;
+	contextFiles: Array<{ path: string; source: "global" | "parent" | "project" | "override" }>;
+	skills: Array<{ name: string; description: string; sourceInfo: SourceInfo }>;
+	promptTemplates: Array<{ name: string; description: string; sourceInfo: SourceInfo }>;
+	extensions: Array<{ name: string; sourceInfo: SourceInfo }>;
+	commands: RpcSlashCommand[];
+	themeNames: string[];
+	experimental: boolean;
+	isUsingSubscription: boolean;
+	agentDir: string;
+	isTrusted: boolean;
+}
+
+/** One effective keybinding for get_keybindings. */
+export interface RpcKeybindingInfo {
+	id: string;
+	keys: string[];
+	description?: string;
+}
+
+/** Settings snapshot for get_settings. */
+export interface RpcSettingsSnapshot {
+	global: Record<string, unknown>;
+	project: Record<string, unknown>;
+	effective: Record<string, unknown>;
+	paths: { global?: string; project?: string };
+	errors: string[];
+}
+
+/** Theme listing entry for get_themes. */
+export interface RpcThemeInfo {
+	name: string;
+	vars: Record<string, string>;
+}
+
+/** Provider auth status for auth_status. */
+export interface RpcAuthProviderStatus {
+	id: string;
+	authenticated: boolean;
+	source?: string;
+	kind?: "api_key" | "oauth";
+	subscription?: boolean;
+}
+
+/** Project trust state for get_trust. */
+export interface RpcTrustState {
+	trusted: boolean;
+	options: Array<{ label: string; trusted: boolean; savedPath?: string }>;
+	savedDecision?: { path: string; decision: boolean };
+	trustPath?: string;
+}
 
 // ============================================================================
 // Helper type for extracting command types

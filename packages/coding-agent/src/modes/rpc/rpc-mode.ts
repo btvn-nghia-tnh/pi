@@ -22,6 +22,7 @@ import {
 	writeRawStdout,
 } from "../../core/output-guard.ts";
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
+import { createWebCommandHandler } from "../web/web-commands.ts";
 import { attachJsonlLineReader, serializeJsonLine } from "./jsonl.ts";
 import { RpcCore } from "./rpc-core.ts";
 import type { RpcCommand, RpcExtensionUIResponse, RpcResponse } from "./rpc-types.ts";
@@ -55,6 +56,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 		onShutdownRequested: () => {
 			void shutdown();
 		},
+		extraCommandHandler: createWebCommandHandler(),
 	});
 
 	const registerSignalHandlers = (): void => {

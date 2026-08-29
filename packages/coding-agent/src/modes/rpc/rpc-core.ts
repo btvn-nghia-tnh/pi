@@ -19,6 +19,7 @@ import type {
 import { type Theme, theme } from "../interactive/theme/theme.ts";
 import { toJsonEvent } from "../json-event.ts";
 import type {
+	RpcAuthUIRequest,
 	RpcCommand,
 	RpcExtensionUIRequest,
 	RpcExtensionUIResponse,
@@ -102,8 +103,26 @@ export class RpcCore {
 		return this.runtime;
 	}
 
-	sendExtensionUIRequest(request: RpcExtensionUIRequest): void {
+	sendExtensionUIRequest(request: RpcExtensionUIRequest | RpcAuthUIRequest): void {
 		this.output(request);
+	}
+
+	/** Send an arbitrary protocol message (theme_changed, auth_changed, ...) to the client. */
+	emit(message: object): void {
+		this.output(message);
+	}
+
+	/**
+	 * Request a dialog from the client through the extension UI mechanism.
+	 * Used by command handlers (for example auth prompts) that need input.
+	 * Resolves with undefined when the dialog is cancelled or times out.
+	 */
+	requestDialog<T>(
+		request: Record<string, unknown>,
+		parseResponse: (response: RpcExtensionUIResponse) => T,
+		options?: { signal?: AbortSignal; timeout?: number },
+	): Promise<T | undefined> {
+		return this.createDialogPromise(options, undefined, request, parseResponse);
 	}
 
 	private readonly output = (obj: RpcResponse | RpcExtensionUIRequest | object): void => {
@@ -225,7 +244,7 @@ export class RpcCore {
 					method: "setWorkingIndicator",
 					frames: options?.frames,
 					intervalMs: options?.intervalMs,
-				} as unknown as RpcExtensionUIRequest);
+				} satisfies RpcExtensionUIRequest);
 			},
 
 			setHiddenThinkingLabel(_label?: string): void {
