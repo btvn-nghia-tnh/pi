@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `pi web`: a browser GUI with TUI feature parity, served from a token-gated local HTTP + WebSocket server. See [Web GUI](docs/web.md).
+- Added web parity commands to the RPC protocol: `list_sessions`, `delete_session`, `rename_session`, `navigate_tree`, `import_session`, `get_context_info`, `get_changelog`, `get_keybindings`, `search_files`, `get_session_dir`, `reload`, `export_session`, `share_session`, `get_settings`, `set_settings`, `get_themes`, `set_theme`, `auth_status`, `auth_login`, `auth_logout`, `get_trust`, and `set_trust`.
+- Added a fire-and-forget `setWorkingIndicator` extension UI request so RPC and web clients can honor custom spinner frames.
+- Added auth prompt and auth event bridging (`auth_prompt`, `auth_event`) over the extension UI protocol.
+- Added `getEffectiveSettings()`, `getSettingsFilePaths()`, and `getSettingsLoadErrors()` to `SettingsManager`.
+- Extracted the RPC command core into a transport-agnostic `RpcCore` shared by stdio RPC mode and web mode.
+
+### Changed
+
+- `pi --mode web` now maps to the web GUI; extensions see `ctx.mode === "rpc"` in web mode.
+
 ## [0.84.4] - 2026-08-28
 
 ### New Features

@@ -40,6 +40,10 @@
           "path": "sessions.md"
         },
         {
+          "title": "Web GUI",
+          "path": "web.md"
+        },
+        {
           "title": "Compaction",
           "path": "compaction.md"
         }
