@@ -119,6 +119,24 @@ function getProjectFiles(cwd: string): string[] {
 	return files;
 }
 
+/** Compact extension label: package name for npm/git sources, otherwise the
+ * directory name for index files (mirrors the TUI's compact labels). */
+function extensionDisplayName(path: string, sourceInfo: { source?: string; scope?: string } | undefined): string {
+	const source = sourceInfo?.source ?? "";
+	if (source.startsWith("npm:") || source.startsWith("git:")) {
+		return source;
+	}
+	const base = basename(path);
+	if (base === "index.ts" || base === "index.js") {
+		const withoutTrailingSep = path.slice(0, -1);
+		const parentSegment = withoutTrailingSep.split(/[\\/]/).filter(Boolean).pop();
+		if (parentSegment) {
+			return `${parentSegment}/${base}`;
+		}
+	}
+	return base;
+}
+
 function buildContextInfo(session: AgentSession): RpcContextInfo {
 	const commands: RpcSlashCommand[] = [];
 	for (const command of session.extensionRunner.getRegisteredCommands()) {
@@ -161,7 +179,7 @@ function buildContextInfo(session: AgentSession): RpcContextInfo {
 	for (const extension of extensionResult.extensions) {
 		if (extension.hidden) continue;
 		extensions.push({
-			name: basename(extension.path),
+			name: extensionDisplayName(extension.path, extension.sourceInfo),
 			sourceInfo: extension.sourceInfo,
 		});
 	}
