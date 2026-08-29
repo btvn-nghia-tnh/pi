@@ -65,6 +65,14 @@ export class DialogStack {
 		if (index === -1) return;
 		this.stack.splice(index, 1);
 		handle.element.parentElement?.remove();
+		if (this.stack.length === 0) {
+			// Return focus to the editor, matching the TUI behavior where
+			// closing a dialog restores editor focus.
+			const editor = document.querySelector("#app textarea");
+			if (editor instanceof HTMLElement) {
+				editor.focus();
+			}
+		}
 	}
 
 	closeTop(): boolean {
@@ -527,26 +535,39 @@ export function openTrustDialog(
 	});
 }
 
-/** Apply theme variable names to CSS custom properties. */
+/**
+ * Apply resolved theme colors to CSS custom properties. `vars` uses the
+ * ThemeColor names produced by the server's getResolvedThemeColors().
+ */
 export function applyThemeVars(vars: Record<string, string>): void {
 	const root = document.documentElement;
 	const mapping: Record<string, string> = {
 		text: "--color-text",
-		gray: "--color-muted",
-		dimGray: "--color-dim",
+		muted: "--color-muted",
+		dim: "--color-dim",
 		accent: "--color-accent",
-		green: "--color-success",
-		red: "--color-error",
-		yellow: "--color-warning",
-		blue: "--color-border",
-		cyan: "--color-border-accent",
-		darkGray: "--color-border-muted",
-		userMsgBg: "--color-user-bg",
+		success: "--color-success",
+		error: "--color-error",
+		warning: "--color-warning",
+		border: "--color-border",
+		borderAccent: "--color-border-accent",
+		borderMuted: "--color-border-muted",
+		selectedBg: "--color-selected-bg",
+		userMessageBg: "--color-user-bg",
+		customMessageBg: "--color-custom-bg",
 		toolPendingBg: "--color-tool-pending-bg",
 		toolSuccessBg: "--color-tool-success-bg",
 		toolErrorBg: "--color-tool-error-bg",
-		customMsgBg: "--color-custom-bg",
-		selectedBg: "--color-selected-bg",
+		toolDiffAdded: "--color-diff-add",
+		toolDiffRemoved: "--color-diff-remove",
+		toolDiffContext: "--color-diff-context",
+		thinkingOff: "--color-thinking-off",
+		thinkingMinimal: "--color-thinking-minimal",
+		thinkingLow: "--color-thinking-low",
+		thinkingMedium: "--color-thinking-medium",
+		thinkingHigh: "--color-thinking-high",
+		thinkingXhigh: "--color-thinking-xhigh",
+		thinkingMax: "--color-thinking-max",
 	};
 	for (const [name, cssVar] of Object.entries(mapping)) {
 		const value = vars[name];
@@ -554,10 +575,64 @@ export function applyThemeVars(vars: Record<string, string>): void {
 			root.style.setProperty(cssVar, value);
 		}
 	}
-	const pageBg = vars.pageBg ?? vars.userMsgBg;
-	if (pageBg) {
-		root.style.setProperty("--color-page-bg", pageBg);
+	// Thinking blocks fall back to the generic thinking color.
+	const thinkingFallback = vars.thinkingText ?? vars.muted;
+	if (thinkingFallback) {
+		for (const level of ["off", "minimal", "low", "medium", "high", "xhigh", "max"]) {
+			const cssVar = `--color-thinking-${level}`;
+			if (!vars[`thinking${level.charAt(0).toUpperCase()}${level.slice(1)}`]) {
+				root.style.setProperty(cssVar, thinkingFallback);
+			}
+		}
 	}
+	// The page background derives from the user message background, mirroring
+	// the export-html derivation: light themes get a slightly darker page,
+	// dark themes a slightly lighter card tone.
+	const base = vars.userMessageBg;
+	if (base) {
+		const light = isLightColor(base);
+		const pageBg = adjustBrightness(base, light ? 0.95 : 0.92);
+		const cardBg = adjustBrightness(base, light ? 0.97 : 1.12);
+		const codeBg = adjustBrightness(base, light ? 0.93 : 0.8);
+		root.style.setProperty("--color-page-bg", pageBg);
+		root.style.setProperty("--color-card-bg", cardBg);
+		root.style.setProperty("--color-code-bg", codeBg);
+		// Light palettes from the server can be too faint for hairline
+		// separators; derive a stronger border tone for them.
+		if (light) {
+			const borderMuted = vars.borderMuted;
+			if (!borderMuted || isLightColor(borderMuted)) {
+				root.style.setProperty("--color-border-muted", adjustBrightness(base, 0.72));
+			}
+			const dim = vars.dim;
+			if (!dim || isLightColor(dim)) {
+				root.style.setProperty("--color-dim", adjustBrightness(base, 0.55));
+			}
+		}
+	}
+}
+
+function parseHex(color: string): { r: number; g: number; b: number } | undefined {
+	const match = color.match(/^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/);
+	if (!match) return undefined;
+	return {
+		r: Number.parseInt(match[1]!, 16),
+		g: Number.parseInt(match[2]!, 16),
+		b: Number.parseInt(match[3]!, 16),
+	};
+}
+
+function isLightColor(color: string): boolean {
+	const rgb = parseHex(color);
+	if (!rgb) return true;
+	return (rgb.r * 0.2126 + rgb.g * 0.7152 + rgb.b * 0.0722) / 255 > 0.5;
+}
+
+function adjustBrightness(color: string, factor: number): string {
+	const rgb = parseHex(color);
+	if (!rgb) return color;
+	const channel = (value: number): number => Math.max(0, Math.min(255, Math.round(value * factor)));
+	return `rgb(${channel(rgb.r)}, ${channel(rgb.g)}, ${channel(rgb.b)})`;
 }
 
 /** Extension UI dialogs (select/confirm/input/editor) and auth prompts. */
@@ -806,10 +881,11 @@ export function openSettingsDialog(dialogs: DialogStack, connection: PiConnectio
 		const editable: Array<{
 			key: string;
 			label: string;
-			kind: "boolean" | "number" | "string" | "select" | "paths";
+			kind: "boolean" | "number" | "string" | "select" | "paths" | "button";
 			options?: string[];
+			buttonText?: string;
 		}> = [
-			{ key: "theme", label: "Theme", kind: "string" },
+			{ key: "theme", label: "Theme", kind: "button", buttonText: "Choose…" },
 			{ key: "steeringMode", label: "Steering mode", kind: "select", options: ["all", "one-at-a-time"] },
 			{ key: "followUpMode", label: "Follow-up mode", kind: "select", options: ["all", "one-at-a-time"] },
 			{
@@ -880,6 +956,17 @@ export function openSettingsDialog(dialogs: DialogStack, connection: PiConnectio
 					}
 					select.addEventListener("change", () => dirty.set(field.key, select.value));
 					grid.appendChild(select);
+				} else if (field.kind === "button") {
+					const button = h(
+						"button",
+						{
+							onclick: () => {
+								openThemeSelector(dialogs, connection, store);
+							},
+						},
+						field.buttonText ?? "Open",
+					);
+					grid.appendChild(button);
 				} else {
 					const input = h("input", { type: field.kind === "number" ? "number" : "text" }) as HTMLInputElement;
 					input.value =

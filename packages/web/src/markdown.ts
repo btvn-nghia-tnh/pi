@@ -8,7 +8,7 @@ export interface MarkdownRenderOptions {
 }
 
 interface HighlightJs {
-	highlight(code: string, language: string): { value: string };
+	highlight(code: string, options: { language: string }): { value: string };
 	getLanguage?: (language: string) => unknown;
 }
 
@@ -53,7 +53,7 @@ export function renderMarkdown(markdown: string, _options?: MarkdownRenderOption
 					}
 					if (language && hljs.getLanguage && hljs.getLanguage(language)) {
 						try {
-							const highlighted = hljs.highlight(decoded, language).value;
+							const highlighted = hljs.highlight(decoded, { language }).value;
 							return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
 						} catch {
 							// fall through to escaped

@@ -60,7 +60,28 @@ function extractToken(request: IncomingMessage): string | undefined {
 	}
 	const headerToken = request.headers[TOKEN_HEADER_NAME];
 	if (typeof headerToken === "string") return headerToken;
+	const cookieHeader = request.headers.cookie;
+	if (typeof cookieHeader === "string") {
+		for (const part of cookieHeader.split(";")) {
+			const [name, ...value] = part.trim().split("=");
+			if (name === "pi-web-token" && value.length > 0) {
+				return value.join("=");
+			}
+		}
+	}
 	return undefined;
+}
+
+const TOKEN_COOKIE_NAME = "pi-web-token";
+
+/** Whether the request authenticated through the URL query token. */
+function hasQueryToken(request: IncomingMessage): boolean {
+	const url = new URL(request.url ?? "/", "http://localhost");
+	return url.searchParams.has("token");
+}
+
+function tokenCookieHeader(token: string): string {
+	return `${TOKEN_COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Strict`;
 }
 
 function isLoopback(host: string): boolean {
@@ -102,11 +123,22 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 				const messagesResponse = await core.handleCommand({ type: "get_messages" });
 				const contextResponse = await core.handleCommand({ type: "get_context_info" });
 				const trustResponse = await core.handleCommand({ type: "get_trust" });
-				const themesResponse = await core.handleCommand({ type: "get_keybindings" });
+				const keybindingsResponse = await core.handleCommand({ type: "get_keybindings" });
+				const themesResponse = await core.handleCommand({ type: "get_themes" });
+				const themeData =
+					themesResponse?.success && "data" in themesResponse
+						? (themesResponse.data as {
+								themes?: Array<{ name: string; vars: Record<string, string> }>;
+								current?: string;
+							})
+						: undefined;
+				const currentTheme = themeData?.themes?.find((theme) => theme.name === themeData.current);
 				socket.send(
 					JSON.stringify({
 						type: "connected",
 						version: VERSION,
+						themes: themeData?.themes ?? [],
+						theme: currentTheme ? { name: currentTheme.name, vars: currentTheme.vars } : undefined,
 						state: stateResponse?.success && "data" in stateResponse ? stateResponse.data : undefined,
 						messages:
 							messagesResponse?.success && "data" in messagesResponse
@@ -114,7 +146,10 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 								: [],
 						contextInfo: contextResponse?.success && "data" in contextResponse ? contextResponse.data : undefined,
 						trust: trustResponse?.success && "data" in trustResponse ? trustResponse.data : undefined,
-						keybindings: themesResponse?.success && "data" in themesResponse ? themesResponse.data : undefined,
+						keybindings:
+							keybindingsResponse?.success && "data" in keybindingsResponse
+								? keybindingsResponse.data
+								: undefined,
 					}),
 				);
 			})
@@ -164,6 +199,11 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 			response.writeHead(404, { "Content-Type": "text/plain" });
 			response.end("Not found");
 			return;
+		}
+		// Relative asset requests do not carry the query token; hand the
+		// authenticated browser a cookie so they pass validation.
+		if (token && hasQueryToken(request)) {
+			response.setHeader("Set-Cookie", tokenCookieHeader(token));
 		}
 		serveStatic(request, response, distDir);
 	});

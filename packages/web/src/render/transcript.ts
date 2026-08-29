@@ -70,6 +70,15 @@ export class TranscriptView {
 		this.version++;
 		const state = this.store.getState();
 
+		const existingEmptyHint = this.element.querySelector(".transcript-empty");
+		if (state.items.length === 0) {
+			if (!existingEmptyHint) {
+				this.element.appendChild(h("div", { class: "transcript-empty" }, ""));
+			}
+		} else {
+			existingEmptyHint?.remove();
+		}
+
 		for (const item of state.items) {
 			const key = this.itemKey(item);
 			const version = this.itemVersion(item);

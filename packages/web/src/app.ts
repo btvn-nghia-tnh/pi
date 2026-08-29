@@ -24,7 +24,13 @@ import { FooterView, QueueView, StatusRowsView, ToastsView, WidgetAreaView } fro
 import { registerGlobalKeyboard, type ShortcutAction } from "./keyboard.ts";
 import { TranscriptView } from "./render/transcript.ts";
 import { Store } from "./state.ts";
-import type { AgentEventMessage, ExtensionUiRequestMessage, RpcTrustState, ServerMessage } from "./types.ts";
+import type {
+	AgentEventMessage,
+	ConnectedPayload,
+	ExtensionUiRequestMessage,
+	RpcTrustState,
+	ServerMessage,
+} from "./types.ts";
 
 export class App {
 	readonly element: HTMLElement;
@@ -100,7 +106,18 @@ export class App {
 				h(
 					"span",
 					{ class: "hotkey-hints" },
-					"Ctrl+L models · Shift+Tab thinking · Ctrl+O tools · Alt+T toggle thinking",
+					h("kbd", {}, "Esc"),
+					" interrupt · ",
+					h("kbd", {}, "Ctrl+C"),
+					"/",
+					h("kbd", {}, "Ctrl+D"),
+					" clear/exit · ",
+					h("kbd", {}, "/"),
+					" commands · ",
+					h("kbd", {}, "!"),
+					" bash · ",
+					h("kbd", {}, "Ctrl+O"),
+					" more",
 				),
 			),
 		);
@@ -688,11 +705,17 @@ export class App {
 	private handleServerMessage(message: ServerMessage): void {
 		const type = (message as { type?: string }).type;
 		switch (type) {
-			case "connected":
-				this.store.applyConnected(message as never);
+			case "connected": {
+				const connected = message as never as ConnectedPayload;
+				this.store.applyConnected(connected);
+				if (connected.themes && connected.theme) {
+					this.store.setThemes(connected.themes, connected.theme.name);
+					applyThemeVars(connected.theme.vars);
+				}
 				this.mountEditorViews();
 				this.maybeShowTrustDialog();
 				break;
+			}
 			case "server_shutdown":
 				this.showShutdownOverlay(String((message as { reason?: string }).reason ?? ""));
 				break;

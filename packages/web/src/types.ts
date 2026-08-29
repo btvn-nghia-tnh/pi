@@ -216,6 +216,8 @@ export interface RpcThemeInfo {
 export interface ConnectedPayload {
 	type: "connected";
 	version: string;
+	themes?: RpcThemeInfo[];
+	theme?: { name: string; vars: Record<string, string> };
 	state?: RpcSessionState;
 	messages: AgentMessage[];
 	contextInfo?: RpcContextInfo;

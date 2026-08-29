@@ -32,6 +32,7 @@ async function startTestServer(options?: { token?: boolean }): Promise<ServerFix
 	const distDir = join(tempDir, "dist");
 	mkdirSync(distDir, { recursive: true });
 	writeFileSync(join(distDir, "index.html"), "<!doctype html><html><body>pi web</body></html>");
+	writeFileSync(join(distDir, "pi-web.js"), "// test bundle\n");
 	process.env.PI_WEB_DIST = distDir;
 
 	const faux = registerFauxProvider({ models: [{ id: "faux-1", reasoning: true }] });
@@ -326,6 +327,38 @@ describe("web mode server", () => {
 		const message = await connection.next();
 		expect(message).toMatchObject({ type: "server_shutdown", reason: "test shutdown" });
 		await waitForClose(connection.socket);
+	});
+
+	it("sets a token cookie and serves assets without the query token", async () => {
+		const { handle } = await server();
+		const page = await fetch(handle.url);
+		expect(page.status).toBe(200);
+		const setCookie = page.headers.get("set-cookie");
+		expect(setCookie).toContain("pi-web-token=");
+
+		const cookie = setCookie?.split(";")[0] ?? "";
+		const parsed = new URL(handle.url);
+		// undici fetch strips the Cookie header (forbidden header name), so
+		// request the asset through node:http like a browser would.
+		const assetStatus = await new Promise<number>((resolve, reject) => {
+			const request = httpRequest({
+				host: parsed.hostname,
+				port: parsed.port,
+				path: "/pi-web.js",
+				headers: { Cookie: cookie },
+			});
+			request.end();
+			request.on("response", (response) => {
+				response.resume();
+				resolve(response.statusCode ?? 0);
+			});
+			request.on("error", reject);
+		});
+		expect(assetStatus).toBe(200);
+
+		// Assets without any token still 404.
+		const base = handle.url.split("?")[0]!;
+		expect(await fetchStatus(`${base}pi-web.js`)).toBe(404);
 	});
 
 	it("serves without a token when disabled", async () => {

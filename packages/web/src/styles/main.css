@@ -1025,3 +1025,16 @@ body {
 	background: var(--color-text);
 	color: var(--color-page-bg);
 }
+
+/* Empty transcript affordance */
+.transcript-empty {
+	color: var(--color-dim);
+	font-size: 13px;
+	text-align: center;
+	padding: 48px 12px;
+	user-select: none;
+}
+
+.transcript-empty::after {
+	content: "Type a message below to get started. / for commands, @ for files, ! for shell.";
+}

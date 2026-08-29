@@ -183,6 +183,7 @@ export class Store {
 			state.items = [];
 			state.itemIndex = new Map();
 			for (const message of payload.messages ?? []) {
+				if (isHiddenMessageRole(message.role)) continue;
 				const item = messageToItem(message, false);
 				state.items.push(item);
 				state.itemIndex.set(item.id, item);
@@ -348,7 +349,7 @@ export class Store {
 
 	private handleMessageStart(event: AgentEventMessage): void {
 		const message = event.message as AgentMessage | undefined;
-		if (!message) return;
+		if (!message || isHiddenMessageRole(message.role)) return;
 		this.update((state) => {
 			const item = messageToItem(message, true);
 			// Replace a streaming placeholder with the same id if present.
@@ -444,7 +445,7 @@ export class Store {
 						state.footerUsage = addUsage(state.footerUsage, usage);
 					}
 				}
-			} else {
+			} else if (!isHiddenMessageRole(message.role)) {
 				const item = messageToItem(message, false);
 				state.items.push(item);
 				state.itemIndex.set(item.id, item);
@@ -628,6 +629,13 @@ export class Store {
 
 function messageId(message: AgentMessage): string {
 	return `${message.role}-${(message as { timestamp?: number }).timestamp ?? "0"}`;
+}
+
+/** Roles that render inside other components (tool cards) or not at all. */
+function isHiddenMessageRole(role: string): boolean {
+	// Tool results render inside their tool cards; thinking-level and model
+	// change entries are metadata the UI reads from state instead.
+	return role === "toolResult";
 }
 
 function messageToItem(message: AgentMessage, streaming: boolean): TranscriptItem {
