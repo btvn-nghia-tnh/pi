@@ -10,6 +10,59 @@ import type { TuiMode } from "../core/settings-manager.ts";
 
 export type Mode = "text" | "json" | "rpc";
 
+/** Flags for the `pi web` subcommand. */
+export interface WebSubcommandOptions {
+	port: number;
+	host: string;
+	token: boolean;
+	open: boolean;
+}
+
+export const DEFAULT_WEB_OPTIONS: WebSubcommandOptions = {
+	port: 4762,
+	host: "127.0.0.1",
+	token: true,
+	open: true,
+};
+
+/**
+ * Parse the `pi web` subcommand. Returns undefined when args do not start
+ * with `web`. Web-only flags are extracted; everything else is returned as
+ * the remaining argument list for the shared startup path.
+ */
+export function parseWebSubcommand(args: string[]): { options: WebSubcommandOptions; rest: string[] } | undefined {
+	if (args[0] !== "web") return undefined;
+	const options = { ...DEFAULT_WEB_OPTIONS };
+	const rest: string[] = [];
+	for (let i = 1; i < args.length; i++) {
+		const arg = args[i]!;
+		if (arg === "--port" && i + 1 < args.length) {
+			i++;
+			const port = Number.parseInt(args[i]!, 10);
+			if (!Number.isNaN(port) && port >= 0 && port <= 65535) {
+				options.port = port;
+			}
+		} else if (arg.startsWith("--port=")) {
+			const port = Number.parseInt(arg.slice("--port=".length), 10);
+			if (!Number.isNaN(port) && port >= 0 && port <= 65535) {
+				options.port = port;
+			}
+		} else if (arg === "--host" && i + 1 < args.length) {
+			i++;
+			options.host = args[i]!;
+		} else if (arg.startsWith("--host=")) {
+			options.host = arg.slice("--host=".length);
+		} else if (arg === "--no-token") {
+			options.token = false;
+		} else if (arg === "--no-open") {
+			options.open = false;
+		} else {
+			rest.push(arg);
+		}
+	}
+	return { options, rest };
+}
+
 export interface Args {
 	provider?: string;
 	model?: string;

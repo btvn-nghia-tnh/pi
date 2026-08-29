@@ -9,7 +9,7 @@ import { createInterface } from "node:readline";
 import { type ImageContent, modelsAreEqual } from "@earendil-works/pi-ai";
 import { setCapabilityOverrides } from "@earendil-works/pi-tui";
 import chalk from "chalk";
-import { type Args, type Mode, normalizeSessionName, parseArgs, printHelp } from "./cli/args.ts";
+import { type Args, type Mode, normalizeSessionName, parseArgs, parseWebSubcommand, printHelp } from "./cli/args.ts";
 import {
 	type AuthCheckResult,
 	checkProviderAuth,
@@ -63,7 +63,7 @@ import { printTimings, resetTimings, time } from "./core/timings.ts";
 import { hasTrustRequiringProjectResources, ProjectTrustStore } from "./core/trust-manager.ts";
 import { builtInExtensions } from "./extensions/index.ts";
 import { runMigrations, showDeprecationWarnings } from "./migrations.ts";
-import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.ts";
+import { InteractiveMode, runPrintMode, runRpcMode, runWebMode } from "./modes/index.ts";
 import { initTheme, stopThemeWatcher } from "./modes/interactive/theme/theme.ts";
 import { cleanupManagedInstall, handleConfigCommand, handlePackageCommand } from "./package-manager-cli.ts";
 import { isLocalPath, normalizePath, resolvePath } from "./utils/paths.ts";
@@ -571,6 +571,20 @@ export async function main(args: string[], options?: MainOptions) {
 		return;
 	}
 
+	// `pi web` and `pi --mode web` both normalize to the web subcommand so the
+	// shared startup path (sessions, trust, settings) runs unchanged.
+	let webSubcommand = args[0] === "web" ? parseWebSubcommand(args) : undefined;
+	if (!webSubcommand && args.includes("--mode")) {
+		const modeIndex = args.indexOf("--mode");
+		if (args[modeIndex + 1] === "web") {
+			const withoutMode = args.filter((_value, index) => index !== modeIndex && index !== modeIndex + 1);
+			webSubcommand = parseWebSubcommand(["web", ...withoutMode])!;
+		}
+	}
+	if (webSubcommand) {
+		args = webSubcommand.rest;
+	}
+
 	if (process.platform === "win32") {
 		cleanupWindowsSelfUpdateQuarantine(getPackageDir());
 	}
@@ -630,8 +644,9 @@ export async function main(args: string[], options?: MainOptions) {
 		process.exit(0);
 	}
 
-	let appMode = resolveAppMode(parsed, process.stdin.isTTY, process.stdout.isTTY);
-	const shouldTakeOverStdout = appMode !== "interactive" && !isPlainRuntimeMetadataCommand(parsed);
+	let appMode = webSubcommand ? "web" : resolveAppMode(parsed, process.stdin.isTTY, process.stdout.isTTY);
+	const shouldTakeOverStdout =
+		appMode !== "interactive" && appMode !== "web" && !isPlainRuntimeMetadataCommand(parsed);
 	if (shouldTakeOverStdout) {
 		takeOverStdout();
 	}
@@ -866,8 +881,9 @@ export async function main(args: string[], options?: MainOptions) {
 	}
 
 	// Read piped stdin content (if any) - skip for RPC mode which uses stdin for JSON-RPC
+	// and web mode whose input arrives over the browser connection.
 	let stdinContent: string | undefined;
-	if (appMode !== "rpc") {
+	if (appMode !== "rpc" && appMode !== "web") {
 		stdinContent = await readPipedStdin();
 		if (stdinContent !== undefined && appMode === "interactive") {
 			appMode = "print";
@@ -903,7 +919,7 @@ export async function main(args: string[], options?: MainOptions) {
 	}
 	time("createAgentSession");
 
-	if (appMode !== "interactive" && !session.model) {
+	if (appMode !== "interactive" && appMode !== "web" && !session.model) {
 		console.error(chalk.red(formatNoModelsAvailableMessage()));
 		process.exit(1);
 	}
@@ -924,7 +940,10 @@ export async function main(args: string[], options?: MainOptions) {
 			.finally(() => clearTimeout(timeout));
 	}
 
-	if (appMode === "rpc") {
+	if (appMode === "web") {
+		printTimings();
+		await runWebMode(runtime, webSubcommand!.options);
+	} else if (appMode === "rpc") {
 		printTimings();
 		await runRpcMode(runtime);
 	} else if (appMode === "interactive") {
