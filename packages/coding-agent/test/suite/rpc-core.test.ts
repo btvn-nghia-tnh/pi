@@ -37,6 +37,35 @@ describe("AgentSessionRuntime.createSibling", () => {
 		await authStorage.modify(faux.getModel().provider, async () => ({ type: "api_key", key: "faux-key" }));
 
 		const model = faux.getModel();
+		const runtimeOptions = {
+			agentDir: tempDir,
+			authStorage,
+			model,
+			resourceLoaderOptions: {
+				extensionFactories: [
+					(pi: ExtensionAPI) => {
+						pi.registerProvider(model.provider, {
+							baseUrl: model.baseUrl,
+							apiKey: "faux-key",
+							api: faux.api,
+							models: faux.models.map((registeredModel) => ({
+								id: registeredModel.id,
+								name: registeredModel.name,
+								api: registeredModel.api,
+								reasoning: registeredModel.reasoning,
+								input: registeredModel.input,
+								cost: registeredModel.cost,
+								contextWindow: registeredModel.contextWindow,
+								maxTokens: registeredModel.maxTokens,
+							})),
+						});
+					},
+				],
+				noSkills: true,
+				noPromptTemplates: true,
+				noThemes: true,
+			},
+		};
 		const createRuntime: CreateAgentSessionRuntimeFactory = async ({
 			cwd,
 			agentDir,
@@ -44,41 +73,16 @@ describe("AgentSessionRuntime.createSibling", () => {
 			sessionStartEvent,
 		}) => {
 			const services = await createAgentSessionServices({
-				agentDir,
-				authStorage,
-				model,
-				resourceLoaderOptions: {
-					extensionFactories: [
-						(pi: ExtensionAPI) => {
-							pi.registerProvider(model.provider, {
-								baseUrl: model.baseUrl,
-								apiKey: "faux-key",
-								api: faux.api,
-								models: faux.models.map((registeredModel) => ({
-									id: registeredModel.id,
-									name: registeredModel.name,
-									api: registeredModel.api,
-									reasoning: registeredModel.reasoning,
-									input: registeredModel.input,
-									cost: registeredModel.cost,
-									contextWindow: registeredModel.contextWindow,
-									maxTokens: registeredModel.maxTokens,
-								})),
-							});
-						},
-					],
-					noSkills: true,
-					noPromptTemplates: true,
-					noThemes: true,
-				},
+				...runtimeOptions,
 				cwd,
+				agentDir,
 			});
 			return {
 				...(await createAgentSessionFromServices({
 					services,
 					sessionManager,
 					sessionStartEvent,
-					model,
+					model: runtimeOptions.model,
 				})),
 				services,
 				diagnostics: services.diagnostics,
