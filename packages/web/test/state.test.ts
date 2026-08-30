@@ -197,9 +197,23 @@ test("extension statuses, widgets, notifications, working indicator", () => {
 	assert.equal(store.getState().extensionStatuses.has("ext"), false);
 
 	store.setWidget("w", ["line"], "aboveEditor");
-	assert.deepEqual(store.getState().widgets.get("w"), { lines: ["line"], placement: "aboveEditor" });
+	assert.deepEqual(store.getState().widgets.get("w"), { lines: ["line"], placement: "aboveEditor", data: undefined });
+	store.setWidgetData("w", { kind: "rpiv-todo", tasks: [] });
+	assert.deepEqual(store.getState().widgets.get("w"), {
+		lines: ["line"],
+		placement: "aboveEditor",
+		data: { kind: "rpiv-todo", tasks: [] },
+	});
+	store.setWidgetData("w", undefined);
+	assert.deepEqual(store.getState().widgets.get("w"), { lines: ["line"], placement: "aboveEditor", data: undefined });
 	store.setWidget("w", undefined, "aboveEditor");
 	assert.equal(store.getState().widgets.has("w"), false);
+	store.setWidgetData("orphan", { kind: "x" });
+	assert.deepEqual(store.getState().widgets.get("orphan"), {
+		lines: [],
+		placement: "aboveEditor",
+		data: { kind: "x" },
+	});
 
 	store.pushNotification("oops", "error");
 	assert.equal(store.getState().notifications.length, 1);

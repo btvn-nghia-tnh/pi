@@ -176,6 +176,16 @@ export interface ExtensionUIContext {
 		options?: ExtensionWidgetOptions,
 	): void;
 
+	/** Set structured widget data for hosts that render rich widgets.
+	 *
+	 * Fire-and-forget like setWidget's string form: hosts without structured
+	 * widget support ignore it. Pair with a setWidget(key, lines) call so
+	 * plain-text hosts still show a fallback. Call with undefined to clear.
+	 * Payloads must be JSON-serializable and carry a `kind` discriminator
+	 * the host can render (e.g. { kind: "rpiv-todo", tasks: [...] }).
+	 */
+	setWidgetData(key: string, data: Record<string, unknown> | undefined): void;
+
 	/** Set a custom footer component, or undefined to restore the built-in footer.
 	 *
 	 * The factory receives a FooterDataProvider for data not otherwise accessible:

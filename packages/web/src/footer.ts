@@ -5,6 +5,7 @@
 import type { PiConnection } from "./connection.ts";
 import { h } from "./dom.ts";
 import { buildFooterStats, formatCwdForFooter } from "./footer-format.ts";
+import { renderWidget } from "./render/widget-data.ts";
 import type { Store } from "./state.ts";
 
 const DEFAULT_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -197,7 +198,9 @@ export class WidgetAreaView {
 		}
 		for (const [key, widget] of state.widgets) {
 			if (widget.placement !== this.placement) continue;
-			const panel = h("div", { class: "widget-panel", title: key }, widget.lines.join("\n"));
+			const panel = renderWidget(widget, key);
+			panel.classList.add("widget-registered");
+			panel.title = key;
 			this.element.appendChild(panel);
 		}
 	}

@@ -251,6 +251,17 @@ export class RpcCore {
 				// Hidden thinking label not supported in RPC-like modes - requires TUI message rendering access
 			},
 
+			setWidgetData(key: string, data: Record<string, unknown> | undefined): void {
+				// Fire and forget - structured widget payloads for rich hosts.
+				output({
+					type: "extension_ui_request",
+					id: crypto.randomUUID(),
+					method: "setWidgetData",
+					widgetKey: key,
+					widgetData: data,
+				} as RpcExtensionUIRequest);
+			},
+
 			setWidget(key: string, content: unknown, options?: ExtensionWidgetOptions): void {
 				// Only support string arrays in RPC-like modes - factory functions are ignored
 				if (content === undefined || Array.isArray(content)) {

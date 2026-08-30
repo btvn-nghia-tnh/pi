@@ -242,6 +242,7 @@ export interface AuthChangedMessage {
 }
 
 export type ExtensionUiRequestMethod =
+	| "setWidgetData"
 	| "select"
 	| "confirm"
 	| "input"
@@ -271,6 +272,7 @@ export interface ExtensionUiRequestMessage {
 	widgetKey?: string;
 	widgetLines?: string[] | undefined;
 	widgetPlacement?: "aboveEditor" | "belowEditor";
+	widgetData?: Record<string, unknown> | undefined;
 	title2?: string;
 	text?: string;
 	frames?: string[] | undefined;

@@ -234,6 +234,7 @@ export async function emitProjectTrustEvent(
 }
 
 const noOpUIContext: ExtensionUIContext = {
+	setWidgetData: () => {},
 	select: async () => undefined,
 	confirm: async () => false,
 	input: async () => undefined,

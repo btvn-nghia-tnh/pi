@@ -86,7 +86,7 @@ export interface AppState {
 	settings: RpcSettingsSnapshot | undefined;
 	commands: RpcSlashCommandUi[];
 	extensionStatuses: Map<string, string>;
-	widgets: Map<string, { lines: string[]; placement: "aboveEditor" | "belowEditor" }>;
+	widgets: Map<string, { lines: string[]; placement: "aboveEditor" | "belowEditor"; data?: Record<string, unknown> }>;
 	notifications: Array<{ id: string; text: string; level: "info" | "warning" | "error" }>;
 	workingIndicator: WorkingIndicator | undefined;
 	retry: RetryState | undefined;
@@ -604,7 +604,27 @@ export class Store {
 			if (lines === undefined || lines === null) {
 				state.widgets.delete(key);
 			} else {
-				state.widgets.set(key, { lines, placement });
+				const existing = state.widgets.get(key);
+				state.widgets.set(key, { lines, placement, data: existing?.data });
+			}
+		});
+	}
+
+	setWidgetData(key: string, data: Record<string, unknown> | undefined): void {
+		this.update((state) => {
+			state.widgets = new Map(state.widgets);
+			if (data === undefined || data === null) {
+				const existing = state.widgets.get(key);
+				if (existing) {
+					state.widgets.set(key, { ...existing, data: undefined });
+				}
+			} else {
+				const existing = state.widgets.get(key);
+				state.widgets.set(key, {
+					lines: existing?.lines ?? [],
+					placement: existing?.placement ?? "aboveEditor",
+					data,
+				});
 			}
 		});
 	}

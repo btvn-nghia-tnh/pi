@@ -2459,6 +2459,9 @@ export class InteractiveMode {
 			setWorkingIndicator: (options) => this.setWorkingIndicator(options),
 			setHiddenThinkingLabel: (label) => this.setHiddenThinkingLabel(label),
 			setWidget: (key, content, options) => this.setExtensionWidget(key, content, options),
+			// The TUI renders extension widgets through component factories;
+			// structured widget data is for non-terminal hosts only.
+			setWidgetData: () => {},
 			setFooter: (factory) => this.setExtensionFooter(factory),
 			setHeader: (factory) => this.setExtensionHeader(factory),
 			setTitle: (title) => this.ui.terminal.setTitle(title),

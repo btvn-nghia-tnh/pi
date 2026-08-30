@@ -380,6 +380,13 @@ export type RpcExtensionUIRequest =
 			widgetLines: string[] | undefined;
 			widgetPlacement?: "aboveEditor" | "belowEditor";
 	  }
+	| {
+			type: "extension_ui_request";
+			id: string;
+			method: "setWidgetData";
+			widgetKey: string;
+			widgetData: Record<string, unknown> | undefined;
+	  }
 	| { type: "extension_ui_request"; id: string; method: "setTitle"; title: string }
 	| { type: "extension_ui_request"; id: string; method: "set_editor_text"; text: string }
 	| {

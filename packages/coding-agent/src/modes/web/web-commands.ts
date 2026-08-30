@@ -128,8 +128,8 @@ function extensionDisplayName(path: string, sourceInfo: { source?: string; scope
 	}
 	const base = basename(path);
 	if (base === "index.ts" || base === "index.js") {
-		const withoutTrailingSep = path.slice(0, -1);
-		const parentSegment = withoutTrailingSep.split(/[\\/]/).filter(Boolean).pop();
+		const segments = path.split(/[\\/]/).filter(Boolean);
+		const parentSegment = segments.length >= 2 ? segments[segments.length - 2] : undefined;
 		if (parentSegment) {
 			return `${parentSegment}/${base}`;
 		}

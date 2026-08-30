@@ -769,6 +769,9 @@ export class App {
 					request.widgetPlacement ?? "aboveEditor",
 				);
 				return;
+			case "setWidgetData":
+				this.store.setWidgetData(request.widgetKey ?? "", request.widgetData);
+				return;
 			case "setTitle":
 				document.title = request.text ?? "pi";
 				return;

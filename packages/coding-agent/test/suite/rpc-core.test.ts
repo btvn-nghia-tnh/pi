@@ -144,6 +144,27 @@ describe("RpcCore", () => {
 		core.handleExtensionUIResponse({ type: "extension_ui_response", id: "missing", cancelled: true });
 	});
 
+	it("forwards setWidgetData as a fire-and-forget extension ui request", async () => {
+		const { core, sent } = await createCore();
+		const runner = (
+			core.getSession() as unknown as {
+				extensionRunner: {
+					getUIContext: () => { setWidgetData: (key: string, data: Record<string, unknown> | undefined) => void };
+				};
+			}
+		).extensionRunner;
+		runner.getUIContext().setWidgetData("rpiv-todos", { kind: "rpiv-todo", tasks: [], counts: { total: 0 } });
+
+		const request = sent.find(
+			(message) =>
+				(message as { type?: string; method?: string }).type === "extension_ui_request" &&
+				(message as { method?: string }).method === "setWidgetData",
+		) as { widgetKey?: string; widgetData?: { kind?: string } } | undefined;
+		expect(request).toBeDefined();
+		expect(request?.widgetKey).toBe("rpiv-todos");
+		expect(request?.widgetData).toMatchObject({ kind: "rpiv-todo" });
+	});
+
 	it("delegates unknown commands to the extra command handler", async () => {
 		const { core } = await createCore();
 		const seen: object[] = [];

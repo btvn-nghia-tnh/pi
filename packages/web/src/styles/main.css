@@ -1038,3 +1038,85 @@ body {
 .transcript-empty::after {
 	content: "Type a message below to get started. / for commands, @ for files, ! for shell.";
 }
+
+/* ------------------------------------------------------------------ */
+/* Structured widget cards (setWidgetData)                              */
+/* ------------------------------------------------------------------ */
+
+.todo-card {
+	background: var(--color-card-bg);
+	border: 1px solid var(--color-border-muted);
+	border-left: 3px solid var(--color-accent);
+	border-radius: 4px;
+	padding: 6px 10px;
+	margin: 6px 0;
+	font-size: 13px;
+}
+
+.todo-card .todo-header {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	color: var(--color-accent);
+	font-weight: 600;
+	margin-bottom: 4px;
+}
+
+.todo-card .todo-header .todo-icon {
+	font-size: 11px;
+}
+
+.todo-card .todo-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.todo-card .todo-item {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	padding: 1px 0;
+}
+
+.todo-card .todo-status {
+	flex: none;
+	width: 14px;
+	text-align: center;
+}
+
+.todo-card .todo-pending .todo-status {
+	color: var(--color-muted);
+}
+
+.todo-card .todo-in-progress .todo-status {
+	color: var(--color-accent);
+	animation: pulse 1.2s ease-in-out infinite;
+}
+
+.todo-card .todo-in-progress .todo-text {
+	color: var(--color-text);
+	font-weight: 600;
+}
+
+.todo-card .todo-completed .todo-status {
+	color: var(--color-success);
+}
+
+.todo-card .todo-completed .todo-text {
+	color: var(--color-muted);
+	text-decoration: line-through;
+}
+
+.todo-card .todo-blocked {
+	flex: none;
+	color: var(--color-warning);
+	font-size: 11px;
+	font-family: var(--mono-font);
+}
+
+@keyframes pulse {
+	50% {
+		opacity: 0.45;
+	}
+}
