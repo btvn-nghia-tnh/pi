@@ -1454,10 +1454,20 @@ body {
 /* Multi-session sidebar                                               */
 /* ------------------------------------------------------------------ */
 
-.app-main {
+/* Shell: [sidebar | main column] row; the footer spans the full width. */
+.app-shell {
 	display: flex;
 	flex: 1 1 auto;
 	min-height: 0;
+}
+
+/* Main column: transcript grows, editor dock sits under it (the original
+ * single-session stacking, preserved inside the shell). */
+.app-main {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 .sidebar {
@@ -1467,6 +1477,7 @@ body {
 	background: var(--color-card-bg);
 	border-right: 1px solid var(--color-border-muted);
 	min-height: 0;
+	min-width: 0;
 	transition: flex-basis 0.15s ease;
 	overflow: hidden;
 }
@@ -1618,8 +1629,8 @@ body {
 
 .sidebar-new {
 	flex: 0 0 auto;
-	padding: 8px;
-	border-top: 1px solid var(--color-border-muted);
+	padding: 8px 8px 4px;
+	border-bottom: 1px solid var(--color-border-muted);
 }
 
 .sidebar-new-btn {

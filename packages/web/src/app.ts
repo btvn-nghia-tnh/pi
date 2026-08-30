@@ -91,8 +91,12 @@ export class App {
 			document.body.appendChild(this.element);
 		}
 
-		// Layout: [sidebar][transcript + editor][footer] with persistent
-		// hosts; session-bound views are rebuilt inside them on every switch.
+		// Layout (one column of rows):
+		//   [ [ sidebar | transcript + editor ] footer ]
+		// The shell is a row (sidebar beside main); the main column keeps the
+		// original stacking (transcript grows, editor dock under it) and the
+		// footer spans the full width below the shell.
+		const shell = h("div", { class: "app-shell" });
 		const main = h("div", { class: "app-main" });
 		const transcriptWrap = h("div", { class: "transcript-wrap" });
 		this.transcriptHost = h("div", { class: "transcript-host" });
@@ -114,7 +118,8 @@ export class App {
 		this.footerHost = h("div", {});
 		main.appendChild(transcriptWrap);
 		main.appendChild(editorDock);
-		this.element.appendChild(main);
+		shell.appendChild(main);
+		this.element.appendChild(shell);
 		this.element.appendChild(this.footerHost);
 
 		// Global (session-independent) chrome.
@@ -157,7 +162,7 @@ export class App {
 				void this.connection?.request({ type: "close_session", sessionId }).catch(() => {});
 			},
 		});
-		this.element.prepend(this.sidebar.element);
+		shell.prepend(this.sidebar.element);
 		this.sidebar.mount();
 
 		this.wireConnection();

@@ -47,9 +47,11 @@ export class SidebarView {
 		this.collapsed = window.localStorage.getItem(COLLAPSED_KEY) === "1";
 		this.element = h("aside", { class: `sidebar${this.collapsed ? " collapsed" : ""}` });
 		this.element.appendChild(this.buildChrome());
-		this.groupsHost = h("div", { class: "sidebar-groups" });
+		// Order per the layout spec: collapse button row, then "+ new",
+		// then the scrollable session list.
 		this.newListHost = h("div", { class: "sidebar-new" });
-		this.element.append(this.groupsHost, this.newListHost);
+		this.groupsHost = h("div", { class: "sidebar-groups" });
+		this.element.append(this.newListHost, this.groupsHost);
 	}
 
 	mount(): void {
@@ -208,9 +210,11 @@ export class SidebarView {
 			this.groupsHost.appendChild(group);
 		}
 
-		const newButton = h("button", { class: "sidebar-new-btn" }, "+ New session");
-		newButton.addEventListener("click", () => this.handlers.onNew());
-		this.newListHost.appendChild(newButton);
+		if (this.newListHost.childElementCount === 0) {
+			const newButton = h("button", { class: "sidebar-new-btn" }, "+ New session");
+			newButton.addEventListener("click", () => this.handlers.onNew());
+			this.newListHost.appendChild(newButton);
+		}
 	}
 
 	private buildRow(row: { label: string; title: string; openId?: string; primary?: boolean }): HTMLElement {
