@@ -14,11 +14,9 @@ import { VERSION } from "../../config.ts";
 import type { AgentSessionRuntime } from "../../core/agent-session-runtime.ts";
 import { openBrowser } from "../../utils/open-browser.ts";
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
-import { RpcCore } from "../rpc/rpc-core.ts";
 import type { RpcExtensionUIResponse, RpcResponse } from "../rpc/rpc-types.ts";
 import { resolveWebDistDir, serveStatic } from "./web-assets.ts";
-import { createWebCommandHandler } from "./web-commands.ts";
-import { applyExtensionUiMessage, createWidgetCache } from "./widget-cache.ts";
+import { WebSessionManager, type WebSessionSlot } from "./web-session-manager.ts";
 
 export interface WebModeOptions {
 	/** TCP port; 0 picks an ephemeral port. */
@@ -102,22 +100,7 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 	const sockets = new Set<WebSocket>();
 	let shuttingDown = false;
 
-	// Latest extension widget and status registrations — see widget-cache.ts
-	// for the entry lifecycle (replay in the connected payload, clear on
-	// session change, no ghost entries after a payload clear).
-	const cache = createWidgetCache();
-
-	const trackExtensionState = (message: object): void => {
-		applyExtensionUiMessage(cache, message);
-	};
-
 	const broadcast = (message: object): void => {
-		trackExtensionState(message);
-		const event = message as { type?: string };
-		if (event.type === "session_start") {
-			cache.widgets.clear();
-			cache.statuses.clear();
-		}
 		const data = JSON.stringify(message);
 		for (const socket of sockets) {
 			if (socket.readyState === socket.OPEN) {
@@ -126,58 +109,71 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 		}
 	};
 
-	const core = new RpcCore({
-		runtime,
-		send: broadcast,
-		extraCommandHandler: createWebCommandHandler(),
-	});
+	// Multi-session host state: the primary slot wraps the runtime the server
+	// was started with; every open session (sidebar click, /new) gets its own
+	// slot. See web-session-manager.ts.
+	const sessions = new WebSessionManager({ primaryRuntime: runtime, broadcast });
+
+	/** Full rehydration payload for one open slot (messages/state/widgets/trust). */
+	const slotPayload = async (slot: WebSessionSlot): Promise<Record<string, unknown>> => {
+		const core = slot.rpcCore;
+		const stateResponse = await core.handleCommand({ type: "get_state" });
+		const messagesResponse = await core.handleCommand({ type: "get_messages" });
+		const contextResponse = await core.handleCommand({ type: "get_context_info" });
+		const trustResponse = await core.handleCommand({ type: "get_trust" });
+		return {
+			id: slot.id,
+			sessionPath: slot.sessionPath,
+			cwd: slot.cwd,
+			running: sessions.isSlotRunning(slot),
+			widgets: [...slot.widgets.widgets.entries()].map(([key, widget]) => ({ key, ...widget })),
+			statuses: [...slot.widgets.statuses.entries()].map(([key, text]) => ({ key, text })),
+			// Extension dialogs (select/input/confirm/editor) that are still
+			// awaiting an answer — replayed so a page reload reopens them
+			// instead of hanging the tool call.
+			pendingUiRequests: core.getPendingExtensionRequests(),
+			state: stateResponse?.success && "data" in stateResponse ? stateResponse.data : undefined,
+			messages:
+				messagesResponse?.success && "data" in messagesResponse
+					? (messagesResponse.data as { messages: unknown }).messages
+					: [],
+			contextInfo: contextResponse?.success && "data" in contextResponse ? contextResponse.data : undefined,
+			trust: trustResponse?.success && "data" in trustResponse ? trustResponse.data : undefined,
+		};
+	};
 
 	const sendConnected = (socket: WebSocket): void => {
-		void core
-			.handleCommand({ type: "get_state" })
-			.then(async (stateResponse) => {
-				const messagesResponse = await core.handleCommand({ type: "get_messages" });
-				const contextResponse = await core.handleCommand({ type: "get_context_info" });
-				const trustResponse = await core.handleCommand({ type: "get_trust" });
-				const keybindingsResponse = await core.handleCommand({ type: "get_keybindings" });
-				const themesResponse = await core.handleCommand({ type: "get_themes" });
-				const themeData =
-					themesResponse?.success && "data" in themesResponse
-						? (themesResponse.data as {
-								themes?: Array<{ name: string; vars: Record<string, string> }>;
-								current?: string;
-							})
-						: undefined;
-				const currentTheme = themeData?.themes?.find((theme) => theme.name === themeData.current);
-				socket.send(
-					JSON.stringify({
-						type: "connected",
-						version: VERSION,
-						widgets: [...cache.widgets.entries()].map(([key, widget]) => ({ key, ...widget })),
-						statuses: [...cache.statuses.entries()].map(([key, text]) => ({ key, text })),
-						// Extension dialogs (select/input/confirm/editor) that are
-						// still awaiting an answer — replayed so a page reload
-						// reopens them instead of hanging the tool call.
-						pendingUiRequests: core.getPendingExtensionRequests(),
-						themes: themeData?.themes ?? [],
-						theme: currentTheme ? { name: currentTheme.name, vars: currentTheme.vars } : undefined,
-						state: stateResponse?.success && "data" in stateResponse ? stateResponse.data : undefined,
-						messages:
-							messagesResponse?.success && "data" in messagesResponse
-								? (messagesResponse.data as { messages: unknown }).messages
-								: [],
-						contextInfo: contextResponse?.success && "data" in contextResponse ? contextResponse.data : undefined,
-						trust: trustResponse?.success && "data" in trustResponse ? trustResponse.data : undefined,
-						keybindings:
-							keybindingsResponse?.success && "data" in keybindingsResponse
-								? keybindingsResponse.data
-								: undefined,
-					}),
-				);
-			})
-			.catch(() => {
-				socket.send(JSON.stringify({ type: "connected", version: VERSION, messages: [] }));
-			});
+		void (async () => {
+			const primary = sessions.getPrimary();
+			const keybindingsResponse = await primary.rpcCore.handleCommand({ type: "get_keybindings" });
+			const themesResponse = await primary.rpcCore.handleCommand({ type: "get_themes" });
+			const themeData =
+				themesResponse?.success && "data" in themesResponse
+					? (themesResponse.data as {
+							themes?: Array<{ name: string; vars: Record<string, string> }>;
+							current?: string;
+						})
+					: undefined;
+			const currentTheme = themeData?.themes?.find((theme) => theme.name === themeData.current);
+			const slotPayloads = await Promise.all(sessions.getSlots().map((slot) => slotPayload(slot)));
+			socket.send(
+				JSON.stringify({
+					type: "connected",
+					version: VERSION,
+					// Open sessions with their full rehydration payloads; the
+					// first entry is the primary. Legacy top-level fields
+					// mirror the primary for incremental client migration.
+					sessions: slotPayloads,
+					primarySessionId: primary.id,
+					themes: themeData?.themes ?? [],
+					theme: currentTheme ? { name: currentTheme.name, vars: currentTheme.vars } : undefined,
+					keybindings:
+						keybindingsResponse?.success && "data" in keybindingsResponse ? keybindingsResponse.data : undefined,
+				}),
+			);
+		})().catch(() => {
+			socket.send(JSON.stringify({ type: "connected", version: VERSION, messages: [] }));
+		});
 	};
 
 	const validateRequest = (request: IncomingMessage, url: URL): boolean => {
@@ -250,11 +246,96 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 		});
 	});
 
+	/**
+	 * Connection-level session lifecycle: open/close/new. Returns the response
+	 * to broadcast, or undefined when the command is not a lifecycle one.
+	 */
+	const handleLifecycleCommand = async (command: {
+		id?: string;
+		type?: string;
+		sessionPath?: string;
+		sessionId?: string;
+	}): Promise<RpcResponse | undefined> => {
+		try {
+			if (command.type === "open_session" || command.type === "switch_session") {
+				if (typeof command.sessionPath !== "string" || command.sessionPath.length === 0) {
+					return {
+						id: command.id,
+						type: "response",
+						command: "open_session",
+						success: false,
+						error: "sessionPath is required",
+					};
+				}
+				const slot = await sessions.openSession(command.sessionPath);
+				return {
+					id: command.id,
+					type: "response",
+					command: "open_session",
+					success: true,
+					data: slotInfo(slot) as { sessionId: string; sessionPath?: string; cwd: string; running: boolean },
+				};
+			}
+			if (command.type === "new_session") {
+				const slot = await sessions.newSession();
+				return {
+					id: command.id,
+					type: "response",
+					command: "new_session",
+					success: true,
+					data: { cancelled: false, ...slotInfo(slot) },
+				};
+			}
+			if (command.type === "close_session") {
+				const result =
+					typeof command.sessionId === "string"
+						? await sessions.closeSession(command.sessionId)
+						: { closed: false as const, reason: "not_found" as const };
+				return {
+					id: command.id,
+					type: "response",
+					command: "close_session",
+					success: true,
+					data: result,
+				};
+			}
+			return undefined;
+		} catch (lifecycleError: unknown) {
+			return {
+				id: command.id,
+				type: "response",
+				command:
+					command.type === "open_session" ||
+					command.type === "new_session" ||
+					command.type === "close_session" ||
+					command.type === "switch_session"
+						? command.type
+						: "unknown",
+				success: false,
+				error: lifecycleError instanceof Error ? lifecycleError.message : String(lifecycleError),
+			};
+		}
+	};
+
+	const slotInfo = (
+		slot: WebSessionSlot,
+	): {
+		sessionId: string;
+		sessionPath?: string;
+		cwd: string;
+		running: boolean;
+	} => ({
+		sessionId: slot.id,
+		sessionPath: slot.sessionPath,
+		cwd: slot.cwd,
+		running: sessions.isSlotRunning(slot),
+	});
+
 	wss.on("connection", (socket: WebSocket) => {
 		sockets.add(socket);
 		sendConnected(socket);
 
-		socket.on("message", (data: unknown) => {
+		socket.on("message", async (data: unknown) => {
 			let parsed: unknown;
 			try {
 				parsed = JSON.parse(String(data));
@@ -270,28 +351,44 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 				return;
 			}
 
+			const command = parsed as { id?: string; type?: string; sessionId?: string; sessionPath?: string };
+
+			// Dialog answers route to the slot that asked.
 			if (
 				typeof parsed === "object" &&
 				parsed !== null &&
 				"type" in parsed &&
 				parsed.type === "extension_ui_response"
 			) {
-				core.handleExtensionUIResponse(parsed as RpcExtensionUIResponse);
+				const slot =
+					(typeof command.sessionId === "string" ? sessions.getSlot(command.sessionId) : undefined) ??
+					sessions.getPrimary();
+				slot.rpcCore.handleExtensionUIResponse(parsed as RpcExtensionUIResponse);
 				return;
 			}
 
-			void core
+			// Connection-level session lifecycle commands.
+			const lifecycleResponse = await handleLifecycleCommand(command);
+			if (lifecycleResponse) {
+				broadcast(lifecycleResponse);
+				return;
+			}
+
+			// Everything else routes to the addressed slot (or the primary).
+			const slot =
+				(typeof command.sessionId === "string" ? sessions.getSlot(command.sessionId) : undefined) ??
+				sessions.getPrimary();
+			void slot.rpcCore
 				.handleCommand(parsed as never)
 				.then(async (response) => {
 					if (response) {
-						broadcast(response);
+						broadcast(slot === sessions.getPrimary() ? response : { ...response, sessionId: slot.id });
 					}
-					if (core.isShutdownRequested) {
+					if (slot.rpcCore.isShutdownRequested) {
 						await shutdown("Extension requested shutdown");
 					}
 				})
 				.catch((commandError: unknown) => {
-					const command = (parsed as { id?: string; type?: string }) ?? {};
 					broadcast({
 						id: command.id,
 						type: "response",
@@ -323,10 +420,15 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 		await new Promise<void>((resolve) => {
 			httpServer.close(() => resolve());
 		});
-		await core.dispose();
+		for (const slot of sessions.getSlots()) {
+			if (slot !== sessions.getPrimary()) {
+				await sessions.closeSession(slot.id);
+			}
+		}
+		await sessions.getPrimary().rpcCore.dispose();
 	};
 
-	await core.init();
+	await sessions.init();
 	await new Promise<void>((resolve, reject) => {
 		httpServer.once("error", reject);
 		httpServer.listen(options.port, options.host, () => resolve());

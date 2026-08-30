@@ -12,24 +12,26 @@
  * commands to the owning slot.
  */
 
-import { emitSessionShutdownEvent } from "../../core/extensions/runner.ts";
 import type { AgentSessionRuntime } from "../../core/agent-session-runtime.ts";
+import { emitSessionShutdownEvent } from "../../core/extensions/runner.ts";
 import { SessionManager } from "../../core/session-manager.ts";
 import { RpcCore } from "../rpc/rpc-core.ts";
 import { createWebCommandHandler } from "./web-commands.ts";
 import { applyExtensionUiMessage, type WidgetCache } from "./widget-cache.ts";
 
 export interface WebSessionSlot {
-	/** AgentSession.sessionId — the wire tag for everything this slot emits. */
-	id: string;
-	/** Session file on disk; undefined while the session is in-memory only. */
-	sessionPath: string | undefined;
-	/** Working directory of the session (project identity for the sidebar). */
-	cwd: string;
+	/** Live AgentSession.sessionId — the wire tag for everything this slot emits. */
+	readonly id: string;
+	/** Live session file on disk; undefined while the session is in-memory only. */
+	readonly sessionPath: string | undefined;
+	/** Live working directory of the session (project identity for the sidebar). */
+	readonly cwd: string;
 	runtime: AgentSessionRuntime;
 	rpcCore: RpcCore;
 	/** Per-slot widget/status registrations (see widget-cache.ts). */
 	widgets: WidgetCache;
+	/** Id seen at the last emit; a change means the session was replaced in-slot. */
+	lastSeenId: string;
 }
 
 export class WebSessionManager {
@@ -132,16 +134,39 @@ export class WebSessionManager {
 	private async createSlot(runtime: AgentSessionRuntime): Promise<WebSessionSlot> {
 		const session = runtime.session;
 		const slot: WebSessionSlot = {
-			id: session.sessionId,
-			sessionPath: session.sessionFile,
-			cwd: runtime.cwd,
+			get id() {
+				return runtime.session.sessionId;
+			},
+			get sessionPath() {
+				return runtime.session.sessionFile;
+			},
+			get cwd() {
+				return runtime.cwd;
+			},
 			runtime,
 			rpcCore: undefined as never,
 			widgets: { widgets: new Map(), statuses: new Map() },
+			lastSeenId: session.sessionId,
 		};
 		slot.rpcCore = new RpcCore({
 			runtime,
 			send: (message) => {
+				// In-slot session replacement (extension newSession, /new, fork)
+				// swaps the underlying session: re-key the registry and tell
+				// clients before anything else flows with the new id.
+				if (runtime.session.sessionId !== slot.lastSeenId) {
+					const oldSessionId = slot.lastSeenId;
+					slot.lastSeenId = runtime.session.sessionId;
+					this.slots.delete(oldSessionId);
+					this.slots.set(slot.id, slot);
+					this.broadcast({
+						type: "session_replaced",
+						oldSessionId,
+						newSessionId: slot.id,
+						sessionPath: slot.sessionPath,
+						cwd: slot.cwd,
+					});
+				}
 				// Track this slot's own widget/status registrations, then tag
 				// and broadcast to every connected client.
 				applyExtensionUiMessage(slot.widgets, message);

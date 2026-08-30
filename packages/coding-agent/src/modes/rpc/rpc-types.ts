@@ -77,6 +77,11 @@ export type RpcCommand =
 	// that collect user input, e.g. questionnaires)
 	| { id?: string; type: "widget_response"; key: string; payload: unknown }
 
+	// Web GUI parity: multi-session lifecycle. The web host routes these
+	// connection-level; session-scoped commands carry a sessionId tag.
+	| { id?: string; type: "open_session"; sessionPath: string }
+	| { id?: string; type: "close_session"; sessionId: string }
+
 	// Web GUI parity: session management
 	| { id?: string; type: "list_sessions"; scope?: "cwd" | "all" }
 	| { id?: string; type: "delete_session"; sessionPath: string }
@@ -174,7 +179,27 @@ export type RpcResponse =
 			success: true;
 			data: { steering: string[]; followUp: string[] };
 	  }
-	| { id?: string; type: "response"; command: "new_session"; success: true; data: { cancelled: boolean } }
+	| {
+			id?: string;
+			type: "response";
+			command: "new_session";
+			success: true;
+			data: { cancelled: boolean } & Record<string, unknown>;
+	  }
+	| {
+			id?: string;
+			type: "response";
+			command: "open_session";
+			success: true;
+			data: { sessionId: string; sessionPath?: string; cwd: string; running: boolean };
+	  }
+	| {
+			id?: string;
+			type: "response";
+			command: "close_session";
+			success: true;
+			data: { closed: boolean; reason?: "not_found" | "primary" };
+	  }
 	| { id?: string; type: "response"; command: "widget_response"; success: true; data: { delivered: boolean } }
 
 	// State
@@ -465,9 +490,9 @@ export type RpcAuthUIRequest =
 
 /** Response to an extension UI request */
 export type RpcExtensionUIResponse =
-	| { type: "extension_ui_response"; id: string; value: string }
-	| { type: "extension_ui_response"; id: string; confirmed: boolean }
-	| { type: "extension_ui_response"; id: string; cancelled: true };
+	| { type: "extension_ui_response"; id: string; value: string; sessionId?: string }
+	| { type: "extension_ui_response"; id: string; confirmed: boolean; sessionId?: string }
+	| { type: "extension_ui_response"; id: string; cancelled: true; sessionId?: string };
 
 // ============================================================================
 // Web GUI parity payload types

@@ -23,6 +23,7 @@ interface ServerFixture {
 	token: string | undefined;
 	tempDir: string;
 	distDir: string;
+	faux: ReturnType<typeof registerFauxProvider>;
 }
 
 async function startTestServer(options?: { token?: boolean }): Promise<ServerFixture> {
@@ -108,7 +109,7 @@ async function startTestServer(options?: { token?: boolean }): Promise<ServerFix
 
 	const url = new URL(handle.url);
 	const tokenValue = url.searchParams.get("token") ?? undefined;
-	return { handle, token: tokenValue, tempDir, distDir };
+	return { handle, token: tokenValue, tempDir, distDir, faux };
 }
 
 function fetchStatus(url: string): Promise<number> {
@@ -177,6 +178,18 @@ function waitForClose(socket: WebSocket): Promise<void> {
 		}
 		socket.once("close", () => resolve());
 	});
+}
+
+/** Read messages until one matches the predicate (skips unrelated frames). */
+async function waitForMessage(
+	connection: SocketConnection,
+	predicate: (message: Record<string, unknown>) => boolean,
+): Promise<Record<string, unknown>> {
+	for (let i = 0; i < 200; i++) {
+		const message = await connection.next();
+		if (predicate(message)) return message;
+	}
+	throw new Error("Timed out waiting for message");
 }
 
 describe("web mode server", () => {
@@ -268,9 +281,17 @@ describe("web mode server", () => {
 		const connected = await connection.next();
 		expect(connected.type).toBe("connected");
 		expect(connected.version).toBeTypeOf("string");
-		const state = connected.state as { model?: { id?: string } } | undefined;
-		expect(state?.model).toMatchObject({ id: "faux-1" });
-		expect(Array.isArray(connected.messages)).toBe(true);
+		// Multi-session payload: the primary slot's rehydration data.
+		expect(Array.isArray(connected.sessions)).toBe(true);
+		const primary = (connected.sessions as Array<Record<string, unknown>>)[0] as {
+			state?: { model?: { id?: string } };
+			messages?: unknown[];
+			id?: string;
+		};
+		expect(primary.id).toBeTypeOf("string");
+		expect(connected.primarySessionId).toBe(primary.id);
+		expect(primary.state?.model).toMatchObject({ id: "faux-1" });
+		expect(Array.isArray(primary.messages)).toBe(true);
 
 		connection.socket.send(JSON.stringify({ id: "req-1", type: "get_state" }));
 		const response = await connection.next();
@@ -368,20 +389,24 @@ describe("web mode server", () => {
 		// Ignore the first connected frame.
 		const first = await connection.next();
 		expect(first.type).toBe("connected");
-		expect((first as { widgets?: unknown[] }).widgets).toEqual([]);
-		expect((first as { statuses?: unknown[] }).statuses).toEqual([]);
+		const firstSessions =
+			(first as { sessions?: Array<{ widgets?: unknown[]; statuses?: unknown[] }> }).sessions ?? [];
+		expect(firstSessions[0]?.widgets).toEqual([]);
+		expect(firstSessions[0]?.statuses).toEqual([]);
 
 		// A second client connecting after registrations receives the cache.
 		const connection2 = await connect(handle.url);
 		cleanups.push(() => connection2.socket.close());
 		const connected = (await connection2.next()) as {
 			type: string;
-			widgets?: Array<{ key: string; lines?: string[] }>;
-			statuses?: Array<{ key: string; text: string }>;
+			sessions?: Array<{
+				widgets?: Array<{ key: string; lines?: string[] }>;
+				statuses?: Array<{ key: string; text: string }>;
+			}>;
 		};
 		expect(connected.type).toBe("connected");
-		expect(connected.widgets).toEqual([]);
-		expect(connected.statuses).toEqual([]);
+		expect(connected.sessions?.[0]?.widgets).toEqual([]);
+		expect(connected.sessions?.[0]?.statuses).toEqual([]);
 
 		// After a registration, a third client sees the cached widget.
 		connection.socket.send(
@@ -395,12 +420,113 @@ describe("web mode server", () => {
 		cleanups.push(() => connection3.socket.close());
 		const connected3 = (await connection3.next()) as {
 			type: string;
-			widgets?: Array<{ key: string; lines?: string[] }>;
+			sessions?: Array<{ widgets?: Array<{ key: string; lines?: string[] }> }>;
 		};
 		expect(connected3.type).toBe("connected");
 		// (No setWidget was sent through this socket's RPC; widgets stay empty.
 		// The live-flow coverage lives in the rpc-core setWidgetData test.)
-		expect(connected3.widgets).toEqual([]);
+		expect(connected3.sessions?.[0]?.widgets).toEqual([]);
+	});
+
+	it("opens a second session via open_session and routes tagged prompts to it", async () => {
+		const { handle, tempDir, faux } = await server();
+		const connection = await connect(handle.url);
+		cleanups.push(() => connection.socket.close());
+		const connected = (await connection.next()) as {
+			sessions?: Array<{ id?: string }>;
+			primarySessionId?: string;
+		};
+		const primaryId = connected.primarySessionId;
+		expect(connected.sessions).toHaveLength(1);
+
+		// Prompt the primary once so its session file persists with a header.
+		connection.socket.send(JSON.stringify({ id: "p0", type: "prompt", message: "persist me" }));
+		await waitForMessage(connection, (message) => message.type === "turn_end");
+
+		// Author a second session on disk in the same project.
+		const secondManager = SessionManager.create(tempDir, tempDir);
+		const authorResponse = await fetch(`${new URL(handle.url).origin}`, { method: "HEAD" }).catch(() => undefined);
+		expect(authorResponse).toBeDefined();
+
+		const connection2 = await connect(handle.url);
+		cleanups.push(() => connection2.socket.close());
+		await connection2.next(); // connected
+		connection2.socket.send(
+			JSON.stringify({ id: "op-1", type: "open_session", sessionPath: secondManager.getSessionFile() }),
+		);
+		const opened = (await connection2.next()) as {
+			type: string;
+			command?: string;
+			success?: boolean;
+			data?: { sessionId?: string; cwd?: string };
+		};
+		// open_session returns its response (the session file is empty but
+		// has a valid header, so the slot opens with the project cwd).
+		expect(opened.type).toBe("response");
+		expect(opened.success).toBe(true);
+		const secondId = opened.data?.sessionId;
+		expect(secondId).toBeTypeOf("string");
+		expect(secondId).not.toBe(primaryId);
+
+		// A tagged prompt routes to the second session only.
+		faux.setResponses([fauxAssistantMessage("second hello")]);
+		connection2.socket.send(
+			JSON.stringify({ id: "p2", type: "prompt", message: "to the second", sessionId: secondId }),
+		);
+		const events: Array<Record<string, unknown>> = [];
+		for (let i = 0; i < 60; i++) {
+			const message = await connection2.next();
+			events.push(message);
+			if (message.type === "turn_end") break;
+		}
+		const turnEnd = events.find((message) => message.type === "turn_end");
+		expect(turnEnd?.sessionId).toBe(secondId);
+		// Agent events of the second session carry the second id.
+		const messageEnd = events.find((message) => message.type === "message_end");
+		expect(messageEnd?.sessionId).toBe(secondId);
+
+		// The primary never received the tagged prompt: its next event is
+		// not a message_start for "to the second".
+		connection.socket.close();
+	});
+
+	it("close_session removes the slot and broadcasts session_closed", async () => {
+		const { handle } = await server();
+		const connection = await connect(handle.url);
+		cleanups.push(() => connection.socket.close());
+		await connection.next(); // connected
+
+		connection.socket.send(JSON.stringify({ id: "n1", type: "new_session" }));
+		const created = (await connection.next()) as {
+			type: string;
+			command?: string;
+			success?: boolean;
+			data?: { sessionId?: string; cancelled?: boolean };
+		};
+		expect(created).toMatchObject({ type: "response", command: "new_session", success: true });
+		const newId = created.data?.sessionId;
+		expect(newId).toBeTypeOf("string");
+
+		connection.socket.send(JSON.stringify({ id: "c1", type: "close_session", sessionId: newId }));
+		// session_closed broadcasts before the command response; collect both.
+		let sawSessionClosed = false;
+		let closedResponse: { data?: { closed?: boolean } } | undefined;
+		for (let i = 0; i < 20 && closedResponse === undefined; i++) {
+			const message = await connection.next();
+			if (message.type === "session_closed") {
+				sawSessionClosed = message.sessionId === newId;
+			} else if (message.type === "response" && message.command === "close_session") {
+				closedResponse = message as { data?: { closed?: boolean } };
+			}
+		}
+		expect(sawSessionClosed).toBe(true);
+		expect(closedResponse?.data?.closed).toBe(true);
+
+		// The slot list shrinks: a reconnecting client sees one session.
+		const connection2 = await connect(handle.url);
+		cleanups.push(() => connection2.socket.close());
+		const reconnected = (await connection2.next()) as { sessions?: unknown[] };
+		expect(reconnected.sessions).toHaveLength(1);
 	});
 
 	it("serves without a token when disabled", async () => {

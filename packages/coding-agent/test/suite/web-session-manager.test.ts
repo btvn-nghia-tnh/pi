@@ -96,7 +96,10 @@ describe("WebSessionManager", () => {
 		});
 
 		const broadcast: object[] = [];
-		const manager = new WebSessionManager({ primaryRuntime: runtime, broadcast: (message) => broadcast.push(message) });
+		const manager = new WebSessionManager({
+			primaryRuntime: runtime,
+			broadcast: (message) => broadcast.push(message),
+		});
 		await manager.init();
 		return { manager, broadcast, tempDir };
 	}
@@ -112,10 +115,10 @@ describe("WebSessionManager", () => {
 
 	it("newSession opens an independent slot; the primary is untouched", async () => {
 		const { manager, broadcast } = await createManager();
-		const primaryId = manager.getPrimary().id;
+		const primary = manager.getPrimary();
 		const slot = await manager.newSession();
 		expect(manager.getSlots()).toHaveLength(2);
-		expect(slot.id).not.toBe(primaryId);
+		expect(slot.id).not.toBe(primary.id);
 		expect(slot.sessionPath).not.toBe(manager.getPrimary().sessionPath);
 		// The client learns about new slots from the open_session/new_session
 		// command response — session_start fires during slot construction,

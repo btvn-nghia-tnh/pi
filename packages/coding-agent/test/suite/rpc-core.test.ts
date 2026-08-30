@@ -118,9 +118,7 @@ describe("AgentSessionRuntime.createSibling", () => {
 		expect(sent.some((message) => (message as { type?: string }).type === "message_end")).toBe(true);
 		// The primary session never saw the sibling's prompt.
 		expect(
-			primary.session.agent.state.messages.some(
-				(message) => message.role === "user" && message.content === "hi",
-			),
+			primary.session.agent.state.messages.some((message) => message.role === "user" && message.content === "hi"),
 		).toBe(false);
 	});
 });
