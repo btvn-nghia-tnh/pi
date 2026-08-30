@@ -25,8 +25,12 @@ export class TranscriptView {
 	private readonly options: TranscriptOptions;
 	private readonly rendered = new Map<string, HTMLElement>();
 	private userScrolledUp = false;
+	private lastProgrammaticScroll = 0;
 	private unsubscribe: (() => void) | undefined;
+	private resizeObserver: ResizeObserver | undefined;
 	private version = 0;
+	/** Echoes of programmatic scrolls must not count as user scrolling. */
+	private static readonly SCROLL_ECHO_MS = 150;
 
 	constructor(options: TranscriptOptions) {
 		this.options = options;
@@ -38,18 +42,35 @@ export class TranscriptView {
 	}
 
 	mount(wrap: HTMLElement): void {
+		// `wrap` is the scrolling container (.transcript-wrap); the scroll
+		// listener tracks whether the user has scrolled away from the bottom —
+		// while at (or near) the bottom, new output keeps auto-scrolling.
 		wrap.addEventListener("scroll", () => {
+			// Our own scrollToBottom assignments fire scroll events too, and
+			// content can keep growing right after one landed (streaming
+			// re-renders): those echoes must not look like the user scrolling
+			// away from the bottom.
+			if (Date.now() - this.lastProgrammaticScroll < TranscriptView.SCROLL_ECHO_MS) return;
 			const atBottom = wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 40;
 			this.userScrolledUp = !atBottom;
 		});
 		this.unsubscribe = this.store.subscribe(() => {
 			this.render();
 		});
+		// Content height can change after the render that produced it (late
+		// layout, streaming re-renders): keep pinning to the bottom while the
+		// user has not scrolled away.
+		this.resizeObserver = new ResizeObserver(() => {
+			if (!this.userScrolledUp) this.scrollToBottom();
+		});
+		this.resizeObserver.observe(this.element);
 		this.render();
 	}
 
 	unmount(): void {
 		this.unsubscribe?.();
+		this.resizeObserver?.disconnect();
+		this.resizeObserver = undefined;
 	}
 
 	private itemKey(item: TranscriptItem): string {
@@ -117,8 +138,12 @@ export class TranscriptView {
 	}
 
 	scrollToBottom(): void {
-		const wrap = this.element.parentElement;
+		// The scroll container is an ancestor (the transcript may be nested
+		// inside a remount host); resolve it by class rather than assuming
+		// direct parenthood.
+		const wrap = this.element.closest(".transcript-wrap");
 		if (wrap) {
+			this.lastProgrammaticScroll = Date.now();
 			wrap.scrollTop = wrap.scrollHeight;
 		}
 	}

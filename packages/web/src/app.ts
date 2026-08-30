@@ -122,9 +122,13 @@ export class App {
 		this.element.appendChild(shell);
 		this.element.appendChild(this.footerHost);
 
-		// Global (session-independent) chrome.
-		const toasts = new ToastsView(this.store);
-		document.body.appendChild(toasts.element);
+		// Global (session-independent) chrome. Toasts render notifications pushed
+		// to the active session's store, so the view is rebuilt with the other
+		// session views.
+		this.toastsHost = h("div", {});
+		this.overlayHost = h("div", {});
+		document.body.appendChild(this.toastsHost);
+		document.body.appendChild(this.overlayHost);
 		this.dialogs = new DialogStack(document.body);
 
 		// The multi-session sidebar (session list, groups, running spinners).
@@ -166,11 +170,14 @@ export class App {
 		this.sidebar.mount();
 
 		this.wireConnection();
-		toasts.mount();
 	}
 
 	/** Session to focus once its pane exists (open/new in flight). */
 	private pendingFocus: string | undefined;
+	/** Toast host — the view inside is rebuilt with the session views. */
+	private toastsHost!: HTMLElement;
+	/** Overlay-widget modal host, likewise rebuilt per active session. */
+	private overlayHost!: HTMLElement;
 
 	/** Rebuild the session-bound views for the active store. */
 	private rebuildSessionViews(): void {
@@ -199,13 +206,16 @@ export class App {
 			},
 		);
 
+		// Overlay widgets (questionnaires, MCP panels) render as modals on
+		// top of the app; their element lives on the body, remounted per switch.
+		this.overlayHost.replaceChildren(overlay.element);
 		this.transcriptHost.replaceChildren(header, transcript.element);
 		this.footerHost.replaceChildren(footer.element);
 		if (statusRowsHost) statusRowsHost.replaceChildren(statusRows.element);
 		if (widgetsHost) widgetsHost.replaceChildren(widgetsAbove.element);
 		if (widgetsBelowHost) widgetsBelowHost.replaceChildren(widgetsBelow.element);
 
-		transcript.mount(this.transcriptHost);
+		transcript.mount(this.element.querySelector(".transcript-wrap") ?? this.transcriptHost);
 		footer.mount();
 		widgetsAbove.mount();
 		widgetsBelow.mount();
@@ -235,6 +245,10 @@ export class App {
 			queueHost.replaceChildren(queue.element);
 		}
 
+		const toasts = new ToastsView(store);
+		this.toastsHost.replaceChildren(toasts.element);
+		toasts.mount();
+
 		this.views = {
 			header,
 			transcript,
@@ -250,6 +264,7 @@ export class App {
 				widgetsAbove.unmount();
 				widgetsBelow.unmount();
 				overlay.unmount();
+				toasts.unmount();
 			},
 		};
 	}
