@@ -64,11 +64,18 @@ body {
 /* ------------------------------------------------------------------ */
 
 .app-header {
-	padding: 6px 12px;
-	border-bottom: 1px solid var(--color-border-muted);
+	padding: 6px 12px 12px;
 	font-size: 12px;
 	color: var(--color-muted);
 	flex: none;
+}
+
+/* The header renders at the top of the scrollable transcript flow. */
+.transcript-wrap .app-header {
+	max-width: 900px;
+	margin: 0 auto;
+	border-bottom: 1px solid var(--color-border-muted);
+	margin-bottom: 12px;
 }
 
 .app-header .version {
@@ -544,7 +551,7 @@ body {
 	white-space: pre-wrap;
 
 	/* Long extension widgets scroll instead of covering the transcript. */
-	max-height: min(240px, 30vh);
+	max-height: 25vh;
 	overflow-y: auto;
 	overscroll-behavior: contain;
 }
@@ -1056,6 +1063,13 @@ body {
 	padding: 6px 10px;
 	margin: 6px 0;
 	font-size: 13px;
+
+	/* Message : todo = 3 : 1 — the card never takes more than a quarter of
+	 * the viewport; the task list flexes and scrolls inside it. */
+	max-height: 25vh;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
 }
 
 .todo-card .todo-header {
@@ -1065,6 +1079,7 @@ body {
 	color: var(--color-accent);
 	font-weight: 600;
 	margin-bottom: 4px;
+	flex: none;
 }
 
 .todo-card .todo-header .todo-icon {
@@ -1076,9 +1091,10 @@ body {
 	margin: 0;
 	padding: 0;
 
-	/* Long lists scroll inside the card so the widget never pushes the
-	 * transcript off screen. Mirrors the TUI's widget line budget. */
-	max-height: min(240px, 30vh);
+	/* Long lists scroll inside the capped card so the widget never pushes
+	 * the transcript off screen. */
+	flex: 1 1 auto;
+	min-height: 0;
 	overflow-y: auto;
 	overscroll-behavior: contain;
 }

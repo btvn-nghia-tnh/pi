@@ -226,6 +226,29 @@ test("extension statuses, widgets, notifications, working indicator", () => {
 	assert.equal(store.getState().workingIndicator, undefined);
 });
 
+test("applyConnected without a widgets field preserves current widgets", () => {
+	const store = new Store();
+	store.applyConnected({ type: "connected", version: "1", messages: [] });
+	store.setWidget("w", ["line"], "aboveEditor");
+	store.setWidgetData("w", { kind: "rpiv-todo", tasks: [] });
+	store.setExtensionStatus("ext", "running");
+
+	// Minimal payload (as sent by syncAfterSessionSwitch): no widgets/statuses.
+	store.applyConnected({ type: "connected", version: "1", messages: [{ role: "user", content: "x", timestamp: 1 }] });
+	const state = store.getState();
+	assert.deepEqual(state.widgets.get("w"), {
+		lines: ["line"],
+		placement: "aboveEditor",
+		data: { kind: "rpiv-todo", tasks: [] },
+	});
+	assert.equal(state.extensionStatuses.get("ext"), "running");
+
+	// A full payload with an empty widgets array clears them.
+	store.applyConnected({ type: "connected", version: "1", messages: [], widgets: [], statuses: [] });
+	assert.equal(store.getState().widgets.size, 0);
+	assert.equal(store.getState().extensionStatuses.size, 0);
+});
+
 test("markDisconnected clears transient state", () => {
 	const store = new Store();
 	store.applyConnected({ type: "connected", version: "1", messages: [] });

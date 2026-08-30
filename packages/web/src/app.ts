@@ -54,9 +54,12 @@ export class App {
 			document.body.appendChild(this.element);
 		}
 
-		const header = this.buildHeader();
 		const transcriptWrap = h("div", { class: "transcript-wrap" });
 		this.transcript = new TranscriptView({ store: this.store, showImages: true });
+		// The startup header lives at the top of the transcript flow (like the
+		// TUI main screen): it scrolls away with the messages instead of
+		// pinning above them.
+		transcriptWrap.appendChild(this.buildHeader());
 		transcriptWrap.appendChild(this.transcript.element);
 
 		const editorDock = h("div", { class: "editor-dock" });
@@ -74,7 +77,6 @@ export class App {
 		editorInner.appendChild(widgetsBelow.element);
 		editorDock.appendChild(editorInner);
 
-		this.element.appendChild(header);
 		this.element.appendChild(transcriptWrap);
 		this.element.appendChild(editorDock);
 		this.element.appendChild(footer.element);

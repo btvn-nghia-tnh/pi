@@ -194,17 +194,25 @@ export class Store {
 			if (payload.keybindings) {
 				state.keybindings = payload.keybindings;
 			}
-			state.widgets = new Map();
-			for (const widget of payload.widgets ?? []) {
-				state.widgets.set(widget.key, {
-					lines: widget.lines ?? [],
-					placement: widget.placement ?? "aboveEditor",
-					data: widget.data,
-				});
+			// Only replace widget/status state when the payload carries it.
+			// syncAfterSessionSwitch sends a minimal payload (no widgets):
+			// extension re-registration events around a session switch must
+			// not be wiped by an empty-default reset here.
+			if (payload.widgets !== undefined) {
+				state.widgets = new Map();
+				for (const widget of payload.widgets) {
+					state.widgets.set(widget.key, {
+						lines: widget.lines ?? [],
+						placement: widget.placement ?? "aboveEditor",
+						data: widget.data,
+					});
+				}
 			}
-			state.extensionStatuses = new Map();
-			for (const status of payload.statuses ?? []) {
-				state.extensionStatuses.set(status.key, status.text);
+			if (payload.statuses !== undefined) {
+				state.extensionStatuses = new Map();
+				for (const status of payload.statuses) {
+					state.extensionStatuses.set(status.key, status.text);
+				}
 			}
 		});
 	}
