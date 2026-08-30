@@ -1257,3 +1257,25 @@ body {
 .mcp-card .mcp-not-connected .mcp-status {
 	color: var(--color-muted);
 }
+
+/* ------------------------------------------------------------------ */
+/* Overlay widgets (setWidgetData display: "overlay")                  */
+/* ------------------------------------------------------------------ */
+
+.widget-overlay {
+	z-index: 55;
+}
+
+.widget-overlay .widget-overlay-body {
+	min-width: 420px;
+	max-width: min(640px, 90vw);
+}
+
+.widget-overlay .widget-overlay-body .mcp-card {
+	max-height: 55vh;
+	border-left-width: 3px;
+}
+
+.widget-overlay .widget-overlay-body .todo-card {
+	max-height: 55vh;
+}

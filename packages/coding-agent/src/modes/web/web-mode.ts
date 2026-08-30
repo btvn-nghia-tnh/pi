@@ -143,6 +143,9 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 				if (existing) {
 					widgetState.set(key, { ...existing, data: undefined });
 				}
+			} else if ((request.widgetData as { display?: string }).display === "overlay") {
+				// Overlay panels are transient (user-toggled, like the TUI
+				// interactive panels); they must not replay on page reload.
 			} else {
 				const existing = widgetState.get(key) ?? {};
 				widgetState.set(key, {

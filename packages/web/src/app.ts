@@ -23,6 +23,7 @@ import { EditorController, type EditorSubmitEvent } from "./editor/editor.ts";
 import { FooterView, QueueView, StatusRowsView, ToastsView, WidgetAreaView } from "./footer.ts";
 import { registerGlobalKeyboard, type ShortcutAction } from "./keyboard.ts";
 import { TranscriptView } from "./render/transcript.ts";
+import { WidgetOverlayView } from "./render/widget-overlay.ts";
 import { Store } from "./state.ts";
 import type {
 	AgentEventMessage,
@@ -91,6 +92,12 @@ export class App {
 		toasts.mount();
 		widgetsAbove.mount();
 		widgetsBelow.mount();
+		// Overlay widgets (display: "overlay") render as modals on top of the app.
+		const widgetOverlay = new WidgetOverlayView(this.store, (message) => {
+			this.connection?.send({ type: "prompt", message });
+		});
+		document.body.appendChild(widgetOverlay.element);
+		widgetOverlay.mount();
 	}
 
 	// ------------------------------------------------------------------
