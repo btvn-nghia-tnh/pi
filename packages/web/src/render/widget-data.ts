@@ -16,6 +16,29 @@ export interface TodoWidgetTask {
 	blockedBy?: number[];
 }
 
+export interface McpServerWidgetEntry {
+	name: string;
+	status: string;
+	toolCount?: number;
+	resourceCount?: number;
+	disabled?: boolean;
+	failedAgoSeconds?: number;
+}
+
+export interface McpWidgetData {
+	kind: "pi-mcp-status";
+	version?: number;
+	servers?: McpServerWidgetEntry[];
+	totals?: {
+		servers?: number;
+		connected?: number;
+		enabled?: number;
+		disabled?: number;
+		tools?: number;
+		resources?: number;
+	};
+}
+
 export interface TodoWidgetData {
 	kind: "rpiv-todo";
 	version?: number;
@@ -30,6 +53,63 @@ const STATUS_ICON: Record<string, string> = {
 	completed: "✓",
 	deleted: "✗",
 };
+
+const MCP_STATUS_ICON: Record<string, string> = {
+	connected: "●",
+	"needs-auth": "⚑",
+	failed: "⚠",
+	cached: "◔",
+	disabled: "⊘",
+	"not-connected": "○",
+};
+
+function formatFailedAgo(seconds: number): string {
+	if (seconds < 60) return `${seconds}s ago`;
+	if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+	return `${Math.floor(seconds / 3600)}h ago`;
+}
+
+function renderMcpStatusCard(data: McpWidgetData): HTMLElement {
+	const servers = data.servers ?? [];
+	const totals = data.totals ?? {};
+	const enabled = totals.enabled ?? servers.length;
+	const heading =
+		enabled === 0
+			? `MCP — ${totals.servers ?? servers.length} servers disabled`
+			: `MCP ${totals.connected ?? 0}/${enabled} connected · ${totals.tools ?? 0} tools`;
+	const allHealthy = (totals.connected ?? 0) >= enabled && enabled > 0;
+
+	const header = h(
+		"div",
+		{ class: `mcp-header${allHealthy ? "" : " mcp-attention"}` },
+		h("span", { class: "mcp-icon" }, allHealthy ? "◉" : "◎"),
+		h("span", { class: "mcp-title" }, heading),
+	);
+
+	const list = h("ul", { class: "mcp-list" });
+	for (const server of servers) {
+		const status = server.status ?? "not-connected";
+		const icon = MCP_STATUS_ICON[status] ?? "○";
+		const parts: string[] = [server.name];
+		if (server.toolCount && server.toolCount > 0) parts.push(`${server.toolCount} tools`);
+		if (status === "failed" && server.failedAgoSeconds !== undefined) {
+			parts.push(`failed ${formatFailedAgo(server.failedAgoSeconds)}`);
+		}
+		if (status === "needs-auth") parts.push("needs auth");
+		if (status === "cached") parts.push("cached");
+		if (status === "disabled") parts.push("disabled");
+		list.appendChild(
+			h(
+				"li",
+				{ class: `mcp-item mcp-${status.replace(/[^a-z-]/g, "-")}`, title: `status: ${status}` },
+				h("span", { class: "mcp-status" }, icon),
+				h("span", { class: "mcp-text" }, parts.join(" — ")),
+			),
+		);
+	}
+
+	return h("div", { class: "mcp-card" }, header, list);
+}
 
 function renderTodoCard(data: TodoWidgetData): HTMLElement {
 	const tasks = (data.tasks ?? []).filter((task) => task.status !== "deleted");
@@ -76,6 +156,9 @@ export function renderWidget(
 ): HTMLElement {
 	if (widget.data && widget.data.kind === "rpiv-todo") {
 		return renderTodoCard(widget.data as unknown as TodoWidgetData);
+	}
+	if (widget.data && widget.data.kind === "pi-mcp-status") {
+		return renderMcpStatusCard(widget.data as unknown as McpWidgetData);
 	}
 	return h("div", { class: "widget-panel" }, widget.lines.join("\n"));
 }
