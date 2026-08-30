@@ -249,6 +249,16 @@ test("applyConnected without a widgets field preserves current widgets", () => {
 	assert.equal(store.getState().extensionStatuses.size, 0);
 });
 
+test("widget collapse state toggles per key", () => {
+	const store = new Store();
+	assert.equal(store.isWidgetCollapsed("rpiv-todos"), false);
+	store.toggleWidgetCollapsed("rpiv-todos");
+	assert.equal(store.isWidgetCollapsed("rpiv-todos"), true);
+	assert.equal(store.isWidgetCollapsed("other-widget"), false);
+	store.toggleWidgetCollapsed("rpiv-todos");
+	assert.equal(store.isWidgetCollapsed("rpiv-todos"), false);
+});
+
 test("markDisconnected clears transient state", () => {
 	const store = new Store();
 	store.applyConnected({ type: "connected", version: "1", messages: [] });

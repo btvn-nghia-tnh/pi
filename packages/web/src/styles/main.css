@@ -1279,3 +1279,20 @@ body {
 .widget-overlay .widget-overlay-body .todo-card {
 	max-height: 55vh;
 }
+
+/* Todo card collapse toggle */
+.todo-card .todo-toggle {
+	cursor: pointer;
+	user-select: none;
+}
+
+.todo-card .todo-chevron {
+	flex: none;
+	color: var(--color-muted);
+	font-size: 10px;
+	padding: 0 2px;
+}
+
+.todo-card.todo-collapsed {
+	max-height: none;
+}

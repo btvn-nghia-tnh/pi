@@ -93,6 +93,8 @@ export interface AppState {
 	compaction: CompactionState | undefined;
 	settingsSnapshot: RpcSettingsSnapshot | undefined;
 	keybindings: RpcKeybindingsPayload | undefined;
+	/** Widget keys the user collapsed (persists across reloads via localStorage). */
+	collapsedWidgets: Set<string>;
 }
 
 export interface UsageTotals {
@@ -126,6 +128,7 @@ function createInitialState(): AppState {
 		extensionStatuses: new Map(),
 		widgets: new Map(),
 		notifications: [],
+		collapsedWidgets: loadCollapsedWidgets(),
 		workingIndicator: undefined,
 		retry: undefined,
 		compaction: undefined,
@@ -625,6 +628,23 @@ export class Store {
 		});
 	}
 
+	isWidgetCollapsed(key: string): boolean {
+		return this.state.collapsedWidgets.has(key);
+	}
+
+	toggleWidgetCollapsed(key: string): void {
+		this.update((state) => {
+			const next = new Set(state.collapsedWidgets);
+			if (next.has(key)) {
+				next.delete(key);
+			} else {
+				next.add(key);
+			}
+			state.collapsedWidgets = next;
+			saveCollapsedWidgets(next);
+		});
+	}
+
 	setExtensionStatus(key: string, text: string | undefined): void {
 		this.update((state) => {
 			if (text === undefined || text === null || text === "") {
@@ -678,6 +698,30 @@ export class Store {
 		this.update((state) => {
 			state.contextUsage = { tokens, contextWindow, percent };
 		});
+	}
+}
+
+const COLLAPSED_WIDGETS_STORAGE_KEY = "pi-web-collapsed-widgets";
+
+function loadCollapsedWidgets(): Set<string> {
+	if (typeof localStorage === "undefined") return new Set();
+	try {
+		const raw = localStorage.getItem(COLLAPSED_WIDGETS_STORAGE_KEY);
+		const parsed = raw ? (JSON.parse(raw) as unknown) : undefined;
+		return Array.isArray(parsed)
+			? new Set(parsed.filter((entry): entry is string => typeof entry === "string"))
+			: new Set();
+	} catch {
+		return new Set();
+	}
+}
+
+function saveCollapsedWidgets(keys: Set<string>): void {
+	if (typeof localStorage === "undefined") return;
+	try {
+		localStorage.setItem(COLLAPSED_WIDGETS_STORAGE_KEY, JSON.stringify([...keys]));
+	} catch {
+		// Storage full or blocked — collapse state just won't persist.
 	}
 }
 

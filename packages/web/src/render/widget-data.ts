@@ -111,15 +111,25 @@ function renderMcpStatusCard(data: McpWidgetData): HTMLElement {
 	return h("div", { class: "mcp-card" }, header, list);
 }
 
-function renderTodoCard(data: TodoWidgetData): HTMLElement {
+function renderTodoCard(
+	data: TodoWidgetData,
+	options: { collapsed?: boolean; onToggle?: () => void; key?: string },
+): HTMLElement {
 	const tasks = (data.tasks ?? []).filter((task) => task.status !== "deleted");
 	const counts = data.counts ?? {};
 	const header = h(
 		"div",
-		{ class: "todo-header" },
+		{
+			class: `todo-header${options.onToggle ? " todo-toggle" : ""}`,
+			title: options.onToggle ? "Click to collapse or expand" : undefined,
+		},
 		h("span", { class: "todo-icon" }, tasks.some((task) => task.status === "in_progress") ? "●" : "○"),
 		h("span", { class: "todo-title" }, `Todos (${counts.completed ?? 0}/${counts.total ?? tasks.length})`),
+		h("span", { class: "todo-chevron" }, options.collapsed ? "▸" : "▾"),
 	);
+	if (options.onToggle) {
+		header.addEventListener("click", () => options.onToggle?.());
+	}
 
 	const list = h("ul", { class: "todo-list" });
 	for (const task of tasks) {
@@ -143,7 +153,15 @@ function renderTodoCard(data: TodoWidgetData): HTMLElement {
 		list.appendChild(item);
 	}
 
+	if (options.collapsed) {
+		return h("div", { class: "todo-card todo-collapsed" }, header);
+	}
 	return h("div", { class: "todo-card" }, header, list);
+}
+
+export interface RenderWidgetOptions {
+	collapsed?: boolean;
+	onToggle?: () => void;
 }
 
 /**
@@ -152,10 +170,15 @@ function renderTodoCard(data: TodoWidgetData): HTMLElement {
  */
 export function renderWidget(
 	widget: { lines: string[]; placement: "aboveEditor" | "belowEditor"; data?: Record<string, unknown> },
-	_key: string,
+	key: string,
+	options?: RenderWidgetOptions,
 ): HTMLElement {
 	if (widget.data && widget.data.kind === "rpiv-todo") {
-		return renderTodoCard(widget.data as unknown as TodoWidgetData);
+		return renderTodoCard(widget.data as unknown as TodoWidgetData, {
+			collapsed: options?.collapsed,
+			onToggle: options?.onToggle,
+			key,
+		});
 	}
 	if (widget.data && widget.data.kind === "pi-mcp-status") {
 		return renderMcpStatusCard(widget.data as unknown as McpWidgetData);

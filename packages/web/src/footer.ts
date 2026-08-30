@@ -198,7 +198,10 @@ export class WidgetAreaView {
 		}
 		for (const [key, widget] of state.widgets) {
 			if (widget.placement !== this.placement) continue;
-			const panel = renderWidget(widget, key);
+			const panel = renderWidget(widget, key, {
+				collapsed: state.collapsedWidgets.has(key),
+				onToggle: () => this.store.toggleWidgetCollapsed(key),
+			});
 			panel.classList.add("widget-registered");
 			panel.title = key;
 			this.element.appendChild(panel);
