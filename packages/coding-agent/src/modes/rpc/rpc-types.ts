@@ -89,6 +89,7 @@ export type RpcCommand =
 	| { id?: string; type: "import_session"; path: string; cwd?: string }
 
 	// Web GUI parity: context and info
+	| { id?: string; type: "get_tools" }
 	| { id?: string; type: "get_context_info" }
 	| { id?: string; type: "get_changelog" }
 	| { id?: string; type: "get_keybindings" }
@@ -292,6 +293,13 @@ export type RpcResponse =
 	| { id?: string; type: "response"; command: "import_session"; success: true; data: { cancelled: boolean } }
 
 	// Web GUI parity: context and info
+	| {
+			id?: string;
+			type: "response";
+			command: "get_tools";
+			success: true;
+			data: { tools: Array<{ name: string; active: boolean; source?: string }> };
+	  }
 	| { id?: string; type: "response"; command: "get_context_info"; success: true; data: RpcContextInfo }
 	| { id?: string; type: "response"; command: "get_changelog"; success: true; data: { markdown: string } }
 	| {

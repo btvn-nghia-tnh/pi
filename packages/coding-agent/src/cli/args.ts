@@ -19,7 +19,10 @@ export interface WebSubcommandOptions {
 }
 
 export const DEFAULT_WEB_OPTIONS: WebSubcommandOptions = {
-	port: 4762,
+	// 0 = ephemeral port: every `pi web` run picks a random free port, so a
+	// stale server or a second instance never fails with EADDRINUSE. Pass
+	// --port N to pin a specific port.
+	port: 0,
 	host: "127.0.0.1",
 	token: true,
 	open: true,

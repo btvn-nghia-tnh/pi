@@ -4,8 +4,8 @@
 surface as the interactive TUI.
 
 ```bash
-pi web                  # http://127.0.0.1:4762/?token=... (opens your browser)
-pi web --port 9000      # custom port
+pi web                  # random free port (http://127.0.0.1:<port>/?token=...)
+pi web --port 9000      # pin a specific port
 pi web --no-open        # do not open a browser
 pi web --no-token       # no URL token (not recommended)
 pi web --host 0.0.0.0   # expose to the network (use with care)

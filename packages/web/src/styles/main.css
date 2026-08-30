@@ -542,6 +542,11 @@ body {
 	font-family: var(--mono-font);
 	font-size: 12px;
 	white-space: pre-wrap;
+
+	/* Long extension widgets scroll instead of covering the transcript. */
+	max-height: min(240px, 30vh);
+	overflow-y: auto;
+	overscroll-behavior: contain;
 }
 
 .attachments-bar {
@@ -1070,6 +1075,29 @@ body {
 	list-style: none;
 	margin: 0;
 	padding: 0;
+
+	/* Long lists scroll inside the card so the widget never pushes the
+	 * transcript off screen. Mirrors the TUI's widget line budget. */
+	max-height: min(240px, 30vh);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+/* Thin scrollbars for widget lists (dark UI) */
+.todo-card .todo-list::-webkit-scrollbar,
+.widget-panel::-webkit-scrollbar {
+	width: 6px;
+}
+
+.todo-card .todo-list::-webkit-scrollbar-thumb,
+.widget-panel::-webkit-scrollbar-thumb {
+	background: var(--color-border-muted);
+	border-radius: 3px;
+}
+
+.todo-card .todo-list::-webkit-scrollbar-track,
+.widget-panel::-webkit-scrollbar-track {
+	background: transparent;
 }
 
 .todo-card .todo-item {

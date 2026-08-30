@@ -194,6 +194,18 @@ export class Store {
 			if (payload.keybindings) {
 				state.keybindings = payload.keybindings;
 			}
+			state.widgets = new Map();
+			for (const widget of payload.widgets ?? []) {
+				state.widgets.set(widget.key, {
+					lines: widget.lines ?? [],
+					placement: widget.placement ?? "aboveEditor",
+					data: widget.data,
+				});
+			}
+			state.extensionStatuses = new Map();
+			for (const status of payload.statuses ?? []) {
+				state.extensionStatuses.set(status.key, status.text);
+			}
 		});
 	}
 

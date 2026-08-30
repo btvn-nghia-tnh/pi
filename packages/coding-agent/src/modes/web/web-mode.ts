@@ -101,7 +101,73 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 	const sockets = new Set<WebSocket>();
 	let shuttingDown = false;
 
+	// Latest extension widget and status registrations. Widgets are
+	// fire-and-forget messages tied to session events (tool_execution_end,
+	// session_start), so a browser connecting later would otherwise miss them.
+	// The cache is replayed in the connected payload and cleared when the
+	// underlying session changes (session_start of a new session).
+	const widgetState = new Map<
+		string,
+		{ lines?: string[]; placement?: "aboveEditor" | "belowEditor"; data?: Record<string, unknown> }
+	>();
+	const statusState = new Map<string, string>();
+
+	const trackExtensionState = (message: object): void => {
+		const request = message as {
+			type?: string;
+			method?: string;
+			widgetKey?: string;
+			widgetLines?: string[] | undefined;
+			widgetPlacement?: "aboveEditor" | "belowEditor";
+			widgetData?: Record<string, unknown> | undefined;
+			statusKey?: string;
+			statusText?: string | undefined;
+		};
+		if (request.type !== "extension_ui_request") return;
+		if (request.method === "setWidget") {
+			const key = request.widgetKey ?? "";
+			if (request.widgetLines === undefined || request.widgetLines === null) {
+				widgetState.delete(key);
+			} else {
+				const existing = widgetState.get(key) ?? {};
+				widgetState.set(key, {
+					...existing,
+					lines: request.widgetLines,
+					placement: request.widgetPlacement ?? existing.placement ?? "aboveEditor",
+				});
+			}
+		} else if (request.method === "setWidgetData") {
+			const key = request.widgetKey ?? "";
+			if (request.widgetData === undefined || request.widgetData === null) {
+				const existing = widgetState.get(key);
+				if (existing) {
+					widgetState.set(key, { ...existing, data: undefined });
+				}
+			} else {
+				const existing = widgetState.get(key) ?? {};
+				widgetState.set(key, {
+					lines: existing.lines ?? [],
+					placement: existing.placement ?? "aboveEditor",
+					data: request.widgetData,
+				});
+			}
+		} else if (request.method === "setStatus") {
+			const key = request.statusKey ?? "";
+			if (request.statusText === undefined || request.statusText === null || request.statusText === "") {
+				statusState.delete(key);
+			} else {
+				statusState.set(key, request.statusText);
+			}
+		}
+	};
+
 	const broadcast = (message: object): void => {
+		trackExtensionState(message);
+		const event = message as { type?: string };
+		if (event.type === "session_start") {
+			widgetState.clear();
+			statusState.clear();
+		}
 		const data = JSON.stringify(message);
 		for (const socket of sockets) {
 			if (socket.readyState === socket.OPEN) {
@@ -137,6 +203,8 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 					JSON.stringify({
 						type: "connected",
 						version: VERSION,
+						widgets: [...widgetState.entries()].map(([key, widget]) => ({ key, ...widget })),
+						statuses: [...statusState.entries()].map(([key, text]) => ({ key, text })),
 						themes: themeData?.themes ?? [],
 						theme: currentTheme ? { name: currentTheme.name, vars: currentTheme.vars } : undefined,
 						state: stateResponse?.success && "data" in stateResponse ? stateResponse.data : undefined,

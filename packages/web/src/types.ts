@@ -213,9 +213,18 @@ export interface RpcThemeInfo {
 	vars: Record<string, string>;
 }
 
+export interface ConnectedWidgetState {
+	key: string;
+	lines?: string[];
+	placement?: "aboveEditor" | "belowEditor";
+	data?: Record<string, unknown>;
+}
+
 export interface ConnectedPayload {
 	type: "connected";
 	version: string;
+	widgets?: ConnectedWidgetState[];
+	statuses?: Array<{ key: string; text: string }>;
 	themes?: RpcThemeInfo[];
 	theme?: { name: string; vars: Record<string, string> };
 	state?: RpcSessionState;

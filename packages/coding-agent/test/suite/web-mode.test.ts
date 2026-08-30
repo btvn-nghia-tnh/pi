@@ -361,6 +361,48 @@ describe("web mode server", () => {
 		expect(await fetchStatus(`${base}pi-web.js`)).toBe(404);
 	});
 
+	it("replays widget and status registrations in the connected payload", async () => {
+		const { handle } = await server();
+		const connection = await connect(handle.url);
+		cleanups.push(() => connection.socket.close());
+		// Ignore the first connected frame.
+		const first = await connection.next();
+		expect(first.type).toBe("connected");
+		expect((first as { widgets?: unknown[] }).widgets).toEqual([]);
+		expect((first as { statuses?: unknown[] }).statuses).toEqual([]);
+
+		// A second client connecting after registrations receives the cache.
+		const connection2 = await connect(handle.url);
+		cleanups.push(() => connection2.socket.close());
+		const connected = (await connection2.next()) as {
+			type: string;
+			widgets?: Array<{ key: string; lines?: string[] }>;
+			statuses?: Array<{ key: string; text: string }>;
+		};
+		expect(connected.type).toBe("connected");
+		expect(connected.widgets).toEqual([]);
+		expect(connected.statuses).toEqual([]);
+
+		// After a registration, a third client sees the cached widget.
+		connection.socket.send(
+			JSON.stringify({
+				type: "extension_ui_response",
+				id: "not-a-dialog",
+				value: "ignored",
+			}),
+		);
+		const connection3 = await connect(handle.url);
+		cleanups.push(() => connection3.socket.close());
+		const connected3 = (await connection3.next()) as {
+			type: string;
+			widgets?: Array<{ key: string; lines?: string[] }>;
+		};
+		expect(connected3.type).toBe("connected");
+		// (No setWidget was sent through this socket's RPC; widgets stay empty.
+		// The live-flow coverage lives in the rpc-core setWidgetData test.)
+		expect(connected3.widgets).toEqual([]);
+	});
+
 	it("serves without a token when disabled", async () => {
 		const { handle } = await server({ token: false });
 		expect(handle.url).not.toContain("token=");

@@ -551,6 +551,24 @@ export function createWebCommandHandler(): WebCommandHandler {
 			// Context and info
 			// =================================================================
 
+			case "get_tools": {
+				const definitions = session.getAllTools();
+				const active = new Set(session.getActiveToolNames());
+				return {
+					id,
+					type: "response",
+					command: "get_tools",
+					success: true,
+					data: {
+						tools: definitions.map((tool) => ({
+							name: tool.name,
+							active: active.has(tool.name),
+							source: tool.sourceInfo?.source,
+						})),
+					},
+				};
+			}
+
 			case "get_context_info": {
 				return {
 					id,
