@@ -454,6 +454,15 @@ describe("web mode server", () => {
 		connection2.socket.send(
 			JSON.stringify({ id: "op-1", type: "open_session", sessionPath: secondManager.getSessionFile() }),
 		);
+		// session_opened (with the rehydration payload) broadcasts before the
+		// command response.
+		const openedAnnouncement = (await connection2.next()) as {
+			type: string;
+			id?: string;
+			cwd?: string;
+			messages?: unknown[];
+		};
+		expect(openedAnnouncement.type).toBe("session_opened");
 		const opened = (await connection2.next()) as {
 			type: string;
 			command?: string;
@@ -497,6 +506,8 @@ describe("web mode server", () => {
 		await connection.next(); // connected
 
 		connection.socket.send(JSON.stringify({ id: "n1", type: "new_session" }));
+		const openedAnnouncement = (await connection.next()) as { type: string };
+		expect(openedAnnouncement.type).toBe("session_opened");
 		const created = (await connection.next()) as {
 			type: string;
 			command?: string;

@@ -22,26 +22,62 @@ import { h } from "./dom.ts";
 import { EditorController, type EditorSubmitEvent } from "./editor/editor.ts";
 import { FooterView, QueueView, StatusRowsView, ToastsView, WidgetAreaView } from "./footer.ts";
 import { registerGlobalKeyboard, type ShortcutAction } from "./keyboard.ts";
+import { SidebarView } from "./render/sidebar.ts";
 import { TranscriptView } from "./render/transcript.ts";
 import { WidgetOverlayView } from "./render/widget-overlay.ts";
 import { Store } from "./state.ts";
 import type {
 	AgentEventMessage,
 	ConnectedPayload,
+	ConnectedSession,
 	ExtensionUiRequestMessage,
 	RpcTrustState,
 	ServerMessage,
+	SessionClosedMessage,
+	SessionOpenedMessage,
+	SessionReplacedMessage,
 } from "./types.ts";
+
+/** Session-bound view bundle — rebuilt when the active session changes. */
+interface SessionViews {
+	header: HTMLElement;
+	transcript: TranscriptView;
+	footer: FooterView;
+	widgetsAbove: WidgetAreaView;
+	widgetsBelow: WidgetAreaView;
+	overlay: WidgetOverlayView;
+	statusRows: StatusRowsView;
+	queue: QueueView;
+	unmount(): void;
+}
 
 export class App {
 	readonly element: HTMLElement;
-	private readonly store = new Store();
+	/** Store for the pre-connect phase and the never-empty fallback. */
+	private readonly fallbackStore = new Store();
+	/** One store per open session, keyed by session id. */
+	private readonly sessionStores = new Map<string, Store>();
+	private activeSessionId: string | undefined;
+	/** Editor drafts per session, preserved across switches. */
+	private readonly editorDrafts = new Map<string, string>();
+	/** Mount hosts for the session views (persistent across switches). */
+	private transcriptHost!: HTMLElement;
+	private footerHost!: HTMLElement;
+	private views: SessionViews | undefined;
+	private sidebar: SidebarView | undefined;
 	private connection: PiConnection | undefined;
 	private dialogs!: DialogStack;
 	private editor!: EditorController;
-	private transcript!: TranscriptView;
 	private reconnectOverlay: HTMLElement | undefined;
 	private searchOverlay: HTMLElement | undefined;
+
+	/** The active session's store (fallback before the first connect). */
+	private get store(): Store {
+		if (this.activeSessionId !== undefined) {
+			return this.sessionStores.get(this.activeSessionId) ?? this.fallbackStore;
+		}
+		return this.fallbackStore;
+	}
 
 	constructor() {
 		this.element = h("div", { id: "app" });
@@ -55,46 +91,101 @@ export class App {
 			document.body.appendChild(this.element);
 		}
 
+		// Layout: [sidebar][transcript + editor][footer] with persistent
+		// hosts; session-bound views are rebuilt inside them on every switch.
+		const main = h("div", { class: "app-main" });
 		const transcriptWrap = h("div", { class: "transcript-wrap" });
-		this.transcript = new TranscriptView({ store: this.store, showImages: true });
-		// The startup header lives at the top of the transcript flow (like the
-		// TUI main screen): it scrolls away with the messages instead of
-		// pinning above them.
-		transcriptWrap.appendChild(this.buildHeader());
-		transcriptWrap.appendChild(this.transcript.element);
+		this.transcriptHost = h("div", { class: "transcript-host" });
+		transcriptWrap.appendChild(this.transcriptHost);
 
 		const editorDock = h("div", { class: "editor-dock" });
 		const editorInner = h("div", { class: "editor-inner" });
-		const statusRows = h("div", {});
+		const statusRowsHost = h("div", {});
 		const queueHost = h("div", {});
-		const widgetsAbove = new WidgetAreaView(this.store, "aboveEditor");
-		const widgetsBelow = new WidgetAreaView(this.store, "belowEditor");
-		const footer = new FooterView(this.store);
-		const toasts = new ToastsView(this.store);
-		editorInner.appendChild(statusRows);
+		const widgetsHost = h("div", {});
+		const widgetsBelowHost = h("div", {});
+		editorInner.appendChild(statusRowsHost);
 		editorInner.appendChild(queueHost);
-		editorInner.appendChild(widgetsAbove.element);
+		editorInner.appendChild(widgetsHost);
 		editorInner.appendChild(h("div", {}, this.buildEditorHost()));
-		editorInner.appendChild(widgetsBelow.element);
+		editorInner.appendChild(widgetsBelowHost);
 		editorDock.appendChild(editorInner);
 
-		this.element.appendChild(transcriptWrap);
-		this.element.appendChild(editorDock);
-		this.element.appendChild(footer.element);
-		document.body.appendChild(toasts.element);
+		this.footerHost = h("div", {});
+		main.appendChild(transcriptWrap);
+		main.appendChild(editorDock);
+		this.element.appendChild(main);
+		this.element.appendChild(this.footerHost);
 
+		// Global (session-independent) chrome.
+		const toasts = new ToastsView(this.store);
+		document.body.appendChild(toasts.element);
 		this.dialogs = new DialogStack(document.body);
 
-		this.wireConnection();
+		// The multi-session sidebar (session list, groups, running spinners).
+		this.sidebar = new SidebarView({
+			getRunning: (sessionId) => {
+				const store = this.sessionStores.get(sessionId);
+				return (
+					store !== undefined && (store.isTurnRunning() || (store.getState().sessionState?.isStreaming ?? false))
+				);
+			},
+			onActivate: (sessionId) => void this.setActiveSession(sessionId),
+			onOpen: (sessionPath) => {
+				void this.connection
+					?.request<{ sessionId?: string }>({ type: "open_session", sessionPath })
+					.then((data) => {
+						if (typeof data?.sessionId === "string") {
+							// The pane is built by the session_opened broadcast; this
+							// just records the intent to focus it.
+							this.pendingFocus = data.sessionId;
+						}
+					})
+					.catch(() => {});
+			},
+			onNew: () => {
+				void this.connection
+					?.request<{ sessionId?: string }>({ type: "new_session" })
+					.then((data) => {
+						if (typeof data?.sessionId === "string") {
+							this.pendingFocus = data.sessionId;
+						}
+					})
+					.catch(() => {});
+			},
+			onClose: (sessionId) => {
+				void this.connection?.request({ type: "close_session", sessionId }).catch(() => {});
+			},
+		});
+		this.element.prepend(this.sidebar.element);
+		this.sidebar.mount();
 
-		this.transcript.mount(transcriptWrap);
-		footer.mount();
+		this.wireConnection();
 		toasts.mount();
-		widgetsAbove.mount();
-		widgetsBelow.mount();
-		// Overlay widgets (display: "overlay") render as modals on top of the app.
-		const widgetOverlay = new WidgetOverlayView(
-			this.store,
+	}
+
+	/** Session to focus once its pane exists (open/new in flight). */
+	private pendingFocus: string | undefined;
+
+	/** Rebuild the session-bound views for the active store. */
+	private rebuildSessionViews(): void {
+		this.views?.unmount();
+		const store = this.store;
+		const editorInner = this.element.querySelector(".editor-inner");
+		if (!editorInner) return;
+		const statusRowsHost = editorInner.firstElementChild as HTMLElement | null;
+		const queueHost = statusRowsHost?.nextElementSibling as HTMLElement | null;
+		const widgetsHost = queueHost?.nextElementSibling as HTMLElement | null;
+		const widgetsBelowHost = editorInner.lastElementChild as HTMLElement | null;
+
+		const header = this.buildHeader();
+		const transcript = new TranscriptView({ store, showImages: true });
+		const footer = new FooterView(store);
+		const widgetsAbove = new WidgetAreaView(store, "aboveEditor");
+		const widgetsBelow = new WidgetAreaView(store, "belowEditor");
+		const statusRows = new StatusRowsView(store, this.connection!);
+		const overlay = new WidgetOverlayView(
+			store,
 			(message) => {
 				this.connection?.send({ type: "prompt", message });
 			},
@@ -102,8 +193,60 @@ export class App {
 				void this.connection?.request({ type: "widget_response", key, payload }).catch(() => {});
 			},
 		);
-		document.body.appendChild(widgetOverlay.element);
-		widgetOverlay.mount();
+
+		this.transcriptHost.replaceChildren(header, transcript.element);
+		this.footerHost.replaceChildren(footer.element);
+		if (statusRowsHost) statusRowsHost.replaceChildren(statusRows.element);
+		if (widgetsHost) widgetsHost.replaceChildren(widgetsAbove.element);
+		if (widgetsBelowHost) widgetsBelowHost.replaceChildren(widgetsBelow.element);
+
+		transcript.mount(this.transcriptHost);
+		footer.mount();
+		widgetsAbove.mount();
+		widgetsBelow.mount();
+		overlay.mount();
+		if (queueHost) {
+			const queue = new QueueView(store, (kind, index) => {
+				void this.connection!.request<{ steering: string[]; followUp: string[] }>({ type: "clear_queue" }).then(
+					(result) => {
+						const keep = [...(result.steering ?? []), ...(result.followUp ?? [])];
+						if (kind === "steering" && result.steering) {
+							const removed = result.steering[index];
+							const next = keep.filter((message) => message !== removed);
+							for (const message of next) {
+								this.connection!.send({ type: "prompt", message, streamingBehavior: "steer" });
+							}
+						} else if (result.followUp) {
+							const removed = result.followUp[index];
+							const next = keep.filter((message) => message !== removed);
+							for (const message of next) {
+								this.connection!.send({ type: "prompt", message, streamingBehavior: "followUp" });
+							}
+						}
+					},
+				);
+			});
+			queue.mount();
+			queueHost.replaceChildren(queue.element);
+		}
+
+		this.views = {
+			header,
+			transcript,
+			footer,
+			widgetsAbove,
+			widgetsBelow,
+			overlay,
+			statusRows,
+			queue: queueHost?.firstElementChild as unknown as QueueView,
+			unmount: () => {
+				transcript.unmount();
+				footer.unmount();
+				widgetsAbove.unmount();
+				widgetsBelow.unmount();
+				overlay.unmount();
+			},
+		};
 	}
 
 	// ------------------------------------------------------------------
@@ -676,55 +819,10 @@ export class App {
 			onDisconnect: () => this.showReconnectOverlay(),
 			onReconnect: () => {
 				this.hideReconnectOverlay();
-				void this.syncAfterSessionSwitch();
 			},
+			getSessionId: () => this.activeSessionId,
 		});
 		this.wireKeyboard();
-		this.mountEditorViews();
-	}
-
-	private mounted = false;
-
-	private mountEditorViews(): void {
-		if (this.mounted) return;
-		this.mounted = true;
-		const editorInner = this.element.querySelector(".editor-inner");
-		if (!editorInner) return;
-		const statusRowsHost = editorInner.firstElementChild as HTMLElement | null;
-		const queueHost = statusRowsHost?.nextElementSibling as HTMLElement | null;
-
-		if (statusRowsHost && this.connection) {
-			const statusRows = new StatusRowsView(this.store, this.connection);
-			statusRows.mount();
-			while (statusRowsHost.firstChild) statusRowsHost.removeChild(statusRowsHost.firstChild);
-			statusRowsHost.appendChild(statusRows.element);
-		}
-		if (queueHost && this.connection) {
-			const queue = new QueueView(this.store, (kind, _index) => {
-				// Removing a single queued message: clear all, restore without that one.
-				void this.connection!.request<{ steering: string[]; followUp: string[] }>({ type: "clear_queue" }).then(
-					(result) => {
-						const keep = [...(result.steering ?? []), ...(result.followUp ?? [])];
-						if (kind === "steering" && result.steering) {
-							const removed = result.steering[_index];
-							const next = keep.filter((message) => message !== removed);
-							for (const message of next) {
-								this.connection!.send({ type: "prompt", message, streamingBehavior: "steer" });
-							}
-						} else if (result.followUp) {
-							const removed = result.followUp[_index];
-							const next = keep.filter((message) => message !== removed);
-							for (const message of next) {
-								this.connection!.send({ type: "prompt", message, streamingBehavior: "followUp" });
-							}
-						}
-					},
-				);
-			});
-			queue.mount();
-			while (queueHost.firstChild) queueHost.removeChild(queueHost.firstChild);
-			queueHost.appendChild(queue.element);
-		}
 	}
 
 	private handleServerMessage(message: ServerMessage): void {
@@ -732,17 +830,50 @@ export class App {
 		switch (type) {
 			case "connected": {
 				const connected = message as never as ConnectedPayload;
-				this.store.applyConnected(connected);
+				this.connectedBase = connected;
+				// Multi-session payload: build a store per open session and
+				// activate the remembered (or primary) one.
+				this.hydrateSessions(connected);
 				if (connected.themes && connected.theme) {
 					this.store.setThemes(connected.themes, connected.theme.name);
 					applyThemeVars(connected.theme.vars);
 				}
-				this.mountEditorViews();
 				this.maybeShowTrustDialog();
-				// Reopen extension dialogs that were pending when the page
-				// reloaded — otherwise the tool call hangs forever.
-				for (const request of connected.pendingUiRequests ?? []) {
-					this.handleExtensionUiRequest(request);
+				break;
+			}
+			case "session_opened": {
+				const opened = message as never as SessionOpenedMessage;
+				this.registerSession(opened.id, opened, true);
+				this.refreshSessionsList();
+				break;
+			}
+			case "session_closed": {
+				const closed = message as never as SessionClosedMessage;
+				this.sessionStores.delete(closed.sessionId);
+				this.editorDrafts.delete(closed.sessionId);
+				this.sidebar?.removeSession(closed.sessionId);
+				if (this.activeSessionId === closed.sessionId) {
+					// Fall back to the primary (or any open session).
+					const remaining = [...this.sessionStores.keys()];
+					this.setActiveSession(remaining[0]);
+				}
+				break;
+			}
+			case "session_replaced": {
+				const replaced = message as never as SessionReplacedMessage;
+				const store = this.sessionStores.get(replaced.oldSessionId);
+				if (store) {
+					this.sessionStores.delete(replaced.oldSessionId);
+					this.sessionStores.set(replaced.newSessionId, store);
+					const draft = this.editorDrafts.get(replaced.oldSessionId);
+					if (draft !== undefined) {
+						this.editorDrafts.delete(replaced.oldSessionId);
+						this.editorDrafts.set(replaced.newSessionId, draft);
+					}
+					if (this.activeSessionId === replaced.oldSessionId) {
+						this.activeSessionId = replaced.newSessionId;
+					}
+					this.sidebar?.renameSession(replaced.oldSessionId, replaced.newSessionId, replaced.sessionPath);
 				}
 				break;
 			}
@@ -751,65 +882,215 @@ export class App {
 				break;
 			case "theme_changed": {
 				const themeChange = message as { name: string; vars: Record<string, string> };
-				this.store.applyThemeChanged(themeChange.name);
+				for (const store of this.sessionStores.values()) {
+					store.applyThemeChanged(themeChange.name);
+				}
 				applyThemeVars(themeChange.vars);
 				break;
 			}
 			case "auth_changed":
 				// Refresh header/provider info lazily.
 				break;
-			case "extension_ui_request":
-				this.handleExtensionUiRequest(message as ExtensionUiRequestMessage);
+			case "extension_ui_request": {
+				const request = message as never as ExtensionUiRequestMessage;
+				this.handleExtensionUiRequest(request);
 				break;
+			}
 			case "response":
 				break;
-			default:
-				this.store.applyAgentEvent(message as AgentEventMessage);
+			default: {
+				// Agent events route to the tagged session's store.
+				const tagged = message as { sessionId?: string };
+				const store =
+					(typeof tagged.sessionId === "string" ? this.sessionStores.get(tagged.sessionId) : undefined) ??
+					this.store;
+				store.applyAgentEvent(message as AgentEventMessage);
 				break;
+			}
 		}
+	}
+
+	/** Build stores for every open session in a connected payload. */
+	private hydrateSessions(connected: ConnectedPayload): void {
+		const sessions = connected.sessions ?? [];
+		const previousIds = new Set(this.sessionStores.keys());
+		for (const session of sessions) {
+			if (!this.sessionStores.has(session.id)) {
+				this.registerSession(session.id, session, false);
+			} else {
+				// Reconnect: rehydrate the existing store in place.
+				const store = this.sessionStores.get(session.id)!;
+				store.applyConnected(this.sessionPayload(connected, session));
+				this.sidebar?.updateSession(session.id, {
+					sessionPath: session.sessionPath,
+					cwd: session.cwd,
+					primary: session.id === connected.primarySessionId,
+				});
+			}
+			previousIds.delete(session.id);
+		}
+		for (const gone of previousIds) {
+			this.sessionStores.delete(gone);
+			this.editorDrafts.delete(gone);
+			this.sidebar?.removeSession(gone);
+		}
+		if (this.sessionStores.size === 0 && sessions.length === 0) {
+			// Single-session legacy fallback.
+			this.fallbackStore.applyConnected(connected);
+			this.rebuildSessionViews();
+		}
+		const remembered = window.localStorage.getItem("pi-web-active-session") ?? undefined;
+		const active =
+			remembered !== undefined && this.sessionStores.has(remembered)
+				? remembered
+				: (connected.primarySessionId ?? sessions[0]?.id);
+		if (active !== undefined) {
+			this.setActiveSession(active);
+		}
+		this.refreshSessionsList();
+	}
+
+	/** Adapt a per-session payload into the shape applyConnected expects. */
+	private sessionPayload(connected: ConnectedPayload, session: ConnectedSession): ConnectedPayload {
+		return {
+			type: "connected",
+			version: connected.version,
+			state: session.state,
+			messages: session.messages,
+			contextInfo: session.contextInfo,
+			trust: session.trust,
+			widgets: session.widgets,
+			statuses: session.statuses,
+			themes: connected.themes,
+			theme: connected.theme,
+			keybindings: connected.keybindings,
+			pendingUiRequests: session.pendingUiRequests,
+		};
+	}
+
+	/** Create a store + sidebar entry for a session (new or reconnected). */
+	private registerSession(id: string, session: ConnectedSession, focus: boolean): void {
+		const store = new Store();
+		const connectedBase = this.connectedBase;
+		store.applyConnected(this.sessionPayload(connectedBase, session));
+		// A session mid-turn at connect time keeps its running state until
+		// the next turn event arrives.
+		if (session.running) store.setTurnRunning(true);
+		this.sessionStores.set(id, store);
+		this.sidebar?.addSession(id, {
+			sessionPath: session.sessionPath,
+			cwd: session.cwd,
+			primary: id === this.connectedBase.primarySessionId,
+		});
+		if (focus || this.pendingFocus === id) {
+			this.pendingFocus = undefined;
+			this.setActiveSession(id);
+		}
+		// Extension dialogs pending on this session (page reload while a
+		// questionnaire was open) reopen on registration.
+		for (const request of session.pendingUiRequests ?? []) {
+			this.handleExtensionUiRequest(request);
+		}
+	}
+
+	/** The last connected payload's global section (themes/keybindings). */
+	private connectedBase: ConnectedPayload = { type: "connected", version: "", messages: [] };
+
+	/** Refresh the sidebar's disk session list (all projects). */
+	private refreshSessionsList(): void {
+		void this.connection
+			?.request<{
+				sessions: Array<{ file: string; cwd: string; name?: string; firstMessage?: string; modified?: string }>;
+			}>({
+				type: "list_sessions",
+				scope: "all",
+			})
+			.then((data) => {
+				this.sidebar?.setSessionsList(
+					(data.sessions ?? []).map((session) => ({
+						path: session.file,
+						cwd: session.cwd,
+						name: session.name?.trim() || session.firstMessage,
+						modified: new Date(session.modified ?? 0).getTime() || 0,
+					})),
+				);
+			})
+			.catch(() => {});
+	}
+
+	/** Switch the active session (rebinds all session views). */
+	private setActiveSession(id: string | undefined): void {
+		if (id === undefined) {
+			this.activeSessionId = undefined;
+			return;
+		}
+		if (!this.sessionStores.has(id)) return;
+		if (this.activeSessionId === id) return;
+		// Preserve the current editor draft before switching.
+		if (this.activeSessionId !== undefined) {
+			const draft = this.editor.getText();
+			if (draft.length > 0) this.editorDrafts.set(this.activeSessionId, draft);
+			else this.editorDrafts.delete(this.activeSessionId);
+		}
+		this.activeSessionId = id;
+		window.localStorage.setItem("pi-web-active-session", id);
+		this.rebuildSessionViews();
+		// Restore the target session's draft and focus the editor.
+		this.editor.setText(this.editorDrafts.get(id) ?? "");
+		this.editor.focus();
+		this.sidebar?.setActive(id);
 	}
 
 	private handleExtensionUiRequest(request: ExtensionUiRequestMessage): void {
 		const connection = this.connection;
 		if (!connection) return;
+		// Dialog answers must return to the session that asked, even if the
+		// user switched sessions while the dialog was open.
+		const requestSessionId = request.sessionId;
 		const respond = (response: { value?: string; confirmed?: boolean; cancelled?: boolean }): void => {
 			if (response.cancelled) {
-				connection.sendRaw(extensionUiResponse({ id: request.id, cancelled: true }));
+				connection.sendRaw(extensionUiResponse({ id: request.id, cancelled: true, sessionId: requestSessionId }));
 			} else if (response.confirmed !== undefined) {
-				connection.sendRaw(extensionUiResponse({ id: request.id, confirmed: response.confirmed }));
+				connection.sendRaw(
+					extensionUiResponse({ id: request.id, confirmed: response.confirmed, sessionId: requestSessionId }),
+				);
 			} else if (response.value !== undefined) {
-				connection.sendRaw(extensionUiResponse({ id: request.id, value: response.value }));
+				connection.sendRaw(
+					extensionUiResponse({ id: request.id, value: response.value, sessionId: requestSessionId }),
+				);
 			}
 		};
 
+		// Widget/status side effects land in the OWNING session's store — the
+		// active view may be a different session.
+		const store =
+			(request.sessionId !== undefined ? this.sessionStores.get(request.sessionId) : undefined) ?? this.store;
 		switch (request.method) {
 			case "notify":
+				// Notifications are user-visible regardless of which session
+				// emitted them: surface them on the active store.
 				this.store.pushNotification(
 					request.message ?? "",
 					(request.notifyType as "info" | "warning" | "error") ?? "info",
 				);
 				return;
 			case "setStatus":
-				this.store.setExtensionStatus(request.statusKey ?? "", request.statusText);
+				store.setExtensionStatus(request.statusKey ?? "", request.statusText);
 				return;
 			case "setWidget":
-				this.store.setWidget(
-					request.widgetKey ?? "",
-					request.widgetLines,
-					request.widgetPlacement ?? "aboveEditor",
-				);
+				store.setWidget(request.widgetKey ?? "", request.widgetLines, request.widgetPlacement ?? "aboveEditor");
 				return;
 			case "setWidgetData":
-				this.store.setWidgetData(request.widgetKey ?? "", request.widgetData);
+				store.setWidgetData(request.widgetKey ?? "", request.widgetData);
 				return;
 			case "setTitle":
 				document.title = request.text ?? "pi";
 				return;
 			case "set_editor_text":
-				this.editor.setText(request.text ?? "");
+				if (store === this.store) this.editor.setText(request.text ?? "");
 				return;
 			case "setWorkingIndicator":
-				this.store.setWorkingIndicator(request.frames, request.intervalMs);
+				store.setWorkingIndicator(request.frames, request.intervalMs);
 				return;
 			case "auth_event":
 				openAuthEventDialog(this.dialogs, request as never);
@@ -1044,7 +1325,7 @@ export class App {
 			const query = input.value.toLowerCase();
 			if (!query) return [];
 			const elements: HTMLElement[] = [];
-			for (const node of this.transcript.element.querySelectorAll(".transcript-item")) {
+			for (const node of this.views?.transcript.element.querySelectorAll(".transcript-item") ?? []) {
 				if (node instanceof HTMLElement && node.textContent?.toLowerCase().includes(query)) {
 					elements.push(node);
 				}

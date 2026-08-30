@@ -1449,3 +1449,190 @@ body {
 	font-size: 11px;
 	color: var(--color-dim);
 }
+
+/* ------------------------------------------------------------------ */
+/* Multi-session sidebar                                               */
+/* ------------------------------------------------------------------ */
+
+.app-main {
+	display: flex;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.sidebar {
+	flex: 0 0 220px;
+	display: flex;
+	flex-direction: column;
+	background: var(--color-card-bg);
+	border-right: 1px solid var(--color-border-muted);
+	min-height: 0;
+	transition: flex-basis 0.15s ease;
+	overflow: hidden;
+}
+
+.sidebar.collapsed {
+	flex-basis: 32px;
+}
+
+.sidebar-chrome {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 6px 8px;
+	border-bottom: 1px solid var(--color-border-muted);
+	flex: 0 0 auto;
+}
+
+.sidebar-title {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--color-dim);
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.sidebar.collapsed .sidebar-title {
+	display: none;
+}
+
+.sidebar-toggle {
+	background: none;
+	border: none;
+	color: var(--color-muted);
+	cursor: pointer;
+	font-size: 11px;
+	padding: 2px 4px;
+}
+
+.sidebar.collapsed .sidebar-toggle {
+	transform: rotate(180deg);
+}
+
+.sidebar-groups {
+	flex: 1 1 auto;
+	overflow-y: auto;
+	padding: 4px 0;
+}
+
+.sidebar.collapsed .sidebar-groups,
+.sidebar.collapsed .sidebar-new-btn {
+	display: none;
+}
+
+.sidebar-group {
+	margin-bottom: 6px;
+}
+
+.sidebar-group-label {
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--color-dim);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	padding: 4px 10px 2px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sidebar-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 3px 8px 3px 10px;
+	cursor: pointer;
+	font-size: 12px;
+	position: relative;
+}
+
+.sidebar-row:hover {
+	background: var(--color-page-bg);
+}
+
+.sidebar-row.active {
+	background: var(--color-selected-bg);
+}
+
+.sidebar-marker {
+	flex: 0 0 auto;
+	color: var(--color-dim);
+	font-size: 9px;
+}
+
+.sidebar-row.open .sidebar-marker {
+	color: var(--color-accent);
+}
+
+.sidebar-session-name {
+	flex: 1 1 auto;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sidebar-spinner {
+	flex: 0 0 auto;
+	font-size: 11px;
+	color: var(--color-accent);
+	opacity: 0;
+	display: inline-block;
+}
+
+.sidebar-spinner.spinning {
+	opacity: 1;
+	animation: sidebar-spin 1s linear infinite;
+}
+
+@keyframes sidebar-spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.sidebar-close {
+	flex: 0 0 auto;
+	background: none;
+	border: none;
+	color: var(--color-muted);
+	cursor: pointer;
+	font-size: 13px;
+	line-height: 1;
+	padding: 0 3px;
+	border-radius: 3px;
+	opacity: 0;
+}
+
+.sidebar-row:hover .sidebar-close {
+	opacity: 1;
+}
+
+.sidebar-close:hover {
+	color: var(--color-error, #e06c75);
+}
+
+.sidebar-new {
+	flex: 0 0 auto;
+	padding: 8px;
+	border-top: 1px solid var(--color-border-muted);
+}
+
+.sidebar-new-btn {
+	width: 100%;
+	font-size: 12px;
+	padding: 5px 8px;
+	background: var(--color-page-bg);
+	border: 1px solid var(--color-border-muted);
+	border-radius: 4px;
+	color: var(--color-text);
+	cursor: pointer;
+}
+
+.sidebar-new-btn:hover {
+	border-color: var(--color-accent);
+}

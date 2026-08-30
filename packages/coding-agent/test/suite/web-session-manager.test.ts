@@ -114,7 +114,7 @@ describe("WebSessionManager", () => {
 	});
 
 	it("newSession opens an independent slot; the primary is untouched", async () => {
-		const { manager, broadcast } = await createManager();
+		const { manager } = await createManager();
 		const primary = manager.getPrimary();
 		const slot = await manager.newSession();
 		expect(manager.getSlots()).toHaveLength(2);

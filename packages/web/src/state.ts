@@ -177,6 +177,8 @@ export class Store {
 	// ------------------------------------------------------------------
 
 	applyConnected(payload: ConnectedPayload): void {
+		this.turnRunning = false;
+		this.runningTools = 0;
 		this.update((state) => {
 			state.connected = true;
 			state.version = payload.version;
@@ -306,9 +308,28 @@ export class Store {
 	// Events
 	// ------------------------------------------------------------------
 
+	/** Turn in flight (agent run OR tool execution) — see isTurnRunning. */
+	private turnRunning = false;
+	/** Tool executions in flight — turn_end fires between agent runs while
+	 * tools are still running, so the tool count keeps the session "running". */
+	private runningTools = 0;
+
+	/** True while a turn is in flight: agent runs settle between tool calls,
+	 * but the turn (and its running tools) is still active. */
+	isTurnRunning(): boolean {
+		return this.turnRunning || this.runningTools > 0;
+	}
+
+	/** Seed the flag from a server-reported running state (rehydration). */
+	setTurnRunning(running: boolean): void {
+		this.turnRunning = running;
+	}
+
 	applyAgentEvent(event: AgentEventMessage): void {
 		switch (event.type) {
+			case "turn_start":
 			case "agent_start":
+				this.turnRunning = true;
 				this.update((state) => {
 					if (state.sessionState) state.sessionState = { ...state.sessionState, isStreaming: true };
 					state.retry = undefined;
@@ -333,6 +354,7 @@ export class Store {
 				this.handleMessageEnd(event);
 				break;
 			case "turn_end":
+				this.turnRunning = false;
 				this.handleTurnEnd(event);
 				break;
 			case "tool_execution_start":
@@ -528,6 +550,7 @@ export class Store {
 	private handleToolExecutionStart(event: AgentEventMessage): void {
 		const toolCallId = String(event.toolCallId ?? "");
 		if (!toolCallId) return;
+		this.runningTools++;
 		this.update((state) => {
 			const streaming = findStreamingAssistant(state);
 			const card: ToolCardState = {
@@ -560,6 +583,7 @@ export class Store {
 	private handleToolExecutionEnd(event: AgentEventMessage): void {
 		const toolCallId = String(event.toolCallId ?? "");
 		if (!toolCallId) return;
+		this.runningTools = Math.max(0, this.runningTools - 1);
 		this.update((state) => {
 			const card = findToolCard(state, toolCallId);
 			if (card) {

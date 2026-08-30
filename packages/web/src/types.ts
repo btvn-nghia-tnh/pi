@@ -53,6 +53,8 @@ export interface TextContent {
 
 export interface RpcCommandBase {
 	id?: string;
+	/** Target session for session-scoped commands (multi-session web host). */
+	sessionId?: string;
 }
 
 export type ClientCommand =
@@ -94,6 +96,8 @@ export type ClientCommand =
 	| (RpcCommandBase & { type: "set_session_name"; name: string })
 	| (RpcCommandBase & { type: "get_messages" })
 	| (RpcCommandBase & { type: "widget_response"; key: string; payload: unknown })
+	| (RpcCommandBase & { type: "open_session"; sessionPath: string })
+	| (RpcCommandBase & { type: "close_session"; sessionId: string })
 	| (RpcCommandBase & { type: "get_commands" })
 	| (RpcCommandBase & { type: "list_sessions"; scope?: "cwd" | "all" })
 	| (RpcCommandBase & { type: "delete_session"; sessionPath: string })
@@ -221,9 +225,30 @@ export interface ConnectedWidgetState {
 	data?: Record<string, unknown>;
 }
 
+/** Per-session rehydration payload in the multi-session connected message. */
+export interface ConnectedSession {
+	id: string;
+	sessionPath?: string;
+	cwd: string;
+	running: boolean;
+	widgets?: ConnectedWidgetState[];
+	statuses?: Array<{ key: string; text: string }>;
+	state?: RpcSessionState;
+	messages: AgentMessage[];
+	contextInfo?: RpcContextInfo;
+	trust?: RpcTrustState;
+	/** Extension dialogs still awaiting an answer — reopened on connect. */
+	pendingUiRequests?: ExtensionUiRequestMessage[];
+}
+
 export interface ConnectedPayload {
 	type: "connected";
 	version: string;
+	/** Open sessions with their full rehydration payloads; index 0 is primary. */
+	sessions?: ConnectedSession[];
+	/** The server's primary session id (the first slot). */
+	primarySessionId?: string;
+	/** Legacy single-session fields (mirror of the primary slot). */
 	widgets?: ConnectedWidgetState[];
 	statuses?: Array<{ key: string; text: string }>;
 	themes?: RpcThemeInfo[];
@@ -235,6 +260,26 @@ export interface ConnectedPayload {
 	keybindings?: RpcKeybindingsPayload;
 	/** Extension dialogs still awaiting an answer — reopened on connect. */
 	pendingUiRequests?: ExtensionUiRequestMessage[];
+}
+
+/** A new session was opened on the server (sidebar /new, open_session). */
+export interface SessionOpenedMessage extends ConnectedSession {
+	type: "session_opened";
+}
+
+/** An open session was closed on the server. */
+export interface SessionClosedMessage {
+	type: "session_closed";
+	sessionId: string;
+}
+
+/** The session behind a slot was replaced in-slot (/new, fork, extension). */
+export interface SessionReplacedMessage {
+	type: "session_replaced";
+	oldSessionId: string;
+	newSessionId: string;
+	sessionPath?: string;
+	cwd: string;
 }
 
 export interface ServerShutdownMessage {
@@ -272,6 +317,8 @@ export interface ExtensionUiRequestMessage {
 	type: "extension_ui_request";
 	id: string;
 	method: ExtensionUiRequestMethod;
+	/** Owning session (multi-session web host). */
+	sessionId?: string;
 	title?: string;
 	message?: string;
 	options?: Array<string | { id: string; label: string; description?: string }>;
@@ -304,6 +351,8 @@ export interface ExtensionUiResponseMessage {
 	value?: string;
 	confirmed?: boolean;
 	cancelled?: boolean;
+	/** Owning session (multi-session web host). */
+	sessionId?: string;
 }
 
 /** Agent session events, as serialized by the RPC core (json-event.ts). */
@@ -319,6 +368,9 @@ export type ServerMessage =
 	| ThemeChangedMessage
 	| AuthChangedMessage
 	| ExtensionUiRequestMessage
+	| SessionOpenedMessage
+	| SessionClosedMessage
+	| SessionReplacedMessage
 	| AgentEventMessage;
 
 export interface UsageInfo {

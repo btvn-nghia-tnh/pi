@@ -268,6 +268,9 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 					};
 				}
 				const slot = await sessions.openSession(command.sessionPath);
+				// Announce the new session with its full rehydration payload so
+				// connected clients can build their view of it.
+				broadcast({ type: "session_opened", ...(await slotPayload(slot)) });
 				return {
 					id: command.id,
 					type: "response",
@@ -278,6 +281,7 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 			}
 			if (command.type === "new_session") {
 				const slot = await sessions.newSession();
+				broadcast({ type: "session_opened", ...(await slotPayload(slot)) });
 				return {
 					id: command.id,
 					type: "response",

@@ -8,6 +8,8 @@ export interface ConnectionHandlers {
 	onMessage: (message: ServerMessage) => void;
 	onDisconnect: (reason: string) => void;
 	onReconnect: () => void;
+	/** Current session id; every outgoing command is tagged with it. */
+	getSessionId?: () => string | undefined;
 }
 
 export interface PiConnection {
@@ -21,6 +23,12 @@ export interface PiConnection {
 const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10000];
 
 export function connect(handlers: ConnectionHandlers): PiConnection {
+	/** Every outgoing command carries the active session tag. */
+	const tagCommand = <T extends ClientCommand>(command: T): T => {
+		const sessionId = handlers.getSessionId?.();
+		if (sessionId === undefined || command.sessionId !== undefined) return command;
+		return { ...command, sessionId };
+	};
 	let socket: WebSocket | undefined;
 	let closedByUser = false;
 	let reconnectAttempt = 0;
@@ -89,7 +97,8 @@ export function connect(handlers: ConnectionHandlers): PiConnection {
 	open();
 
 	return {
-		send(command) {
+		send(rawCommand) {
+			const command = tagCommand(rawCommand);
 			if (socket?.readyState === WebSocket.OPEN) {
 				socket.send(JSON.stringify(command));
 			}
@@ -133,6 +142,7 @@ export function extensionUiResponse(response: {
 	value?: string;
 	confirmed?: boolean;
 	cancelled?: boolean;
+	sessionId?: string;
 }): ExtensionUiResponseMessage {
 	return { type: "extension_ui_response", ...response };
 }

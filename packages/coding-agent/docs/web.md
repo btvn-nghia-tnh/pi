@@ -90,3 +90,25 @@ PI_WEB_DIST=packages/web/dist ./pi-test.sh web --no-open
 
 The browser smoke check (`npm run check:browser-smoke`) bundles
 `packages/web/src/main.ts` to catch Node-only imports.
+
+## Multi-session
+
+`pi web` hosts several open sessions side by side — no need to run multiple
+processes:
+
+- **Sidebar** (left, collapse with `Ctrl+B`): every session on disk, grouped
+  by project. `●` marks open sessions, `⟳` spins beside any session with a
+  turn in flight (including background sessions), `○` marks closed ones.
+- Click a closed session to open it; click an open one to switch to it —
+  switching rebinds the views instantly without a server round-trip.
+- `+ New session` opens a fresh session in the server's project.
+- `×` on an open session closes it (aborts a running turn after a confirm).
+  The primary session (the one the server was started with) cannot be closed.
+- A running session keeps streaming in the background while you view another;
+  its transcript, widget registrations, and editor draft are all preserved
+  per session and rehydrated on reload.
+
+Wire protocol: every session-scoped message carries a top-level `sessionId`;
+`open_session`/`close_session`/`new_session` are connection-level lifecycle
+commands, and the `connected` payload carries a full rehydration payload per
+open session.
