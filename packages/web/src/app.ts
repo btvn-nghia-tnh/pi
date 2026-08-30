@@ -733,6 +733,11 @@ export class App {
 				}
 				this.mountEditorViews();
 				this.maybeShowTrustDialog();
+				// Reopen extension dialogs that were pending when the page
+				// reloaded — otherwise the tool call hangs forever.
+				for (const request of connected.pendingUiRequests ?? []) {
+					this.handleExtensionUiRequest(request);
+				}
 				break;
 			}
 			case "server_shutdown":

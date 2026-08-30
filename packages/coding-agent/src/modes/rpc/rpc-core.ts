@@ -75,7 +75,11 @@ export class RpcCore {
 		| undefined;
 	private readonly pendingExtensionRequests = new Map<
 		string,
-		{ resolve: (value: any) => void; reject: (error: Error) => void }
+		{
+			resolve: (value: any) => void;
+			reject: (error: Error) => void;
+			request?: RpcExtensionUIRequest;
+		}
 	>();
 	private session: AgentSession;
 	private unsubscribe: (() => void) | undefined;
@@ -161,20 +165,33 @@ export class RpcCore {
 				}, opts.timeout);
 			}
 
+			const wireRequest = { type: "extension_ui_request", id, ...request } as RpcExtensionUIRequest;
 			this.pendingExtensionRequests.set(id, {
 				resolve: (response: RpcExtensionUIResponse) => {
 					cleanup();
 					resolve(parseResponse(response));
 				},
 				reject,
+				request: wireRequest,
 			});
-			this.output({ type: "extension_ui_request", id, ...request } as RpcExtensionUIRequest);
+			this.output(wireRequest);
 		});
 	}
 
 	/**
 	 * Create an extension UI context that uses the RPC protocol.
 	 */
+	/**
+	 * Extension UI requests still awaiting a response (select/input/confirm/
+	 * editor dialogs). Replayed to reconnecting clients so a page reload does
+	 * not orphan a pending dialog and hang the extension tool call.
+	 */
+	getPendingExtensionRequests(): RpcExtensionUIRequest[] {
+		return [...this.pendingExtensionRequests.values()]
+			.map((pending) => pending.request)
+			.filter((request): request is RpcExtensionUIRequest => request !== undefined);
+	}
+
 	private createExtensionUIContext(): ExtensionUIContext {
 		const output = (obj: RpcResponse | RpcExtensionUIRequest | object): void => {
 			this.output(obj);
@@ -324,6 +341,13 @@ export class RpcCore {
 			async editor(title: string, prefill?: string): Promise<string | undefined> {
 				const id = crypto.randomUUID();
 				return new Promise((resolve, reject) => {
+					const wireRequest = {
+						type: "extension_ui_request",
+						id,
+						method: "editor",
+						title,
+						prefill,
+					} as RpcExtensionUIRequest;
 					pendingExtensionRequests.set(id, {
 						resolve: (response: RpcExtensionUIResponse) => {
 							if ("cancelled" in response && response.cancelled) {
@@ -335,8 +359,9 @@ export class RpcCore {
 							}
 						},
 						reject,
+						request: wireRequest,
 					});
-					output({ type: "extension_ui_request", id, method: "editor", title, prefill } as RpcExtensionUIRequest);
+					output(wireRequest);
 				});
 			},
 

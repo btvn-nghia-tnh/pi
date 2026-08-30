@@ -651,7 +651,7 @@ export function openExtensionUiDialog(
 		method: string;
 		title?: string;
 		message?: string;
-		options?: Array<{ id: string; label: string; description?: string }>;
+		options?: Array<string | { id: string; label: string; description?: string }>;
 		placeholder?: string;
 		prefill?: string;
 		promptType?: string;
@@ -659,10 +659,15 @@ export function openExtensionUiDialog(
 	respond: (response: { value?: string; confirmed?: boolean; cancelled?: boolean }) => void,
 ): void {
 	const method = request.method;
+	// `ui.select` sends plain string options (the pi ExtensionUIContext API);
+	// auth prompts send {id, label} objects. Normalize both shapes up front.
+	const options = (request.options ?? []).map((option) =>
+		typeof option === "string" ? { id: option, label: option } : option,
+	);
 	if (method === "auth_prompt" && request.promptType === "select") {
 		dialogs.open((close) => {
 			const list = h("div", {});
-			for (const option of request.options ?? []) {
+			for (const option of options) {
 				const row = h(
 					"div",
 					{ class: "list-item" },
@@ -688,10 +693,10 @@ export function openExtensionUiDialog(
 	if (method === "select") {
 		dialogs.open((close) => {
 			const list = h("div", {});
-			for (const option of request.options ?? []) {
+			for (const option of options) {
 				const row = h("div", { class: "list-item" }, h("span", { class: "item-label" }, option.label));
 				row.addEventListener("click", () => {
-					respond({ value: option.label });
+					respond({ value: option.id });
 					close();
 				});
 				list.appendChild(row);

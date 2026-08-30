@@ -208,6 +208,10 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 						version: VERSION,
 						widgets: [...widgetState.entries()].map(([key, widget]) => ({ key, ...widget })),
 						statuses: [...statusState.entries()].map(([key, text]) => ({ key, text })),
+						// Extension dialogs (select/input/confirm/editor) that are
+						// still awaiting an answer — replayed so a page reload
+						// reopens them instead of hanging the tool call.
+						pendingUiRequests: core.getPendingExtensionRequests(),
 						themes: themeData?.themes ?? [],
 						theme: currentTheme ? { name: currentTheme.name, vars: currentTheme.vars } : undefined,
 						state: stateResponse?.success && "data" in stateResponse ? stateResponse.data : undefined,

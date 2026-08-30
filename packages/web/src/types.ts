@@ -232,6 +232,8 @@ export interface ConnectedPayload {
 	contextInfo?: RpcContextInfo;
 	trust?: RpcTrustState;
 	keybindings?: RpcKeybindingsPayload;
+	/** Extension dialogs still awaiting an answer — reopened on connect. */
+	pendingUiRequests?: ExtensionUiRequestMessage[];
 }
 
 export interface ServerShutdownMessage {
@@ -271,7 +273,7 @@ export interface ExtensionUiRequestMessage {
 	method: ExtensionUiRequestMethod;
 	title?: string;
 	message?: string;
-	options?: Array<{ id: string; label: string; description?: string }>;
+	options?: Array<string | { id: string; label: string; description?: string }>;
 	timeout?: number;
 	placeholder?: string;
 	prefill?: string;
