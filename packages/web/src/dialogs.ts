@@ -99,6 +99,7 @@ interface ModelInfo {
 export function openModelSelector(
 	dialogs: DialogStack,
 	connection: PiConnection,
+	store: Store,
 	options: { onSaveDefault?: () => void },
 ): void {
 	dialogs.open((close) => {
@@ -136,7 +137,10 @@ export function openModelSelector(
 				row.addEventListener("click", () => {
 					void connection
 						.request({ type: "set_model", provider: model.provider, modelId: model.id })
-						.then(() => close())
+						.then(() => {
+							store.setModel(model as never);
+							close();
+						})
 						.catch(() => {});
 				});
 				list.appendChild(row);
@@ -206,6 +210,7 @@ export function openModelSelector(
 export function openThinkingSelector(
 	dialogs: DialogStack,
 	connection: PiConnection,
+	store: Store,
 	options: { onSaveDefault?: () => void },
 ): void {
 	dialogs.open((close) => {
@@ -224,7 +229,10 @@ export function openThinkingSelector(
 				row.addEventListener("click", () => {
 					void connection
 						.request({ type: "set_thinking_level", level: level as never })
-						.then(() => close())
+						.then(() => {
+							store.setThinkingLevel(level as never);
+							close();
+						})
 						.catch(() => {});
 				});
 				list.appendChild(row);

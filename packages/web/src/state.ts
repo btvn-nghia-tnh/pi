@@ -235,6 +235,24 @@ export class Store {
 		});
 	}
 
+	/** Patch the active model (set_model response) without a get_state round trip. */
+	setModel(model: RpcSessionState["model"]): void {
+		this.update((state) => {
+			if (state.sessionState) {
+				state.sessionState = { ...state.sessionState, model };
+			}
+		});
+	}
+
+	/** Patch the thinking level (set_thinking_level / cycle response). */
+	setThinkingLevel(level: RpcSessionState["thinkingLevel"]): void {
+		this.update((state) => {
+			if (state.sessionState) {
+				state.sessionState = { ...state.sessionState, thinkingLevel: level };
+			}
+		});
+	}
+
 	setContextInfo(contextInfo: NonNullable<ConnectedPayload["contextInfo"]>): void {
 		this.update((state) => {
 			state.contextInfo = contextInfo;

@@ -260,24 +260,34 @@ export class App {
 				if (args) {
 					const [provider, modelId] = args.split("/");
 					if (provider && modelId) {
-						void connection.request({ type: "set_model", provider, modelId }).catch((error: Error) => {
-							store.pushNotification(error.message, "error");
-						});
+						void connection
+							.request<never>({ type: "set_model", provider, modelId })
+							.then((model) => {
+								store.setModel(model);
+							})
+							.catch((error: Error) => {
+								store.pushNotification(error.message, "error");
+							});
 						return true;
 					}
 				}
-				openModelSelector(this.dialogs, connection, {
+				openModelSelector(this.dialogs, connection, this.store, {
 					onSaveDefault: () => this.saveModelDefault(),
 				});
 				return true;
 			case "thinking":
 				if (args) {
-					void connection.request({ type: "set_thinking_level", level: args as never }).catch(() => {
-						store.pushNotification(`Invalid thinking level: ${args}`, "error");
-					});
+					void connection
+						.request({ type: "set_thinking_level", level: args as never })
+						.then(() => {
+							store.setThinkingLevel(args as never);
+						})
+						.catch(() => {
+							store.pushNotification(`Invalid thinking level: ${args}`, "error");
+						});
 					return true;
 				}
-				openThinkingSelector(this.dialogs, connection, {
+				openThinkingSelector(this.dialogs, connection, this.store, {
 					onSaveDefault: () => this.saveThinkingDefault(),
 				});
 				return true;
@@ -843,7 +853,9 @@ export class App {
 						void connection.request({ type: "cycle_model" }).then(() => this.refreshState());
 						return true;
 					case "app.model.select":
-						openModelSelector(this.dialogs, connection, { onSaveDefault: () => this.saveModelDefault() });
+						openModelSelector(this.dialogs, connection, this.store, {
+							onSaveDefault: () => this.saveModelDefault(),
+						});
 						return true;
 					case "app.tools.expand": {
 						const next = !this.store.getState().toolsExpanded;
