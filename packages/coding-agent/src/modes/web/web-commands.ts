@@ -441,6 +441,20 @@ export function createWebCommandHandler(): WebCommandHandler {
 
 		switch (command.type) {
 			// =================================================================
+			// Interactive widget responses (setWidgetData overlays)
+			// =================================================================
+			case "widget_response": {
+				const delivered = core.dispatchWidgetResponse(command.key, command.payload);
+				return {
+					id,
+					type: "response",
+					command: "widget_response",
+					success: true,
+					data: { delivered },
+				};
+			}
+
+			// =================================================================
 			// Session management
 			// =================================================================
 

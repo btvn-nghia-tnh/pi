@@ -186,6 +186,15 @@ export interface ExtensionUIContext {
 	 */
 	setWidgetData(key: string, data: Record<string, unknown> | undefined): void;
 
+	/**
+	 * Subscribe to user responses submitted for an interactive widget. The
+	 * web GUI renders `setWidgetData` overlays and can send back structured
+	 * answers (e.g. a questionnaire submit) via the widget_response command;
+	 * hosts without interactive widget support simply never call the handler.
+	 * Returns an unsubscribe function. Optional: older hosts do not provide it.
+	 */
+	onWidgetResponse?(key: string, handler: (payload: unknown) => void): () => void;
+
 	/** Set a custom footer component, or undefined to restore the built-in footer.
 	 *
 	 * The factory receives a FooterDataProvider for data not otherwise accessible:

@@ -143,10 +143,11 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 				if (existing) {
 					widgetState.set(key, { ...existing, data: undefined });
 				}
-			} else if ((request.widgetData as { display?: string }).display === "overlay") {
-				// Overlay panels are transient (user-toggled, like the TUI
-				// interactive panels); they must not replay on page reload.
 			} else {
+				// Docked widgets and interactive overlays alike are cached and
+				// replayed: overlays carry live state the extension owns (an open
+				// panel, a pending questionnaire) — losing them on reload would
+				// hang the tool call or drop the open panel.
 				const existing = widgetState.get(key) ?? {};
 				widgetState.set(key, {
 					lines: existing.lines ?? [],

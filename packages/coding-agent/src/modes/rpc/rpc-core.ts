@@ -73,6 +73,8 @@ export class RpcCore {
 	private readonly extraCommandHandler:
 		| ((command: RpcCommand, core: RpcCore) => Promise<RpcResponse | undefined>)
 		| undefined;
+	/** Interactive-widget response handlers, keyed by widget key. */
+	private readonly widgetResponseHandlers = new Map<string, (payload: unknown) => void>();
 	private readonly pendingExtensionRequests = new Map<
 		string,
 		{
@@ -182,6 +184,19 @@ export class RpcCore {
 	 * Create an extension UI context that uses the RPC protocol.
 	 */
 	/**
+	 * Deliver a user-submitted response for an interactive widget. Returns true
+	 * when a handler was registered for the key (and was called once), false
+	 * when nobody is listening — the web GUI treats that as an orphaned
+	 * response and closes the overlay locally.
+	 */
+	dispatchWidgetResponse(key: string, payload: unknown): boolean {
+		const handler = this.widgetResponseHandlers.get(key);
+		if (!handler) return false;
+		handler(payload);
+		return true;
+	}
+
+	/**
 	 * Extension UI requests still awaiting a response (select/input/confirm/
 	 * editor dialogs). Replayed to reconnecting clients so a page reload does
 	 * not orphan a pending dialog and hang the extension tool call.
@@ -198,6 +213,7 @@ export class RpcCore {
 		};
 		const createDialogPromise = this.createDialogPromise.bind(this);
 		const pendingExtensionRequests = this.pendingExtensionRequests;
+		const widgetResponseHandlers = this.widgetResponseHandlers;
 		const uiContext: ExtensionUIContext = {
 			select: (title, options, opts) =>
 				createDialogPromise(opts, undefined, { method: "select", title, options, timeout: opts?.timeout }, (r) =>
@@ -277,6 +293,15 @@ export class RpcCore {
 					widgetKey: key,
 					widgetData: data,
 				} as RpcExtensionUIRequest);
+			},
+
+			onWidgetResponse(key: string, handler: (payload: unknown) => void): () => void {
+				widgetResponseHandlers.set(key, handler);
+				return () => {
+					if (widgetResponseHandlers.get(key) === handler) {
+						widgetResponseHandlers.delete(key);
+					}
+				};
 			},
 
 			setWidget(key: string, content: unknown, options?: ExtensionWidgetOptions): void {

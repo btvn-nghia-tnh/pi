@@ -93,6 +93,7 @@ export type ClientCommand =
 	| (RpcCommandBase & { type: "get_last_assistant_text" })
 	| (RpcCommandBase & { type: "set_session_name"; name: string })
 	| (RpcCommandBase & { type: "get_messages" })
+	| (RpcCommandBase & { type: "widget_response"; key: string; payload: unknown })
 	| (RpcCommandBase & { type: "get_commands" })
 	| (RpcCommandBase & { type: "list_sessions"; scope?: "cwd" | "all" })
 	| (RpcCommandBase & { type: "delete_session"; sessionPath: string })

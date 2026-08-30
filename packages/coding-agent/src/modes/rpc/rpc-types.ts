@@ -73,6 +73,10 @@ export type RpcCommand =
 	// Commands (available for invocation via prompt)
 	| { id?: string; type: "get_commands" }
 
+	// Web GUI parity: interactive widget responses (setWidgetData overlays
+	// that collect user input, e.g. questionnaires)
+	| { id?: string; type: "widget_response"; key: string; payload: unknown }
+
 	// Web GUI parity: session management
 	| { id?: string; type: "list_sessions"; scope?: "cwd" | "all" }
 	| { id?: string; type: "delete_session"; sessionPath: string }
@@ -171,6 +175,7 @@ export type RpcResponse =
 			data: { steering: string[]; followUp: string[] };
 	  }
 	| { id?: string; type: "response"; command: "new_session"; success: true; data: { cancelled: boolean } }
+	| { id?: string; type: "response"; command: "widget_response"; success: true; data: { delivered: boolean } }
 
 	// State
 	| { id?: string; type: "response"; command: "get_state"; success: true; data: RpcSessionState }

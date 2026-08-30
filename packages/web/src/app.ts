@@ -93,9 +93,15 @@ export class App {
 		widgetsAbove.mount();
 		widgetsBelow.mount();
 		// Overlay widgets (display: "overlay") render as modals on top of the app.
-		const widgetOverlay = new WidgetOverlayView(this.store, (message) => {
-			this.connection?.send({ type: "prompt", message });
-		});
+		const widgetOverlay = new WidgetOverlayView(
+			this.store,
+			(message) => {
+				this.connection?.send({ type: "prompt", message });
+			},
+			(key, payload) => {
+				void this.connection?.request({ type: "widget_response", key, payload }).catch(() => {});
+			},
+		);
 		document.body.appendChild(widgetOverlay.element);
 		widgetOverlay.mount();
 	}
