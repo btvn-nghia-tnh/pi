@@ -20,6 +20,8 @@ interface ToolResultShape {
 	details?: {
 		truncation?: string | null;
 		fullOutputPath?: string | null;
+		diff?: string;
+		patch?: string;
 		oldString?: string;
 		newString?: string;
 		originalText?: string;
@@ -93,7 +95,9 @@ export function toolSummary(card: ToolCardState): string {
 function renderEditArgs(card: ToolCardState): HTMLElement | undefined {
 	const args = (card.args ?? {}) as EditArgsShape;
 	const result = (card.result ?? card.partialResult) as ToolResultShape | undefined;
-	const diffText = firstOutputText(card.result ?? card.partialResult);
+	// The edit tool returns the diff in details.diff (content text is just a
+	// success summary); older hosts may put diff-formatted text in content.
+	const diffText = result?.details?.diff ?? firstOutputText(card.result ?? card.partialResult);
 	const path = args.path ?? args.filepath ?? "";
 	const header = h("div", { class: "tool-args" }, path);
 	const wrapper = h("div", {});

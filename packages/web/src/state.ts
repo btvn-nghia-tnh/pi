@@ -114,7 +114,7 @@ function createInitialState(): AppState {
 		itemIndex: new Map(),
 		queue: { steering: [], followUp: [] },
 		toolsExpanded: false,
-		thinkingVisible: true,
+		thinkingVisible: false,
 		hideThinkingBlock: false,
 		footerUsage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 },
 		latestUsage: undefined,
@@ -190,6 +190,18 @@ export class Store {
 				const item = messageToItem(message, false);
 				state.items.push(item);
 				state.itemIndex.set(item.id, item);
+			}
+			// Pair toolResult messages with their tool cards so rehydrated
+			// sessions keep results (and edit diffs) after a page reload.
+			for (const message of payload.messages ?? []) {
+				if (message.role !== "toolResult") continue;
+				const toolCallId = (message as { toolCallId?: string }).toolCallId;
+				if (!toolCallId) continue;
+				const card = findToolCard(state, toolCallId);
+				if (card) {
+					card.result = message;
+					card.isError = (message as { isError?: boolean }).isError === true;
+				}
 			}
 			if (payload.contextInfo?.commands) {
 				state.commands = payload.contextInfo.commands;

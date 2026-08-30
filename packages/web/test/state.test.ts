@@ -185,8 +185,9 @@ test("toggle tools and thinking", () => {
 	store.toggleToolCard("c1");
 	assert.equal(store.getState().items[0]!.toolCards.get("c1")!.expanded, true);
 
+	assert.equal(store.getState().thinkingVisible, false); // collapsed by default
 	store.toggleThinkingVisible();
-	assert.equal(store.getState().thinkingVisible, false);
+	assert.equal(store.getState().thinkingVisible, true); // Alt+T expands all
 });
 
 test("extension statuses, widgets, notifications, working indicator", () => {
@@ -247,6 +248,39 @@ test("applyConnected without a widgets field preserves current widgets", () => {
 	store.applyConnected({ type: "connected", version: "1", messages: [], widgets: [], statuses: [] });
 	assert.equal(store.getState().widgets.size, 0);
 	assert.equal(store.getState().extensionStatuses.size, 0);
+});
+
+test("applyConnected pairs toolResult messages with tool cards", () => {
+	const store = new Store();
+	store.applyConnected({
+		type: "connected",
+		version: "1",
+		messages: [
+			{ role: "user", content: "edit this", timestamp: 1 },
+			{
+				role: "assistant",
+				timestamp: 2,
+				content: [{ type: "toolCall", id: "call_1", name: "edit", arguments: { path: "/f" } }],
+			},
+			{
+				role: "toolResult",
+				toolCallId: "call_1",
+				toolName: "edit",
+				content: [{ type: "text", text: "done" }],
+				details: { diff: "-1 old\n+1 new" },
+				isError: false,
+				timestamp: 3,
+			},
+		] as never,
+	});
+	const state = store.getState();
+	// toolResult must NOT create its own transcript item...
+	assert.equal(state.items.length, 2);
+	// ...but its data must land on the edit tool card.
+	const card = state.items[1]!.toolCards.get("call_1");
+	assert.ok(card);
+	assert.equal((card!.result as { details?: { diff?: string } }).details?.diff, "-1 old\n+1 new");
+	assert.equal(card!.isError, false);
 });
 
 test("widget collapse state toggles per key", () => {

@@ -90,25 +90,24 @@ export function renderAssistantMessage(
 			textBuffer += block.text;
 		} else if (block.type === "thinking" && block.thinking) {
 			flushText();
-			if (options.hideThinkingBlock || !options.thinkingVisible) {
-				body.appendChild(
-					h(
-						"details",
-						{ class: `thinking-block thinking-${options.thinkingLevel}` },
-						h("summary", {}, "Thinking..."),
-						h("div", { class: "thinking-body" }, block.thinking),
-					),
-				);
-			} else {
-				body.appendChild(
-					h(
-						"details",
-						{ class: `thinking-block thinking-${options.thinkingLevel}`, open: "" },
-						h("summary", {}, `Thinking (${options.thinkingLevel})`),
-						h("div", { class: "thinking-body" }, block.thinking),
-					),
-				);
-			}
+			// Thinking blocks start collapsed; click the summary to expand.
+			// thinkingVisible (Alt+T) expands every block at once;
+			// hideThinkingBlock collapses them back to the bare label.
+			const label =
+				options.hideThinkingBlock || !options.thinkingVisible
+					? "Thinking..."
+					: `Thinking (${options.thinkingLevel})`;
+			body.appendChild(
+				h(
+					"details",
+					{
+						class: `thinking-block thinking-${options.thinkingLevel}`,
+						...(options.thinkingVisible && !options.hideThinkingBlock ? { open: "" } : {}),
+					},
+					h("summary", {}, label),
+					h("div", { class: "thinking-body" }, block.thinking),
+				),
+			);
 		}
 	}
 	flushText();
