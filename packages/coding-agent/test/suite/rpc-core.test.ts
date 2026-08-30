@@ -15,6 +15,112 @@ import type { ExtensionAPI } from "../../src/index.ts";
 import { RpcCore } from "../../src/modes/rpc/rpc-core.ts";
 import type { RpcResponse } from "../../src/modes/rpc/rpc-types.ts";
 
+describe("AgentSessionRuntime.createSibling", () => {
+	const cleanups: Array<() => Promise<void> | void> = [];
+
+	afterEach(async () => {
+		while (cleanups.length > 0) {
+			await cleanups.pop()?.();
+		}
+	});
+
+	it("creates an independent runtime without disturbing the receiver", async () => {
+		const tempDir = join(tmpdir(), `pi-sibling-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		mkdirSync(tempDir, { recursive: true });
+		cleanups.push(() => rmSync(tempDir, { recursive: true, force: true }));
+
+		const faux = registerFauxProvider({ models: [{ id: "faux-1", reasoning: true }] });
+		faux.setResponses([fauxAssistantMessage("hello world")]);
+		cleanups.push(() => faux.unregister());
+
+		const authStorage = AuthStorage.inMemory();
+		await authStorage.modify(faux.getModel().provider, async () => ({ type: "api_key", key: "faux-key" }));
+
+		const model = faux.getModel();
+		const createRuntime: CreateAgentSessionRuntimeFactory = async ({
+			cwd,
+			agentDir,
+			sessionManager,
+			sessionStartEvent,
+		}) => {
+			const services = await createAgentSessionServices({
+				agentDir,
+				authStorage,
+				model,
+				resourceLoaderOptions: {
+					extensionFactories: [
+						(pi: ExtensionAPI) => {
+							pi.registerProvider(model.provider, {
+								baseUrl: model.baseUrl,
+								apiKey: "faux-key",
+								api: faux.api,
+								models: faux.models.map((registeredModel) => ({
+									id: registeredModel.id,
+									name: registeredModel.name,
+									api: registeredModel.api,
+									reasoning: registeredModel.reasoning,
+									input: registeredModel.input,
+									cost: registeredModel.cost,
+									contextWindow: registeredModel.contextWindow,
+									maxTokens: registeredModel.maxTokens,
+								})),
+							});
+						},
+					],
+					noSkills: true,
+					noPromptTemplates: true,
+					noThemes: true,
+				},
+				cwd,
+			});
+			return {
+				...(await createAgentSessionFromServices({
+					services,
+					sessionManager,
+					sessionStartEvent,
+					model,
+				})),
+				services,
+				diagnostics: services.diagnostics,
+			};
+		};
+
+		const primary = await createAgentSessionRuntime(createRuntime, {
+			cwd: tempDir,
+			agentDir: tempDir,
+			sessionManager: SessionManager.inMemory(tempDir),
+		});
+		const primaryId = primary.session.sessionId;
+
+		// Sibling over a separate in-memory session manager.
+		const sibling = await primary.createSibling(SessionManager.inMemory(tempDir));
+		expect(sibling).not.toBe(primary);
+		expect(sibling.session).not.toBe(primary.session);
+		expect(sibling.session.sessionId).not.toBe(primaryId);
+		expect(sibling.cwd).toBe(tempDir);
+
+		// The receiver is untouched: same session, still usable.
+		expect(primary.session.sessionId).toBe(primaryId);
+
+		// Both can run independently: prompt the sibling via an RpcCore.
+		const sent: object[] = [];
+		const core = new RpcCore({ runtime: sibling, send: (message) => sent.push(message) });
+		await core.init();
+		cleanups.push(async () => {
+			await core.dispose();
+		});
+		await core.handleCommand({ type: "prompt", message: "hi" });
+		await sibling.session.waitForIdle();
+		expect(sent.some((message) => (message as { type?: string }).type === "message_end")).toBe(true);
+		// The primary session never saw the sibling's prompt.
+		expect(
+			primary.session.agent.state.messages.some(
+				(message) => message.role === "user" && message.content === "hi",
+			),
+		).toBe(false);
+	});
+});
+
 describe("RpcCore", () => {
 	const cleanups: Array<() => Promise<void> | void> = [];
 

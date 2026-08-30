@@ -259,6 +259,25 @@ export class AgentSessionRuntime {
 		return { cancelled: false };
 	}
 
+	/**
+	 * Create an independent runtime sharing this runtime's factory and agent
+	 * dir, over the supplied session manager — without touching the receiver.
+	 * The multi-session web host uses this to open additional live sessions
+	 * alongside the primary one; the sibling owns its own AgentSession,
+	 * services handle set, and lifecycle.
+	 */
+	async createSibling(
+		sessionManager: SessionManager,
+		options?: { sessionStartEvent?: SessionStartEvent },
+	): Promise<AgentSessionRuntime> {
+		return await createAgentSessionRuntime(this.createRuntime, {
+			cwd: sessionManager.getCwd(),
+			agentDir: this.services.agentDir,
+			sessionManager,
+			sessionStartEvent: options?.sessionStartEvent,
+		});
+	}
+
 	async fork(
 		entryId: string,
 		options?: { position?: "before" | "at"; withSession?: (ctx: ReplacedSessionContext) => Promise<void> },
