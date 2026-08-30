@@ -280,7 +280,10 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 				};
 			}
 			if (command.type === "new_session") {
-				const slot = await sessions.newSession();
+				const commandCwd = (command as { cwd?: string }).cwd;
+				const slot = await sessions.newSession(
+					typeof commandCwd === "string" && commandCwd.length > 0 ? commandCwd : undefined,
+				);
 				broadcast({ type: "session_opened", ...(await slotPayload(slot)) });
 				return {
 					id: command.id,

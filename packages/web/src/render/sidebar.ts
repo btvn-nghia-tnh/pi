@@ -20,13 +20,17 @@ export interface SidebarSessionInfo {
 export interface SidebarHandlers {
 	onActivate: (sessionId: string) => void;
 	onOpen: (sessionPath: string) => void;
-	onNew: () => void;
+	/** New session; the cwd targets the project (+ button on a group). */
+	onNew: (cwd?: string) => void;
 	onClose: (sessionId: string) => void;
+	/** Re-read every session from disk (list_sessions) without a page reload. */
+	onReload: () => void;
 	/** Running state per open session (spinner); false/undefined = idle. */
 	getRunning: (sessionId: string) => boolean;
 }
 
 const COLLAPSED_KEY = "pi-web-sidebar-collapsed";
+const EXPANDED_GROUPS_KEY = "pi-web-sidebar-expanded-groups";
 
 export class SidebarView {
 	readonly element: HTMLElement;
@@ -39,12 +43,21 @@ export class SidebarView {
 	private readonly openSessions = new Map<string, { sessionPath?: string; cwd: string; primary?: boolean }>();
 	private activeId: string | undefined;
 	private collapsed = false;
+	/** Expanded project groups; collapsed by default. */
+	private readonly expandedGroups = new Set<string>();
 	private timer: ReturnType<typeof setInterval> | undefined;
 	private unsubscribers: Array<() => void> = [];
 
 	constructor(handlers: SidebarHandlers) {
 		this.handlers = handlers;
 		this.collapsed = window.localStorage.getItem(COLLAPSED_KEY) === "1";
+		try {
+			for (const cwd of JSON.parse(window.localStorage.getItem(EXPANDED_GROUPS_KEY) ?? "[]") as string[]) {
+				this.expandedGroups.add(cwd);
+			}
+		} catch {
+			// Malformed cache — start with everything collapsed.
+		}
 		this.element = h("aside", { class: `sidebar${this.collapsed ? " collapsed" : ""}` });
 		this.element.appendChild(this.buildChrome());
 		// Order per the layout spec: collapse button row, then "+ new",
@@ -118,6 +131,16 @@ export class SidebarView {
 		this.render();
 	}
 
+	/** Expand the group owning a session (a + just created it there — show it). */
+	revealSession(id: string): void {
+		const data = this.openSessions.get(id);
+		if (data && !this.expandedGroups.has(data.cwd)) {
+			this.expandedGroups.add(data.cwd);
+			window.localStorage.setItem(EXPANDED_GROUPS_KEY, JSON.stringify([...this.expandedGroups]));
+			this.render();
+		}
+	}
+
 	/** Recompute spinner state for open sessions. */
 	private refreshRunning(): void {
 		if (this.collapsed) return;
@@ -135,7 +158,20 @@ export class SidebarView {
 	private buildChrome(): HTMLElement {
 		const toggle = h("button", { class: "sidebar-toggle", title: "Toggle sidebar (Ctrl+B)" }, "◀");
 		toggle.addEventListener("click", () => this.setCollapsed(!this.collapsed));
-		return h("div", { class: "sidebar-chrome" }, h("span", { class: "sidebar-title" }, "Sessions"), toggle);
+		const reload = h("button", { class: "sidebar-toggle", title: "Reload session list" }, "⟳");
+		reload.addEventListener("click", () => this.handlers.onReload());
+		return h("div", { class: "sidebar-chrome" }, h("span", { class: "sidebar-title" }, "Sessions"), reload, toggle);
+	}
+
+	/** Collapse/expand a project group (collapsed by default; expanded set persists). */
+	private toggleGroup(cwd: string): void {
+		if (this.expandedGroups.has(cwd)) {
+			this.expandedGroups.delete(cwd);
+		} else {
+			this.expandedGroups.add(cwd);
+		}
+		window.localStorage.setItem(EXPANDED_GROUPS_KEY, JSON.stringify([...this.expandedGroups]));
+		this.render();
 	}
 
 	setCollapsed(collapsed: boolean): void {
@@ -198,14 +234,37 @@ export class SidebarView {
 		const orderedGroups = [...groups.entries()].sort((a, b) => newestRowIn(b[1]) - newestRowIn(a[1]));
 		for (const [cwd, rows] of orderedGroups) {
 			rows.sort((a, b) => b.modified - a.modified);
-			const label = cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
-			const group = h(
-				"div",
-				{ class: "sidebar-group" },
-				h("div", { class: "sidebar-group-label", title: cwd }, label),
+			const expanded = this.expandedGroups.has(cwd);
+			const group = h("div", { class: `sidebar-group${expanded ? " expanded" : ""}` });
+
+			// Header: [^] project [count] [+] — collapse/expand and per-project
+			// new session.
+			const chevron = h(
+				"button",
+				{ class: "sidebar-group-chevron", title: expanded ? "Collapse" : "Expand" },
+				expanded ? "▾" : "▸",
 			);
-			for (const row of rows) {
-				group.appendChild(this.buildRow(row));
+			chevron.addEventListener("click", () => this.toggleGroup(cwd));
+			const label = cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
+			const name = h(
+				"span",
+				{ class: "sidebar-group-name", title: cwd },
+				label,
+				h("span", { class: "sidebar-group-count" }, String(rows.length)),
+			);
+			const newInGroup = h("button", { class: "sidebar-group-new", title: `New session in ${label}` }, "+");
+			newInGroup.addEventListener("click", (event) => {
+				event.stopPropagation();
+				this.handlers.onNew(cwd);
+			});
+			const header = h("div", { class: "sidebar-group-label", title: cwd }, chevron, name, newInGroup);
+			header.addEventListener("click", () => this.toggleGroup(cwd));
+			group.appendChild(header);
+
+			if (expanded) {
+				for (const row of rows) {
+					group.appendChild(this.buildRow(row));
+				}
 			}
 			this.groupsHost.appendChild(group);
 		}

@@ -1647,3 +1647,77 @@ body {
 .sidebar-new-btn:hover {
 	border-color: var(--color-accent);
 }
+
+/* Project group headers: [^] name [count] [+] */
+
+.sidebar-group-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 4px 3px 2px;
+	cursor: pointer;
+	border-radius: 4px;
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--color-dim);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	white-space: nowrap;
+	overflow: hidden;
+	user-select: none;
+}
+
+.sidebar-group-label:hover {
+	background: var(--color-page-bg);
+}
+
+.sidebar-group-chevron {
+	flex: 0 0 auto;
+	background: none;
+	border: none;
+	color: var(--color-muted);
+	cursor: pointer;
+	font-size: 9px;
+	padding: 1px 3px;
+	line-height: 1;
+}
+
+.sidebar-group-name {
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sidebar-group-count {
+	flex: 0 0 auto;
+	margin-left: 2px;
+	font-size: 9px;
+	font-weight: 400;
+	color: var(--color-dim);
+	background: var(--color-page-bg);
+	border-radius: 8px;
+	padding: 0 5px;
+	min-width: 14px;
+	text-align: center;
+}
+
+.sidebar-group-new {
+	flex: 0 0 auto;
+	background: none;
+	border: none;
+	color: var(--color-muted);
+	cursor: pointer;
+	font-size: 12px;
+	line-height: 1;
+	padding: 0 4px;
+	border-radius: 3px;
+	opacity: 0;
+}
+
+.sidebar-group-label:hover .sidebar-group-new {
+	opacity: 1;
+}
+
+.sidebar-group-new:hover {
+	color: var(--color-accent);
+}

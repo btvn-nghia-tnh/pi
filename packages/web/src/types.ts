@@ -68,7 +68,7 @@ export type ClientCommand =
 	| (RpcCommandBase & { type: "follow_up"; message: string; images?: ImageContent[] })
 	| (RpcCommandBase & { type: "abort" })
 	| (RpcCommandBase & { type: "clear_queue" })
-	| (RpcCommandBase & { type: "new_session"; parentSession?: string })
+	| (RpcCommandBase & { type: "new_session"; parentSession?: string; cwd?: string })
 	| (RpcCommandBase & { type: "get_state" })
 	| (RpcCommandBase & { type: "set_model"; provider: string; modelId: string })
 	| (RpcCommandBase & { type: "cycle_model" })

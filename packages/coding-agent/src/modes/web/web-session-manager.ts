@@ -91,13 +91,25 @@ export class WebSessionManager {
 	}
 
 	/** Create a fresh session in the primary slot's cwd and open it as a slot. */
-	async newSession(): Promise<WebSessionSlot> {
-		const primarySession = this.getPrimary().runtime.session;
-		const sessionDir = primarySession.sessionManager.getSessionDir();
-		const sessionManager = primarySession.sessionManager.isPersisted()
-			? SessionManager.create(this.getPrimary().runtime.cwd, sessionDir)
-			: SessionManager.inMemory(this.getPrimary().runtime.cwd);
-		const runtime = await this.getPrimary().runtime.createSibling(sessionManager, {
+	/**
+	 * Create a fresh session and open it as a slot. Without a cwd the session
+	 * lands in the primary slot's project (its session dir); with one it is
+	 * created in that project's default session dir — the per-project "+"
+	 * buttons in the sidebar.
+	 */
+	async newSession(cwd?: string): Promise<WebSessionSlot> {
+		const primary = this.getPrimary();
+		let sessionManager: SessionManager;
+		if (cwd !== undefined && cwd !== "") {
+			sessionManager = SessionManager.create(cwd);
+		} else {
+			const primarySession = primary.runtime.session;
+			const sessionDir = primarySession.sessionManager.getSessionDir();
+			sessionManager = primarySession.sessionManager.isPersisted()
+				? SessionManager.create(primary.cwd, sessionDir)
+				: SessionManager.inMemory(primary.cwd);
+		}
+		const runtime = await primary.runtime.createSibling(sessionManager, {
 			sessionStartEvent: { type: "session_start", reason: "new" },
 		});
 		return await this.createSlot(runtime);

@@ -161,6 +161,18 @@ describe("WebSessionManager", () => {
 		expect(slot.sessionPath).toBe(sessionFile);
 	});
 
+	it("newSession(cwd) creates the session in the target project's dir", async () => {
+		const { manager, tempDir } = await createManager();
+		const otherDir = join(tempDir, "other-project");
+		mkdirSync(otherDir, { recursive: true });
+		const slot = await manager.newSession(otherDir);
+		expect(manager.getSlots()).toHaveLength(2);
+		expect(slot.cwd).toBe(otherDir);
+		// The session file lands under the target project's default session
+		// dir, not the primary's.
+		expect(slot.sessionPath).toContain("other-project");
+	});
+
 	it("closeSession aborts, disposes and removes non-primary slots", async () => {
 		const { manager, broadcast } = await createManager();
 		const slot = await manager.newSession();

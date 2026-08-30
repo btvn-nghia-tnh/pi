@@ -152,15 +152,18 @@ export class App {
 					})
 					.catch(() => {});
 			},
-			onNew: () => {
+			onNew: (cwd?: string) => {
 				void this.connection
-					?.request<{ sessionId?: string }>({ type: "new_session" })
+					?.request<{ sessionId?: string }>({ type: "new_session", cwd })
 					.then((data) => {
 						if (typeof data?.sessionId === "string") {
 							this.pendingFocus = data.sessionId;
 						}
 					})
 					.catch(() => {});
+			},
+			onReload: () => {
+				this.refreshSessionsList();
 			},
 			onClose: (sessionId) => {
 				void this.connection?.request({ type: "close_session", sessionId }).catch(() => {});
@@ -1005,6 +1008,9 @@ export class App {
 		if (focus || this.pendingFocus === id) {
 			this.pendingFocus = undefined;
 			this.setActiveSession(id);
+			// A session just opened on user intent (sidebar +/click): expand
+			// its group so the new row is visible.
+			this.sidebar?.revealSession(id);
 		}
 		// Extension dialogs pending on this session (page reload while a
 		// questionnaire was open) reopen on registration.

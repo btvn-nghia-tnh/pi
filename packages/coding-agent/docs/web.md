@@ -101,7 +101,14 @@ processes:
   turn in flight (including background sessions), `○` marks closed ones.
 - Click a closed session to open it; click an open one to switch to it —
   switching rebinds the views instantly without a server round-trip.
-- `+ New session` opens a fresh session in the server's project.
+- `+ New session` opens a fresh session in the server's project; every
+  project group header also carries its own `+` to start a session in that
+  project (its default session dir).
+- Project groups are collapsible (`^` beside the name; collapsed by
+  default, expansion persists across reloads). Creating a session through a
+  group's `+` reveals the group.
+- The `⟳` button in the sidebar header re-reads every session from disk —
+  no browser reload needed after sessions appear from other sources.
 - `×` on an open session closes it (aborts a running turn after a confirm).
   The primary session (the one the server was started with) cannot be closed.
 - A running session keeps streaming in the background while you view another;
