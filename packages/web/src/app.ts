@@ -20,6 +20,7 @@ import {
 } from "./dialogs.ts";
 import { h } from "./dom.ts";
 import { EditorController, type EditorSubmitEvent } from "./editor/editor.ts";
+import { decorateFileRefs } from "./file-refs.ts";
 import { FooterView, QueueView, StatusRowsView, ToastsView, WidgetAreaView } from "./footer.ts";
 import { registerGlobalKeyboard, type ShortcutAction } from "./keyboard.ts";
 import { PreviewStore } from "./preview-store.ts";
@@ -39,6 +40,7 @@ import type {
 	SessionClosedMessage,
 	SessionOpenedMessage,
 	SessionReplacedMessage,
+	StatPathsData,
 } from "./types.ts";
 
 /** Session-bound view bundle — rebuilt when the active session changes. */
@@ -201,6 +203,7 @@ export class App {
 	private rebuildSessionViews(): void {
 		this.views?.unmount();
 		const store = this.store;
+		const sessionId = this.activeSessionId;
 		const editorInner = this.element.querySelector(".editor-inner");
 		if (!editorInner) return;
 		const statusRowsHost = editorInner.firstElementChild as HTMLElement | null;
@@ -209,7 +212,22 @@ export class App {
 		const widgetsBelowHost = editorInner.lastElementChild as HTMLElement | null;
 
 		const header = this.buildHeader();
-		const transcript = new TranscriptView({ store, showImages: true });
+		const decorate = (element: HTMLElement): void => {
+			if (!this.connection) return;
+			decorateFileRefs(element, {
+				sessionId,
+				statPaths: async (paths) => {
+					const data = await this.connection!.request<StatPathsData>({ type: "stat_paths", paths, sessionId });
+					return data.results;
+				},
+			});
+		};
+		const transcript = new TranscriptView({
+			store,
+			showImages: true,
+			decorate,
+			onOpenFile: (path) => void this.openPreview(path, sessionId),
+		});
 		const footer = new FooterView(store);
 		const widgetsAbove = new WidgetAreaView(store, "aboveEditor");
 		const widgetsBelow = new WidgetAreaView(store, "belowEditor");

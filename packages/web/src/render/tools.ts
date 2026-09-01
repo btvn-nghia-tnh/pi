@@ -49,6 +49,38 @@ function firstOutputText(result: unknown): string {
 	return "";
 }
 
+type SummarySegment = { text: string } | { path: string };
+
+function toolSummarySegments(card: ToolCardState): SummarySegment[] {
+	const args = (card.args ?? {}) as Record<string, unknown>;
+	const resultText = firstOutputText(card.result ?? card.partialResult);
+	const resultLines = resultText.trim() ? resultText.trim().split("\n").length : 0;
+	const argPath = (name: string): string => (typeof args[name] === "string" ? (args[name] as string) : "");
+
+	switch (card.toolName) {
+		case "read": {
+			const offset = args.offset !== undefined ? `+${String(args.offset)}` : "";
+			const limit = args.limit !== undefined ? `:${String(args.limit)}` : "";
+			return [{ path: argPath("path") }, { text: `${offset}${limit}` }];
+		}
+		case "write": {
+			const content = typeof args.content === "string" ? args.content : "";
+			const lines = content ? content.split("\n").length : 0;
+			return [{ path: argPath("path") }, { text: ` (${lines} lines)` }];
+		}
+		case "edit": {
+			return [{ path: argPath("path") ?? argPath("filepath") }, { text: " (edit)" }];
+		}
+		case "ls": {
+			return [{ path: argPath("path") }, { text: ` (${resultLines} entries)` }];
+		}
+		default: {
+			const summary = toolSummary(card);
+			return summary ? [{ text: summary }] : [];
+		}
+	}
+}
+
 /** One-line summary shown in the collapsed header, per tool. */
 export function toolSummary(card: ToolCardState): string {
 	const args = (card.args ?? {}) as Record<string, unknown>;
@@ -159,7 +191,15 @@ function renderResultOutput(card: ToolCardState): HTMLElement {
 	}
 
 	if (result?.details?.fullOutputPath) {
-		container.appendChild(h("div", { class: "full-output-hint" }, `Full output: ${result.details.fullOutputPath}`));
+		const fullPath = String(result.details.fullOutputPath);
+		container.appendChild(
+			h(
+				"div",
+				{ class: "full-output-hint" },
+				"Full output: ",
+				h("span", { class: "file-ref", "data-path": fullPath }, fullPath),
+			),
+		);
 	}
 	return container;
 }
@@ -169,13 +209,16 @@ export function renderToolCard(card: ToolCardState, _options: { showImages: bool
 	const element = h("div", { class: `tool-card${card.isError ? " is-error" : card.result ? " is-done" : ""}` });
 	element.dataset.toolCallId = card.toolCallId;
 
-	const header = h(
-		"div",
-		{ class: "tool-header" },
-		h("span", { class: "tool-name" }, card.toolName),
-		h("span", { class: "tool-summary" }, toolSummary(card)),
-		h("span", { class: "tool-hint" }, card.expanded ? "▾" : "▸"),
-	);
+	const headerChildren: HTMLElement[] = [h("span", { class: "tool-name" }, card.toolName)];
+	for (const segment of toolSummarySegments(card)) {
+		if ("path" in segment) {
+			headerChildren.push(h("span", { class: "tool-summary file-ref", "data-path": segment.path }, segment.path));
+		} else {
+			headerChildren.push(h("span", { class: "tool-summary" }, segment.text));
+		}
+	}
+	headerChildren.push(h("span", { class: "tool-hint" }, card.expanded ? "▾" : "▸"));
+	const header = h("div", { class: "tool-header" }, ...headerChildren);
 	header.addEventListener("click", () => {
 		card.expanded = !card.expanded;
 		element.dispatchEvent(new CustomEvent("toggle-tool", { bubbles: true, detail: card.toolCallId }));

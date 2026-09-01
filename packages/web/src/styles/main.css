@@ -1855,3 +1855,21 @@ body {
 .preview-more:hover {
 	border-color: var(--color-accent);
 }
+
+/* ------------------------------------------------------------------ */
+/* File references in the transcript                                    */
+/* ------------------------------------------------------------------ */
+
+.file-ref {
+	cursor: pointer;
+	text-decoration: underline dotted;
+	text-underline-offset: 2px;
+}
+
+.file-ref:hover {
+	text-decoration: underline solid;
+}
+
+.tool-summary.file-ref {
+	color: var(--color-accent);
+}

@@ -17,6 +17,10 @@ import { renderToolCard } from "./tools.ts";
 export interface TranscriptOptions {
 	store: Store;
 	showImages: boolean;
+	/** Post-render file-reference decoration (async, idempotent, non-streaming items only). */
+	decorate?: (element: HTMLElement) => void;
+	/** Click handler for `.file-ref` elements (delegated on the transcript root). */
+	onOpenFile?: (path: string) => void;
 }
 
 export class TranscriptView {
@@ -38,6 +42,14 @@ export class TranscriptView {
 		this.element = h("div", { class: "transcript" });
 		this.element.addEventListener("toggle-tool", () => {
 			this.render();
+		});
+		this.element.addEventListener("click", (event) => {
+			const target = event.target as HTMLElement | null;
+			const ref = target?.closest(".file-ref");
+			if (ref instanceof HTMLElement && this.element.contains(ref)) {
+				const path = ref.dataset.path;
+				if (path) this.options.onOpenFile?.(path);
+			}
 		});
 	}
 
@@ -114,6 +126,7 @@ export class TranscriptView {
 				this.element.appendChild(element);
 			}
 			this.rendered.set(key, element);
+			if (!item.streaming) this.options.decorate?.(element);
 		}
 
 		// Drop rendered nodes for items that no longer exist (session switch).

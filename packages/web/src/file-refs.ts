@@ -1,3 +1,5 @@
+import type { StatPathsData } from "./types.ts";
+
 /**
  * File reference detection for the transcript: pure candidate extraction and
  * extension mapping (unit-tested) plus DOM decoration (added with the preview
@@ -112,4 +114,122 @@ export function extensionToLanguage(path: string): string | undefined {
 	if (dot <= 0 || dot === name.length - 1) return undefined;
 	const extension = name.slice(dot + 1).toLowerCase();
 	return EXTENSION_LANGUAGE[extension];
+}
+
+// ---------------------------------------------------------------------------
+// DOM decoration (validated via stat_paths; thin, not unit-tested per the
+// web suite's pure-function policy)
+// ---------------------------------------------------------------------------
+
+export interface FileRefContext {
+	sessionId: string | undefined;
+	statPaths: (paths: string[]) => Promise<StatPathsData["results"]>;
+}
+
+interface PendingMatch {
+	node: Text;
+	start: number;
+	length: number;
+	candidate: string;
+}
+
+const STAT_TTL_MS = 30_000;
+/** `${sessionId}::${raw}` → resolved absolute path. */
+const rawToAbsolute = new Map<string, string>();
+/** Absolute path → stat result (TTL-bounded). */
+const statCache = new Map<string, { kind: "file" | "dir"; expires: number }>();
+
+function cacheKey(raw: string, sessionId: string | undefined): string {
+	return `${sessionId ?? ""}::${raw}`;
+}
+
+function lookupStat(raw: string, sessionId: string | undefined): { kind: "file" | "dir" } | undefined {
+	const absolute = rawToAbsolute.get(cacheKey(raw, sessionId));
+	if (!absolute) return undefined;
+	const entry = statCache.get(absolute);
+	if (!entry || entry.expires < Date.now()) return undefined;
+	return entry;
+}
+
+function recordStats(results: StatPathsData["results"], sessionId: string | undefined): void {
+	for (const result of results) {
+		rawToAbsolute.set(cacheKey(result.input, sessionId), result.path);
+		if (result.exists && (result.kind === "file" || result.kind === "dir")) {
+			statCache.set(result.path, { kind: result.kind, expires: Date.now() + STAT_TTL_MS });
+		}
+	}
+}
+
+function wrapMatch(match: PendingMatch): void {
+	if (!match.node.isConnected) return;
+	const value = match.node.nodeValue ?? "";
+	if (value.slice(match.start, match.start + match.length) !== match.candidate) return;
+	const candidateNode = match.node.splitText(match.start);
+	candidateNode.splitText(match.length);
+	const span = document.createElement("span");
+	span.className = "file-ref";
+	span.dataset.path = match.candidate;
+	span.textContent = match.candidate;
+	candidateNode.replaceWith(span);
+}
+
+/**
+ * Decorate file references inside `root`: collect candidates from text
+ * nodes, validate the unknown ones through ctx.statPaths, then wrap
+ * confirmed files in clickable `.file-ref` spans. Idempotent (skips text
+ * inside pre/a/.file-ref and already-wrapped nodes); fail-closed (a stat
+ * failure decorates nothing).
+ */
+export function decorateFileRefs(root: HTMLElement, ctx: FileRefContext): void {
+	const matches: PendingMatch[] = [];
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	let node = walker.nextNode() as Text | null;
+	while (node) {
+		const parent = node.parentElement;
+		if (parent && !parent.closest("pre, a, .file-ref")) {
+			const text = node.nodeValue ?? "";
+			if (parent.tagName === "CODE") {
+				// Inline code: linkify only when the entire element text is one candidate.
+				if (extractPathCandidates(text).includes(text)) {
+					matches.push({ node, start: 0, length: text.length, candidate: text });
+				}
+			} else {
+				for (const candidate of extractPathCandidates(text)) {
+					const start = text.indexOf(candidate);
+					if (start >= 0) {
+						matches.push({ node, start, length: candidate.length, candidate });
+					}
+				}
+			}
+		}
+		node = walker.nextNode() as Text | null;
+	}
+	if (matches.length === 0) return;
+
+	const apply = (): void => {
+		// Reverse document order keeps splitText offsets of earlier matches valid.
+		for (let i = matches.length - 1; i >= 0; i--) {
+			const match = matches[i]!;
+			if (lookupStat(match.candidate, ctx.sessionId)?.kind === "file") {
+				wrapMatch(match);
+			}
+		}
+	};
+
+	const unknown = [...new Set(matches.map((match) => match.candidate))].filter(
+		(candidate) => lookupStat(candidate, ctx.sessionId) === undefined,
+	);
+	if (unknown.length === 0) {
+		apply();
+		return;
+	}
+	void ctx
+		.statPaths(unknown)
+		.then((results) => {
+			recordStats(results, ctx.sessionId);
+			apply();
+		})
+		.catch(() => {
+			// Fail-closed: no links rather than wrong links.
+		});
 }
