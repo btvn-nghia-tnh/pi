@@ -1873,3 +1873,75 @@ body {
 .tool-summary.file-ref {
 	color: var(--color-accent);
 }
+
+/* ------------------------------------------------------------------ */
+/* Syntax highlighting (shared by markdown code blocks and the file    */
+/* preview panel); token colors come from the theme's syntax vars.     */
+/* ------------------------------------------------------------------ */
+
+.hljs {
+	color: var(--color-text);
+}
+
+.hljs-comment,
+.hljs-quote {
+	color: var(--syntax-comment, inherit);
+}
+
+.hljs-keyword,
+.hljs-selector-tag {
+	color: var(--syntax-keyword, inherit);
+}
+
+.hljs-number,
+.hljs-literal {
+	color: var(--syntax-number, inherit);
+}
+
+.hljs-string,
+.hljs-doctag {
+	color: var(--syntax-string, inherit);
+}
+
+/* hljs v11 uses the .hljs-title.function_ compound class */
+.hljs-function,
+.hljs-title,
+.hljs-title.function_,
+.hljs-section,
+.hljs-name {
+	color: var(--syntax-function, inherit);
+}
+
+/* hljs v11 uses the .hljs-title.class_ compound class */
+.hljs-type,
+.hljs-class,
+.hljs-title.class_,
+.hljs-built_in {
+	color: var(--syntax-type, inherit);
+}
+
+.hljs-attr,
+.hljs-variable,
+.hljs-variable.language_,
+.hljs-params,
+.hljs-property {
+	color: var(--syntax-variable, inherit);
+}
+
+.hljs-meta,
+.hljs-meta .hljs-keyword,
+.hljs-meta .hljs-string {
+	color: var(--syntax-keyword, inherit);
+}
+
+.hljs-operator {
+	color: var(--syntax-operator, inherit);
+}
+
+.hljs-punctuation {
+	color: var(--syntax-punctuation, inherit);
+}
+
+.hljs-subst {
+	color: var(--color-text);
+}
