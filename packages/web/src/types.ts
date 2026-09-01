@@ -115,6 +115,8 @@ export type ClientCommand =
 	| (RpcCommandBase & { type: "get_changelog" })
 	| (RpcCommandBase & { type: "get_keybindings" })
 	| (RpcCommandBase & { type: "search_files"; query?: string; limit?: number })
+	| (RpcCommandBase & { type: "stat_paths"; paths: string[] })
+	| (RpcCommandBase & { type: "read_file"; path: string; offset?: number; limit?: number })
 	| (RpcCommandBase & { type: "get_session_dir" })
 	| (RpcCommandBase & { type: "reload" })
 	| (RpcCommandBase & { type: "export_session"; path?: string })
@@ -128,6 +130,27 @@ export type ClientCommand =
 	| (RpcCommandBase & { type: "auth_logout"; provider: string })
 	| (RpcCommandBase & { type: "get_trust" })
 	| (RpcCommandBase & { type: "set_trust"; trusted: boolean; optionIndex?: number });
+
+export interface StatPathsData {
+	results: Array<{ input: string; path: string; exists: boolean; kind?: "file" | "dir"; size?: number }>;
+}
+
+export interface ReadFileData {
+	kind: "text" | "image" | "unsupported";
+	/** text kind */
+	text?: string;
+	totalLines?: number;
+	shownLines?: number;
+	truncated?: boolean;
+	truncatedBy?: string | null;
+	/** image kind */
+	data?: string;
+	/** image + unsupported */
+	mimeType?: string;
+	size?: number;
+	/** unsupported */
+	reason?: string;
+}
 
 export interface RpcResponseMessage {
 	id?: string;
