@@ -33,6 +33,8 @@ import type {
 	RpcCommand,
 	RpcContextInfo,
 	RpcExtensionUIRequest,
+	RpcNotebookCell,
+	RpcNotebookOutput,
 	RpcResponse,
 	RpcSlashCommand,
 	RpcTrustState,
@@ -78,6 +80,124 @@ const MAX_PROJECT_FILES = 20000;
 const MAX_WALK_DEPTH = 12;
 const MAX_PREVIEW_IMAGE_BYTES = 5 * 1024 * 1024;
 const BINARY_PROBE_BYTES = 8192;
+const MAX_NOTEBOOK_BYTES = 20 * 1024 * 1024;
+
+/** nbformat sources are either a plain string or an array of line fragments. */
+function normalizeNotebookText(value: unknown): string {
+	if (typeof value === "string") return value;
+	if (Array.isArray(value)) return value.filter((part) => typeof part === "string").join("");
+	return "";
+}
+
+function compactNotebookOutput(output: unknown): RpcNotebookOutput | undefined {
+	const record = output as Record<string, unknown>;
+	switch (record.output_type) {
+		case "stream": {
+			const name = record.name === "stderr" ? ("stderr" as const) : ("stdout" as const);
+			const truncated = truncateHead(normalizeNotebookText(record.text));
+			const text = truncated.content + (truncated.truncated ? "\n… [output truncated]" : "");
+			return { type: "stream", name, text };
+		}
+		case "error": {
+			return {
+				type: "error",
+				name: typeof record.ename === "string" ? record.ename : "Error",
+				message: typeof record.evalue === "string" ? record.evalue : "",
+				traceback: Array.isArray(record.traceback)
+					? record.traceback.filter((line) => typeof line === "string").join("\n")
+					: "",
+			};
+		}
+		case "execute_result":
+		case "display_data": {
+			const data = record.data as Record<string, unknown> | undefined;
+			if (data) {
+				for (const mimeType of ["image/png", "image/jpeg", "image/gif", "image/webp"]) {
+					const base64 = data[mimeType];
+					if (typeof base64 === "string" && base64.length > 0) {
+						if (base64.length > MAX_PREVIEW_IMAGE_BYTES) {
+							return { type: "text", text: "[image output exceeds the preview size cap]" };
+						}
+						return { type: "image", mimeType, data: base64 };
+					}
+				}
+				const plain = data["text/plain"];
+				if (typeof plain === "string" || Array.isArray(plain)) {
+					const truncated = truncateHead(normalizeNotebookText(plain));
+					return {
+						type: "text",
+						text: truncated.content + (truncated.truncated ? "\n… [output truncated]" : ""),
+					};
+				}
+				const firstMime = Object.keys(data)[0];
+				return { type: "unsupported", mimeType: firstMime ?? "unknown" };
+			}
+			return undefined;
+		}
+		default:
+			return undefined;
+	}
+}
+
+/** Parse an nbformat-4 notebook into compacted cells for the web preview. */
+function readNotebook(id: string | undefined, allText: string, size: number): RpcResponse {
+	if (Buffer.byteLength(allText, "utf-8") > MAX_NOTEBOOK_BYTES) {
+		return rpcError(
+			id,
+			"read_file",
+			`Notebook exceeds the preview size limit (${MAX_NOTEBOOK_BYTES / (1024 * 1024)}MB)`,
+		);
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(allText);
+	} catch {
+		return rpcError(id, "read_file", "Invalid notebook file: not valid JSON");
+	}
+	const notebook = parsed as {
+		cells?: unknown;
+		nbformat?: unknown;
+		metadata?: { kernelspec?: { language?: unknown }; language_info?: { name?: unknown } };
+	};
+	const majorVersion = typeof notebook.nbformat === "number" ? Math.floor(notebook.nbformat) : undefined;
+	if (!Array.isArray(notebook.cells) || (majorVersion !== undefined && majorVersion < 4)) {
+		return rpcError(id, "read_file", "Unsupported notebook: only nbformat 4 is supported");
+	}
+	const language =
+		(typeof notebook.metadata?.kernelspec?.language === "string" && notebook.metadata.kernelspec.language) ||
+		(typeof notebook.metadata?.language_info?.name === "string" && notebook.metadata.language_info.name) ||
+		"python";
+	const cells: RpcNotebookCell[] = [];
+	for (const rawCell of notebook.cells) {
+		const cell = rawCell as Record<string, unknown>;
+		const source = normalizeNotebookText(cell.source);
+		if (cell.cell_type === "code") {
+			cells.push({
+				type: "code",
+				source,
+				language,
+				...(typeof cell.execution_count === "number" ? { executionCount: cell.execution_count } : {}),
+				outputs: Array.isArray(cell.outputs)
+					? (cell.outputs
+							.map((output) => compactNotebookOutput(output))
+							.filter(
+								(output): output is RpcNotebookOutput => output !== undefined,
+							) satisfies RpcNotebookOutput[])
+					: [],
+			});
+		} else {
+			const type = cell.cell_type === "markdown" ? ("markdown" as const) : ("raw" as const);
+			cells.push({ type, source });
+		}
+	}
+	return {
+		id,
+		type: "response",
+		command: "read_file",
+		success: true,
+		data: { kind: "notebook", cells, size },
+	};
+}
 
 function collectProjectFiles(cwd: string): string[] {
 	const files: string[] = [];
@@ -707,6 +827,9 @@ export function createWebCommandHandler(): WebCommandHandler {
 					};
 				}
 				const allText = buffer.toString("utf-8");
+				if (absolute.toLowerCase().endsWith(".ipynb")) {
+					return readNotebook(id, allText, stats.size);
+				}
 				const splitLines = allText.split("\n");
 				const allLines = allText === "" ? [] : allText.endsWith("\n") ? splitLines.slice(0, -1) : splitLines;
 				const startLine = command.offset !== undefined ? Math.max(0, command.offset - 1) : 0;

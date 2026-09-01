@@ -135,8 +135,52 @@ export interface StatPathsData {
 	results: Array<{ input: string; path: string; exists: boolean; kind?: "file" | "dir"; size?: number }>;
 }
 
+export interface NotebookStreamOutput {
+	type: "stream";
+	name: "stdout" | "stderr";
+	text: string;
+}
+
+export interface NotebookErrorOutput {
+	type: "error";
+	name: string;
+	message: string;
+	traceback: string;
+}
+
+export interface NotebookImageOutput {
+	type: "image";
+	mimeType: string;
+	data: string;
+}
+
+export interface NotebookTextOutput {
+	type: "text";
+	text: string;
+}
+
+export interface NotebookUnsupportedOutput {
+	type: "unsupported";
+	mimeType: string;
+}
+
+export type NotebookOutput =
+	| NotebookStreamOutput
+	| NotebookErrorOutput
+	| NotebookImageOutput
+	| NotebookTextOutput
+	| NotebookUnsupportedOutput;
+
+export interface NotebookCell {
+	type: "markdown" | "raw" | "code";
+	source: string;
+	language?: string;
+	executionCount?: number;
+	outputs?: NotebookOutput[];
+}
+
 export interface ReadFileData {
-	kind: "text" | "image" | "unsupported";
+	kind: "text" | "image" | "unsupported" | "notebook";
 	/** text kind */
 	text?: string;
 	totalLines?: number;
@@ -150,6 +194,8 @@ export interface ReadFileData {
 	size?: number;
 	/** unsupported */
 	reason?: string;
+	/** notebook kind */
+	cells?: NotebookCell[];
 }
 
 export interface RpcResponseMessage {

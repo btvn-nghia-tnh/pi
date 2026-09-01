@@ -1982,3 +1982,114 @@ body {
 .hljs-subst {
 	color: var(--color-text);
 }
+
+/* ------------------------------------------------------------------ */
+/* Notebook preview (ipynb cells)                                       */
+/* ------------------------------------------------------------------ */
+
+.notebook-body {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	width: 100%;
+}
+
+.notebook-cell {
+	border-bottom: 1px solid var(--color-border-muted);
+	padding: 10px 12px;
+	min-width: 0;
+}
+
+.notebook-cell:last-child {
+	border-bottom: none;
+}
+
+.notebook-md {
+	font-size: 13px;
+}
+
+.notebook-raw {
+	margin: 0;
+	white-space: pre-wrap;
+	font-family: var(--mono-font);
+	font-size: 12px;
+	color: var(--color-muted);
+}
+
+.notebook-code-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+	font-size: 10px;
+	color: var(--color-dim);
+}
+
+.notebook-exec {
+	font-family: var(--mono-font);
+	color: var(--color-accent);
+}
+
+.notebook-lang {
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.notebook-code {
+	margin: 0;
+	white-space: pre;
+	overflow-x: auto;
+}
+
+.notebook-output {
+	margin: 6px 0 0 0;
+	padding: 6px 8px;
+	background: var(--color-code-bg);
+	border-radius: 4px;
+	white-space: pre-wrap;
+	font-family: var(--mono-font);
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.notebook-stderr {
+	color: var(--color-error);
+}
+
+.notebook-error {
+	margin-top: 6px;
+	border-left: 3px solid var(--color-error);
+	background: var(--color-tool-error-bg);
+	border-radius: 4px;
+	padding: 6px 8px;
+}
+
+.notebook-error-name {
+	font-family: var(--mono-font);
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--color-error);
+	margin-bottom: 4px;
+}
+
+.notebook-traceback {
+	margin: 0;
+	white-space: pre-wrap;
+	font-family: var(--mono-font);
+	font-size: 11px;
+	line-height: 1.5;
+	color: var(--color-muted);
+}
+
+.notebook-image {
+	display: block;
+	max-width: 100%;
+	margin-top: 6px;
+	object-fit: contain;
+}
+
+.notebook-output-unsupported {
+	margin-top: 6px;
+	font-size: 11px;
+	color: var(--color-dim);
+}

@@ -173,3 +173,25 @@ test("closing the last tab empties the panel and notifies subscribers", () => {
 	assert.equal(store.getTabs().length, 0);
 	assert.equal(notifications, 2);
 });
+
+test("setNotebook marks the tab ready with cells", () => {
+	const store = new PreviewStore();
+	const id = store.open("demo.ipynb", "s1");
+	store.setNotebook(
+		{
+			kind: "notebook",
+			size: 2048,
+			cells: [
+				{ type: "markdown", source: "# hi" },
+				{ type: "code", source: "print(1)", language: "python", executionCount: 1, outputs: [] },
+			],
+		},
+		id,
+	);
+	const state = store.getTab(id);
+	assert.equal(state?.status, "ready");
+	assert.equal(state?.kind, "notebook");
+	assert.equal(state?.cells?.length, 2);
+	assert.equal(state?.cells?.[1]?.language, "python");
+	assert.equal(state?.size, 2048);
+});

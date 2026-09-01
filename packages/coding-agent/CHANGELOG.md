@@ -12,6 +12,7 @@
 - Extracted the RPC command core into a transport-agnostic `RpcCore` shared by stdio RPC mode and web mode.
 - `stat_paths` RPC command: batch file existence/type validation for web UI file references.
 - `read_file` RPC command: file content fetch for the web UI preview panel (text with truncation and offset paging, images as base64).
+- `read_file` notebook support: `.ipynb` files parse server-side into compacted cells (markdown/raw/code with per-cell language, stream/error/image/text outputs, per-item caps, nbformat 4 only).
 
 ### Changed
 

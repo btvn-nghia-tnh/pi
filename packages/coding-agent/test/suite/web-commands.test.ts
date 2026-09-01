@@ -618,4 +618,153 @@ describe("web commands", () => {
 			expect(beyond?.success).toBe(false);
 		});
 	});
+
+	describe("read_file notebooks", () => {
+		function notebook(cells: unknown[], extra: Record<string, unknown> = {}): string {
+			return JSON.stringify({
+				cells,
+				metadata: { kernelspec: { language: "python" } },
+				nbformat: 4,
+				nbformat_minor: 5,
+				...extra,
+			});
+		}
+
+		it("renders markdown and code cells with compacted outputs", async () => {
+			const { core, tempDir } = await fixture();
+			const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+			writeFileSync(
+				join(tempDir, "demo.ipynb"),
+				notebook([
+					{ cell_type: "markdown", source: ["# Title\n", "plain text"], metadata: {} },
+					{
+						cell_type: "code",
+						execution_count: 7,
+						source: "print('hi')",
+						metadata: {},
+						outputs: [
+							{ output_type: "stream", name: "stdout", text: ["hi\n"] },
+							{ output_type: "stream", name: "stderr", text: ["warning\n"] },
+							{
+								output_type: "error",
+								ename: "NameError",
+								evalue: "name 'x' is not defined",
+								traceback: ["Traceback (most recent call last):", "NameError: name 'x' is not defined"],
+							},
+							{
+								output_type: "execute_result",
+								execution_count: 7,
+								data: { "text/plain": ["42"] },
+								metadata: {},
+							},
+							{ output_type: "display_data", data: { "image/png": png }, metadata: {} },
+						],
+					},
+					{ cell_type: "raw", source: "just raw text" },
+				]),
+			);
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "demo.ipynb") });
+			const data = responseData(response) as {
+				kind: string;
+				size?: number;
+				cells?: Array<Record<string, unknown>>;
+			};
+			expect(data.kind).toBe("notebook");
+			expect(data.cells?.length).toBe(3);
+			expect(data.cells?.[0]).toMatchObject({ type: "markdown", source: "# Title\nplain text" });
+			const code = data.cells?.[1] as Record<string, unknown> & { outputs?: Array<Record<string, unknown>> };
+			expect(code.type).toBe("code");
+			expect(code.language).toBe("python");
+			expect(code.executionCount).toBe(7);
+			expect(code.outputs?.[0]).toMatchObject({ type: "stream", name: "stdout", text: "hi\n" });
+			expect(code.outputs?.[1]).toMatchObject({ type: "stream", name: "stderr", text: "warning\n" });
+			expect(code.outputs?.[2]).toMatchObject({
+				type: "error",
+				name: "NameError",
+				message: "name 'x' is not defined",
+				traceback: "Traceback (most recent call last):\nNameError: name 'x' is not defined",
+			});
+			expect(code.outputs?.[3]).toMatchObject({ type: "text", text: "42" });
+			expect(code.outputs?.[4]).toMatchObject({ type: "image", mimeType: "image/png" });
+			expect(data.cells?.[2]).toMatchObject({ type: "raw", source: "just raw text" });
+			expect(typeof data.size).toBe("number");
+		});
+
+		it("defaults the code language to python without kernelspec metadata", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(
+				join(tempDir, "nolang.ipynb"),
+				JSON.stringify({
+					cells: [{ cell_type: "code", source: "x = 1", outputs: [], metadata: {} }],
+					metadata: {},
+					nbformat: 4,
+					nbformat_minor: 5,
+				}),
+			);
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "nolang.ipynb") });
+			const cells = (responseData(response)?.cells as Array<Record<string, unknown>>) ?? [];
+			expect(cells[0]?.language).toBe("python");
+		});
+
+		it("marks truncated text outputs and oversized images", async () => {
+			const { core, tempDir } = await fixture();
+			const longText = `${"x".repeat(60 * 1024)}`;
+			writeFileSync(
+				join(tempDir, "big-out.ipynb"),
+				notebook([
+					{
+						cell_type: "code",
+						source: "pass",
+						outputs: [
+							{ output_type: "stream", name: "stdout", text: longText },
+							{
+								output_type: "display_data",
+								data: { "image/png": "A".repeat(5 * 1024 * 1024 + 1) },
+								metadata: {},
+							},
+						],
+						metadata: {},
+					},
+				]),
+			);
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "big-out.ipynb") });
+			const cells = (responseData(response)?.cells as Array<{ outputs?: Array<Record<string, unknown>> }>) ?? [];
+			const stream = cells[0]?.outputs?.[0];
+			expect(stream?.type).toBe("stream");
+			expect(String(stream?.text).length).toBeLessThan(60 * 1024);
+			expect(String(stream?.text)).toContain("[output truncated]");
+			const image = cells[0]?.outputs?.[1];
+			expect(image?.type).toBe("text");
+			expect(String(image?.text)).toContain("exceeds the preview size cap");
+		});
+
+		it("returns unsupported for non-image, non-text mimes", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(
+				join(tempDir, "mime.ipynb"),
+				notebook([
+					{
+						cell_type: "code",
+						source: "pass",
+						outputs: [{ output_type: "display_data", data: { "text/html": ["<b>hi</b>"] }, metadata: {} }],
+						metadata: {},
+					},
+				]),
+			);
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "mime.ipynb") });
+			const cells = (responseData(response)?.cells as Array<{ outputs?: Array<Record<string, unknown>> }>) ?? [];
+			expect(cells[0]?.outputs?.[0]).toMatchObject({ type: "unsupported", mimeType: "text/html" });
+		});
+
+		it("rejects invalid JSON and pre-nbformat-4 notebooks", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(join(tempDir, "broken.ipynb"), "{not json");
+			const broken = await core.handleCommand({ type: "read_file", path: join(tempDir, "broken.ipynb") });
+			expect(broken?.success).toBe(false);
+
+			writeFileSync(join(tempDir, "v3.ipynb"), JSON.stringify({ worksheets: [], nbformat: 3, cells: [] }));
+			const v3 = await core.handleCommand({ type: "read_file", path: join(tempDir, "v3.ipynb") });
+			expect(v3?.success).toBe(false);
+		});
+	});
 });

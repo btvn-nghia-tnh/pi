@@ -7,7 +7,9 @@
 
 import { h } from "../dom.ts";
 import { extensionToLanguage } from "../file-refs.ts";
+import { renderMarkdown } from "../markdown.ts";
 import type { PreviewState, PreviewStore } from "../preview-store.ts";
+import type { NotebookCell, NotebookOutput } from "../types.ts";
 
 export interface PreviewHandlers {
 	/** Activate a tab (click on the tab strip). */
@@ -56,6 +58,73 @@ export class PreviewView {
 	unmount(): void {
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
+	}
+
+	private highlightInto(code: HTMLElement, text: string, language: string | undefined): void {
+		const hljs: HighlightJs | undefined =
+			typeof window !== "undefined" ? (window as { hljs?: HighlightJs }).hljs : undefined;
+		if (language && hljs?.getLanguage?.(language)) {
+			code.innerHTML = hljs.highlight(text, { language }).value;
+		} else {
+			code.textContent = text;
+		}
+	}
+
+	private renderNotebookCell(cell: NotebookCell): HTMLElement {
+		if (cell.type === "markdown") {
+			const rendered = h("div", { class: "notebook-md md-body" });
+			rendered.innerHTML = renderMarkdown(cell.source);
+			return h("div", { class: "notebook-cell notebook-cell-md" }, rendered);
+		}
+		if (cell.type === "raw") {
+			return h(
+				"div",
+				{ class: "notebook-cell notebook-cell-raw" },
+				h("pre", { class: "notebook-raw" }, cell.source),
+			);
+		}
+		const children: HTMLElement[] = [];
+		if (cell.executionCount !== undefined) {
+			children.push(h("span", { class: "notebook-exec" }, `In [${cell.executionCount}]`));
+		}
+		children.push(h("span", { class: "notebook-lang" }, cell.language ?? ""));
+		const header = h("div", { class: "notebook-code-header" }, ...children);
+		const code = h("pre", { class: "preview-code notebook-code" });
+		this.highlightInto(code, cell.source, cell.language);
+		const container = h("div", { class: "notebook-cell notebook-cell-code" }, header, code);
+		for (const output of cell.outputs ?? []) {
+			container.appendChild(this.renderNotebookOutput(output));
+		}
+		return container;
+	}
+
+	private renderNotebookOutput(output: NotebookOutput): HTMLElement {
+		if (output.type === "stream") {
+			return h(
+				"pre",
+				{ class: `notebook-output${output.name === "stderr" ? " notebook-stderr" : ""}` },
+				output.text,
+			);
+		}
+		if (output.type === "error") {
+			return h(
+				"div",
+				{ class: "notebook-error" },
+				h("div", { class: "notebook-error-name" }, `${output.name}: ${output.message}`),
+				h("pre", { class: "notebook-traceback" }, output.traceback),
+			);
+		}
+		if (output.type === "image") {
+			return h("img", {
+				class: "notebook-image",
+				src: `data:${output.mimeType};base64,${output.data}`,
+				alt: "notebook output",
+			});
+		}
+		if (output.type === "text") {
+			return h("pre", { class: "notebook-output" }, output.text);
+		}
+		return h("div", { class: "notebook-output-unsupported" }, `[unsupported output: ${output.mimeType}]`);
 	}
 
 	private render(): void {
@@ -130,6 +199,14 @@ export class PreviewView {
 			this.element.appendChild(h("div", { class: "preview-status" }, message));
 			return;
 		}
+		if (state.kind === "notebook") {
+			const body = h("div", { class: "preview-body notebook-body" });
+			for (const cell of state.cells ?? []) {
+				body.appendChild(this.renderNotebookCell(cell));
+			}
+			this.element.appendChild(body);
+			return;
+		}
 		if (state.kind === "text") {
 			const text = state.text ?? "";
 			const lineCount = text.split("\n").length;
@@ -139,14 +216,7 @@ export class PreviewView {
 				Array.from({ length: lineCount }, (_, index) => String(index + 1)).join("\n"),
 			);
 			const code = h("pre", { class: "preview-code" });
-			const language = extensionToLanguage(state.path);
-			const hljs: HighlightJs | undefined =
-				typeof window !== "undefined" ? (window as { hljs?: HighlightJs }).hljs : undefined;
-			if (language && hljs?.getLanguage?.(language)) {
-				code.innerHTML = hljs.highlight(text, { language }).value;
-			} else {
-				code.textContent = text;
-			}
+			this.highlightInto(code, text, extensionToLanguage(state.path));
 			const body = h("div", { class: "preview-body" }, h("div", { class: "preview-code-row" }, gutter, code));
 			this.element.appendChild(body);
 			if (state.truncated) {
@@ -165,6 +235,8 @@ export class PreviewView {
 		if (state.status === "error") return "";
 		if (state.kind === "image") return formatSize(state.size ?? 0);
 		if (state.kind === "unsupported") return "binary";
+		if (state.kind === "notebook")
+			return `${state.cells?.length ?? 0} cells${state.size !== undefined ? ` · ${formatSize(state.size)}` : ""}`;
 		if (state.kind === "text")
 			return `${state.totalLines ?? 0} lines${state.size !== undefined ? ` · ${formatSize(state.size)}` : ""}`;
 		return "";

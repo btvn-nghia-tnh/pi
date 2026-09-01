@@ -579,8 +579,53 @@ export interface RpcTrustState {
 	trustPath?: string;
 }
 
+export interface RpcNotebookStreamOutput {
+	type: "stream";
+	name: "stdout" | "stderr";
+	text: string;
+}
+
+export interface RpcNotebookErrorOutput {
+	type: "error";
+	name: string;
+	message: string;
+	traceback: string;
+}
+
+export interface RpcNotebookImageOutput {
+	type: "image";
+	mimeType: string;
+	data: string;
+}
+
+export interface RpcNotebookTextOutput {
+	type: "text";
+	text: string;
+}
+
+export interface RpcNotebookUnsupportedOutput {
+	type: "unsupported";
+	mimeType: string;
+}
+
+export type RpcNotebookOutput =
+	| RpcNotebookStreamOutput
+	| RpcNotebookErrorOutput
+	| RpcNotebookImageOutput
+	| RpcNotebookTextOutput
+	| RpcNotebookUnsupportedOutput;
+
+export interface RpcNotebookCell {
+	type: "markdown" | "raw" | "code";
+	source: string;
+	/** code cells */
+	language?: string;
+	executionCount?: number;
+	outputs?: RpcNotebookOutput[];
+}
+
 export interface RpcReadFileData {
-	kind: "text" | "image" | "unsupported";
+	kind: "text" | "image" | "unsupported" | "notebook";
 	/** text kind */
 	text?: string;
 	totalLines?: number;
@@ -594,6 +639,8 @@ export interface RpcReadFileData {
 	size?: number;
 	/** unsupported */
 	reason?: string;
+	/** notebook kind */
+	cells?: RpcNotebookCell[];
 }
 
 // ============================================================================

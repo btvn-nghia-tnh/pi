@@ -446,6 +446,7 @@ export class App {
 			if (!tab || tab.path !== path || tab.status !== "loading") return;
 			if (data.kind === "text") this.previewStore.setText(data, tabId);
 			else if (data.kind === "image") this.previewStore.setImage(data, tabId);
+			else if (data.kind === "notebook") this.previewStore.setNotebook(data, tabId);
 			else this.previewStore.setUnsupported(data, tabId);
 		} catch (error: unknown) {
 			const tab = this.previewStore.getTab(tabId);

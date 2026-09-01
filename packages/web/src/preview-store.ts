@@ -6,7 +6,7 @@
  * address a previous generation of a tab are dropped by the setters.
  */
 
-import type { ReadFileData } from "./types.ts";
+import type { NotebookCell, ReadFileData } from "./types.ts";
 
 export interface PreviewState {
 	/** Tab id; changes every time the tab is re-opened (refresh). */
@@ -16,11 +16,13 @@ export interface PreviewState {
 	/** Session whose transcript was clicked; used to route read_file. */
 	sessionId: string | undefined;
 	status: "loading" | "ready" | "error";
-	kind?: "text" | "image" | "unsupported";
+	kind?: "text" | "image" | "unsupported" | "notebook";
 	/** text kind */
 	text?: string;
 	/** image kind */
 	imageSrc?: string;
+	/** notebook kind */
+	cells?: NotebookCell[];
 	mimeType?: string;
 	size?: number;
 	totalLines?: number;
@@ -156,6 +158,18 @@ export class PreviewStore {
 			size: data.size,
 			mimeType: data.mimeType,
 			truncated: data.reason === "too-large",
+			error: undefined,
+		});
+	}
+
+	setNotebook(data: ReadFileData, tabId: string): void {
+		const tab = this.getTab(tabId);
+		if (!tab || tab.status !== "loading") return;
+		this.patch(tab, {
+			status: "ready",
+			kind: "notebook",
+			cells: data.cells ?? [],
+			size: data.size,
 			error: undefined,
 		});
 	}
