@@ -191,7 +191,8 @@ basename (full path in tooltip), kind + size badge, and a `×` close button.
   block is highlighted at once so multi-line tokens do not break.
 - **Image:** `<img>` with the data URI, `object-fit: contain`.
 - **Truncated text:** a `Load more` button at the bottom requests `read_file` with
-  `offset = shownLines` and appends the response (`appendPreviewText`); disappearing
+  `offset = shownLines + 1` (1-indexed first line) and appends the response
+  (`appendPreviewText`); disappearing
   when the file end is reached.
 - **Unsupported:** notice with size (and mime when known).
 
