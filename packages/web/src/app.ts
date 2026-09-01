@@ -22,6 +22,8 @@ import { h } from "./dom.ts";
 import { EditorController, type EditorSubmitEvent } from "./editor/editor.ts";
 import { FooterView, QueueView, StatusRowsView, ToastsView, WidgetAreaView } from "./footer.ts";
 import { registerGlobalKeyboard, type ShortcutAction } from "./keyboard.ts";
+import { PreviewStore } from "./preview-store.ts";
+import { PreviewView } from "./render/preview.ts";
 import { SidebarView } from "./render/sidebar.ts";
 import { TranscriptView } from "./render/transcript.ts";
 import { WidgetOverlayView } from "./render/widget-overlay.ts";
@@ -31,6 +33,7 @@ import type {
 	ConnectedPayload,
 	ConnectedSession,
 	ExtensionUiRequestMessage,
+	ReadFileData,
 	RpcTrustState,
 	ServerMessage,
 	SessionClosedMessage,
@@ -65,6 +68,9 @@ export class App {
 	private footerHost!: HTMLElement;
 	private views: SessionViews | undefined;
 	private sidebar: SidebarView | undefined;
+	/** App-level file preview state (survives session switches). */
+	private readonly previewStore = new PreviewStore();
+	private previewView: PreviewView | undefined;
 	private connection: PiConnection | undefined;
 	private dialogs!: DialogStack;
 	private editor!: EditorController;
@@ -119,6 +125,15 @@ export class App {
 		main.appendChild(transcriptWrap);
 		main.appendChild(editorDock);
 		shell.appendChild(main);
+
+		// File preview panel (right column); content-driven, hidden when closed.
+		this.previewView = new PreviewView(this.previewStore, {
+			onClose: () => this.previewStore.close(),
+			onLoadMore: () => void this.loadMorePreview(),
+			onRetry: () => this.retryPreview(),
+		});
+		shell.appendChild(this.previewView.element);
+		this.previewView.mount();
 		this.element.appendChild(shell);
 		this.element.appendChild(this.footerHost);
 
@@ -396,7 +411,52 @@ export class App {
 		connection.send({ type: "prompt", message: text, images });
 	}
 
+	// ------------------------------------------------------------------
+	// File preview
+	// ------------------------------------------------------------------
+
+	private async openPreview(path: string, sessionId: string | undefined): Promise<void> {
+		const connection = this.connection;
+		if (!connection) return;
+		this.previewStore.open(path, sessionId);
+		try {
+			const data = await connection.request<ReadFileData>({ type: "read_file", path, sessionId });
+			if (data.kind === "text") this.previewStore.setText(data);
+			else if (data.kind === "image") this.previewStore.setImage(data);
+			else this.previewStore.setUnsupported(data);
+		} catch (error: unknown) {
+			this.previewStore.setError(error instanceof Error ? error.message : String(error));
+		}
+	}
+
+	private async loadMorePreview(): Promise<void> {
+		const connection = this.connection;
+		const state = this.previewStore.getState();
+		if (!connection || !state || state.status !== "ready" || state.kind !== "text") return;
+		const offset = (state.shownLines ?? 0) + 1;
+		try {
+			const data = await connection.request<ReadFileData>({
+				type: "read_file",
+				path: state.path,
+				offset,
+				sessionId: state.sessionId,
+			});
+			if (data.kind === "text") this.previewStore.appendText(data);
+		} catch (error: unknown) {
+			this.previewStore.setError(error instanceof Error ? error.message : String(error));
+		}
+	}
+
+	private retryPreview(): void {
+		const state = this.previewStore.getState();
+		if (state) void this.openPreview(state.path, state.sessionId);
+	}
+
 	private handleEscape(): void {
+		if (this.previewStore.getState()) {
+			this.previewStore.close();
+			return;
+		}
 		const connection = this.connection;
 		if (!connection) return;
 		const state = this.store.getState();
@@ -1155,6 +1215,10 @@ export class App {
 					case "app.interrupt":
 						if (this.dialogs.isOpen()) {
 							this.dialogs.closeTop();
+							return true;
+						}
+						if (this.previewStore.getState()) {
+							this.previewStore.close();
 							return true;
 						}
 						return false;

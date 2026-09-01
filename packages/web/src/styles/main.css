@@ -1721,3 +1721,137 @@ body {
 .sidebar-group-new:hover {
 	color: var(--color-accent);
 }
+
+/* ------------------------------------------------------------------ */
+/* File preview panel (right column of the shell)                      */
+/* ------------------------------------------------------------------ */
+
+.app-preview {
+	display: none;
+	flex: 0 0 clamp(320px, 40vw, 640px);
+	flex-direction: column;
+	background: var(--color-card-bg);
+	border-left: 1px solid var(--color-border-muted);
+	min-height: 0;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.app-preview.is-open {
+	display: flex;
+}
+
+.preview-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	border-bottom: 1px solid var(--color-border-muted);
+	flex: 0 0 auto;
+	min-width: 0;
+}
+
+.preview-title {
+	font-size: 12px;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.preview-meta {
+	font-size: 11px;
+	color: var(--color-muted);
+	white-space: nowrap;
+}
+
+.preview-close {
+	margin-left: auto;
+	flex: none;
+	background: none;
+	border: none;
+	color: var(--color-muted);
+	cursor: pointer;
+	font-size: 16px;
+	padding: 0 4px;
+}
+
+.preview-close:hover {
+	color: var(--color-text);
+}
+
+.preview-body {
+	flex: 1 1 auto;
+	overflow: auto;
+	min-height: 0;
+}
+
+.preview-code-row {
+	display: flex;
+	align-items: flex-start;
+	width: max-content;
+	min-width: 100%;
+}
+
+.preview-gutter {
+	position: sticky;
+	left: 0;
+	flex: 0 0 auto;
+	margin: 0;
+	padding: 8px 10px;
+	text-align: right;
+	color: var(--color-muted);
+	background: var(--color-card-bg);
+	user-select: none;
+	font-family: var(--mono-font);
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.preview-code {
+	flex: 0 0 auto;
+	margin: 0;
+	padding: 8px 16px;
+	white-space: pre;
+	font-family: var(--mono-font);
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.preview-image {
+	display: block;
+	max-width: 100%;
+	margin: 12px auto;
+	object-fit: contain;
+}
+
+.preview-status {
+	padding: 16px;
+	font-size: 12px;
+	color: var(--color-muted);
+}
+
+.preview-error {
+	padding: 16px;
+	font-size: 12px;
+	color: var(--color-error);
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.preview-more {
+	display: block;
+	margin: 8px auto 12px;
+	padding: 4px 12px;
+	background: var(--color-card-bg);
+	border: 1px solid var(--color-border-muted);
+	border-radius: 4px;
+	color: var(--color-text);
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.preview-more:hover {
+	border-color: var(--color-accent);
+}
