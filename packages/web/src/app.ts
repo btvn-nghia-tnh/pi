@@ -421,6 +421,9 @@ export class App {
 		this.previewStore.open(path, sessionId);
 		try {
 			const data = await connection.request<ReadFileData>({ type: "read_file", path, sessionId });
+			// Superseded check: a newer open (or close) won the race — drop this response.
+			const current = this.previewStore.getState();
+			if (!current || current.path !== path || current.status !== "loading") return;
 			if (data.kind === "text") this.previewStore.setText(data);
 			else if (data.kind === "image") this.previewStore.setImage(data);
 			else this.previewStore.setUnsupported(data);
@@ -441,7 +444,20 @@ export class App {
 				offset,
 				sessionId: state.sessionId,
 			});
-			if (data.kind === "text") this.previewStore.appendText(data);
+			if (data.kind === "text") {
+				// Apply only if this chunk is still the next one for the same file —
+				// drops stale responses after a switch or a duplicate Load more.
+				const current = this.previewStore.getState();
+				if (
+					current &&
+					current.path === state.path &&
+					current.status === "ready" &&
+					current.kind === "text" &&
+					(current.shownLines ?? 0) === offset - 1
+				) {
+					this.previewStore.appendText(data);
+				}
+			}
 		} catch (error: unknown) {
 			this.previewStore.setError(error instanceof Error ? error.message : String(error));
 		}
