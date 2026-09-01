@@ -11,4 +11,5 @@
 - Tabbed file preview panel: multiple files stay open as VSCode-style tabs; clicking an already-open reference re-opens and refreshes its tab; Esc closes the active tab (the panel hides when the last tab closes).
 - Jupyter notebook preview: `.ipynb` files render as cells — markdown via the markdown renderer, code highlighted per-cell (language from kernel metadata), stream/error/image outputs inline.
 - Rendered HTML preview: `.html`/`.htm` files display as a sandboxed live page (scripts run, no same-origin access) with a Source toggle to switch to the highlighted source view.
+- Rendered markdown preview: `.md`/`.markdown` files display as formatted markdown with the same Source toggle; markdown rendered from file content (file previews and notebook cells) is sanitized — script/iframe/embed tags, `on*` handlers, and `javascript:`/`vbscript:` URLs are stripped before entering the DOM.
 

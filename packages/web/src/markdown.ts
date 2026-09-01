@@ -80,3 +80,38 @@ function decodeHtmlEntities(text: string): string {
 export function markdownToPlainText(markdown: string): string {
 	return markdown;
 }
+
+const FORBIDDEN_ELEMENTS = new Set(["script", "iframe", "object", "embed", "style", "link", "meta", "base", "form"]);
+
+/**
+ * Strip active-content vectors (script/iframe/embed tags, on* handlers,
+ * javascript:/vbscript: URLs) from HTML rendered from untrusted file
+ * content (markdown previews, notebook cells). Agent-authored transcript
+ * markdown keeps the raw renderMarkdown path.
+ */
+export function sanitizeMarkdownHtml(html: string): string {
+	if (typeof document === "undefined") return html;
+	const container = document.createElement("div");
+	container.innerHTML = html;
+	const walk = (element: Element): void => {
+		for (const child of [...element.children]) {
+			if (FORBIDDEN_ELEMENTS.has(child.tagName.toLowerCase())) {
+				child.remove();
+				continue;
+			}
+			for (const attribute of [...child.attributes]) {
+				const name = attribute.name.toLowerCase();
+				if (name.startsWith("on")) {
+					child.removeAttribute(attribute.name);
+					continue;
+				}
+				if ((name === "href" || name === "src") && /^\s*(?:javascript|vbscript):/i.test(attribute.value)) {
+					child.removeAttribute(attribute.name);
+				}
+			}
+			walk(child);
+		}
+	};
+	walk(container);
+	return container.innerHTML;
+}

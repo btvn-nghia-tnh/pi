@@ -7,7 +7,7 @@
 
 import { h } from "../dom.ts";
 import { extensionToLanguage } from "../file-refs.ts";
-import { renderMarkdown } from "../markdown.ts";
+import { renderMarkdown, sanitizeMarkdownHtml } from "../markdown.ts";
 import type { PreviewState, PreviewStore } from "../preview-store.ts";
 import type { NotebookCell, NotebookOutput } from "../types.ts";
 
@@ -37,6 +37,10 @@ function isHtmlFile(path: string): boolean {
 	return /\.(?:html?|xhtml)$/i.test(path);
 }
 
+function isMarkdownFile(path: string): boolean {
+	return /\.(?:md|markdown)$/i.test(path);
+}
+
 interface HighlightJs {
 	highlight(code: string, options: { language: string }): { value: string };
 	getLanguage?: (language: string) => unknown;
@@ -47,8 +51,8 @@ export class PreviewView {
 	private readonly store: PreviewStore;
 	private readonly handlers: PreviewHandlers;
 	private unsubscribe: (() => void) | undefined;
-	/** HTML files toggle between rendered page and source; resets on tab switch. */
-	private htmlViewSource = false;
+	/** HTML/markdown files toggle between rendered view and source; resets on tab switch. */
+	private viewSource = false;
 	private lastActiveTabId: string | undefined;
 
 	constructor(store: PreviewStore, handlers: PreviewHandlers) {
@@ -80,7 +84,7 @@ export class PreviewView {
 	private renderNotebookCell(cell: NotebookCell): HTMLElement {
 		if (cell.type === "markdown") {
 			const rendered = h("div", { class: "notebook-md md-body" });
-			rendered.innerHTML = renderMarkdown(cell.source);
+			rendered.innerHTML = sanitizeMarkdownHtml(renderMarkdown(cell.source));
 			return h("div", { class: "notebook-cell notebook-cell-md" }, rendered);
 		}
 		if (cell.type === "raw") {
@@ -141,7 +145,7 @@ export class PreviewView {
 		if (!state) return;
 		if (state.id !== this.lastActiveTabId) {
 			this.lastActiveTabId = state.id;
-			this.htmlViewSource = false;
+			this.viewSource = false;
 		}
 
 		// Tab strip: one entry per open file, active highlighted, closable.
@@ -177,18 +181,18 @@ export class PreviewView {
 			h("span", { class: "preview-title", title: state.path }, basename(state.path)),
 			h("span", { class: "preview-meta" }, this.metaText(state)),
 		];
-		if (state.kind === "text" && isHtmlFile(state.path)) {
+		if (state.kind === "text" && (isHtmlFile(state.path) || isMarkdownFile(state.path))) {
 			headerChildren.push(
 				h(
 					"button",
 					{
 						class: "preview-toggle",
 						onclick: () => {
-							this.htmlViewSource = !this.htmlViewSource;
+							this.viewSource = !this.viewSource;
 							this.render();
 						},
 					},
-					this.htmlViewSource ? "Preview" : "Source",
+					this.viewSource ? "Preview" : "Source",
 				),
 			);
 		}
@@ -233,7 +237,7 @@ export class PreviewView {
 		}
 		if (state.kind === "text") {
 			const text = state.text ?? "";
-			if (isHtmlFile(state.path) && !this.htmlViewSource) {
+			if (isHtmlFile(state.path) && !this.viewSource) {
 				// Sandboxed render: scripts run, but no same-origin access to the
 				// pi app (opaque origin). srcdoc has no base URL, so relative
 				// resources do not resolve — self-contained pages only.
@@ -247,17 +251,16 @@ export class PreviewView {
 					}),
 				);
 				this.element.appendChild(body);
-				if (state.truncated) {
-					this.element.appendChild(
-						h(
-							"button",
-							{ class: "preview-more", onclick: () => this.handlers.onLoadMore() },
-							`Load more (showing ${state.shownLines ?? text.split("\n").length} of ${
-								state.totalLines ?? text.split("\n").length
-							} lines)`,
-						),
-					);
-				}
+				this.appendLoadMore(state);
+				return;
+			}
+			if (isMarkdownFile(state.path) && !this.viewSource) {
+				// File markdown is untrusted content: sanitize the rendered HTML
+				// before it enters this origin (agent transcript keeps raw path).
+				const rendered = h("div", { class: "md-body preview-md" });
+				rendered.innerHTML = sanitizeMarkdownHtml(renderMarkdown(text));
+				this.element.appendChild(h("div", { class: "preview-body preview-md-body" }, rendered));
+				this.appendLoadMore(state);
 				return;
 			}
 			const lineCount = text.split("\n").length;
@@ -270,16 +273,20 @@ export class PreviewView {
 			this.highlightInto(code, text, extensionToLanguage(state.path));
 			const body = h("div", { class: "preview-body" }, h("div", { class: "preview-code-row" }, gutter, code));
 			this.element.appendChild(body);
-			if (state.truncated) {
-				this.element.appendChild(
-					h(
-						"button",
-						{ class: "preview-more", onclick: () => this.handlers.onLoadMore() },
-						`Load more (showing ${state.shownLines ?? lineCount} of ${state.totalLines ?? lineCount} lines)`,
-					),
-				);
-			}
+			this.appendLoadMore(state);
 		}
+	}
+
+	private appendLoadMore(state: PreviewState): void {
+		if (!state.truncated) return;
+		const fallbackLines = (state.text ?? "").split("\n").length;
+		this.element.appendChild(
+			h(
+				"button",
+				{ class: "preview-more", onclick: () => this.handlers.onLoadMore() },
+				`Load more (showing ${state.shownLines ?? fallbackLines} of ${state.totalLines ?? fallbackLines} lines)`,
+			),
+		);
 	}
 
 	private metaText(state: PreviewState): string {

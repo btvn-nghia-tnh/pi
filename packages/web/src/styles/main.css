@@ -155,11 +155,11 @@ body {
 	margin: 10px 0;
 }
 
-.message-assistant .md-body img {
+.md-body img {
 	max-width: 100%;
 }
 
-.message-assistant .md-body pre,
+.md-body pre,
 .tool-card pre,
 .message-user pre {
 	background: var(--color-code-bg);
@@ -171,7 +171,7 @@ body {
 	font-size: 12.5px;
 }
 
-.message-assistant .md-body code {
+.md-body code {
 	font-family: var(--mono-font);
 	background: var(--color-code-bg);
 	border-radius: 3px;
@@ -179,24 +179,24 @@ body {
 	font-size: 12.5px;
 }
 
-.message-assistant .md-body pre code {
+.md-body pre code {
 	background: none;
 	padding: 0;
 }
 
-.message-assistant .md-body blockquote {
+.md-body blockquote {
 	border-left: 3px solid var(--color-border-muted);
 	margin-left: 0;
 	padding-left: 10px;
 	color: var(--color-muted);
 }
 
-.message-assistant .md-body table {
+.md-body table {
 	border-collapse: collapse;
 }
 
-.message-assistant .md-body th,
-.message-assistant .md-body td {
+.md-body th,
+.md-body td {
 	border: 1px solid var(--color-border-muted);
 	padding: 4px 8px;
 }
@@ -2126,4 +2126,22 @@ body {
 .preview-toggle:hover {
 	color: var(--color-text);
 	border-color: var(--color-accent);
+}
+
+/* ------------------------------------------------------------------ */
+/* Markdown file preview                                                */
+/* ------------------------------------------------------------------ */
+
+.preview-md-body {
+	padding: 14px 18px 24px;
+	overflow: auto;
+}
+
+.preview-md {
+	font-size: 13.5px;
+	line-height: 1.6;
+}
+
+.preview-md :first-child {
+	margin-top: 0;
 }
