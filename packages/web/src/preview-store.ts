@@ -1,12 +1,16 @@
 /**
  * App-level preview state for the file preview panel. Deliberately outside
  * the per-session Store: the panel survives session switches and any
- * session's transcript can drive it.
+ * session's transcript can drive it. Holds one tab per opened file
+ * (VSCode-style); every `open` mints a fresh tab id, so responses that
+ * address a previous generation of a tab are dropped by the setters.
  */
 
 import type { ReadFileData } from "./types.ts";
 
 export interface PreviewState {
+	/** Tab id; changes every time the tab is re-opened (refresh). */
+	id: string;
 	/** Raw path as clicked (relative paths resolve server-side against the session cwd). */
 	path: string;
 	/** Session whose transcript was clicked; used to route read_file. */
@@ -29,11 +33,24 @@ export interface PreviewState {
 export type PreviewListener = () => void;
 
 export class PreviewStore {
-	private state: PreviewState | undefined;
+	private tabs: PreviewState[] = [];
+	private activeId: string | undefined;
 	private readonly listeners = new Set<PreviewListener>();
+	private tabCounter = 0;
 
+	/** The active tab (what the panel body renders). */
 	getState(): PreviewState | undefined {
-		return this.state;
+		return this.tabs.find((tab) => tab.id === this.activeId);
+	}
+
+	/** All open tabs, oldest first. */
+	getTabs(): PreviewState[] {
+		return this.tabs;
+	}
+
+	/** Look up a tab by id (drops to undefined once the id was superseded). */
+	getTab(id: string): PreviewState | undefined {
+		return this.tabs.find((tab) => tab.id === id);
 	}
 
 	subscribe(listener: PreviewListener): () => void {
@@ -43,17 +60,55 @@ export class PreviewStore {
 		};
 	}
 
-	/** Start previewing a path (loading state until the fetch resolves). */
-	open(path: string, sessionId: string | undefined): void {
-		this.set({ path, sessionId, status: "loading" });
+	/**
+	 * Open (or refresh) a tab for `path` and activate it. Re-opening an
+	 * existing path mints a new tab id, so stale responses for the previous
+	 * generation no longer address it. Returns the tab id to address
+	 * follow-up responses with.
+	 */
+	open(path: string, sessionId: string | undefined): string {
+		const id = this.nextTabId();
+		const existingIndex = this.tabs.findIndex((tab) => tab.path === path);
+		if (existingIndex >= 0) {
+			this.tabs[existingIndex] = { id, path, sessionId, status: "loading" };
+		} else {
+			this.tabs.push({ id, path, sessionId, status: "loading" });
+		}
+		this.activeId = id;
+		this.emit();
+		return id;
+	}
+
+	activate(id: string): void {
+		if (this.activeId === id || !this.tabs.some((tab) => tab.id === id)) return;
+		this.activeId = id;
+		this.emit();
+	}
+
+	/** Close the active tab (Esc); activates the neighbor, VSCode-style. */
+	close(): void {
+		if (this.activeId === undefined) return;
+		this.closeTab(this.activeId);
+	}
+
+	/** Close a specific tab; the active tab stays active unless it was closed. */
+	closeTab(id: string): void {
+		const index = this.tabs.findIndex((tab) => tab.id === id);
+		if (index < 0) return;
+		this.tabs.splice(index, 1);
+		if (this.activeId === id) {
+			// Neighbor preference: the tab to the left, else the one that
+			// shifted into place; when the strip empties, the panel hides.
+			this.activeId = this.tabs[Math.max(0, index - 1)]?.id;
+		}
+		this.emit();
 	}
 
 	/** Replace content with the first text chunk. */
-	setText(data: ReadFileData): void {
-		const current = this.state;
-		if (!current || current.status !== "loading") return;
-		this.set({
-			...current,
+	setText(data: ReadFileData, tabId: string): void {
+		const tab = this.getTab(tabId);
+		if (!tab || tab.status !== "loading") return;
+		this.patch(tab, {
 			status: "ready",
 			kind: "text",
 			text: data.text ?? "",
@@ -67,12 +122,11 @@ export class PreviewStore {
 	}
 
 	/** Append a follow-up text chunk (Load more). */
-	appendText(data: ReadFileData): void {
-		const current = this.state;
-		if (!current || current.status !== "ready" || current.kind !== "text") return;
-		this.set({
-			...current,
-			text: `${current.text ?? ""}\n${data.text ?? ""}`,
+	appendText(data: ReadFileData, tabId: string): void {
+		const tab = this.getTab(tabId);
+		if (!tab || tab.status !== "ready" || tab.kind !== "text") return;
+		this.patch(tab, {
+			text: `${tab.text ?? ""}\n${data.text ?? ""}`,
 			totalLines: data.totalLines,
 			shownLines: data.shownLines,
 			truncated: data.truncated,
@@ -80,11 +134,10 @@ export class PreviewStore {
 		});
 	}
 
-	setImage(data: ReadFileData): void {
-		const current = this.state;
-		if (!current || current.status !== "loading") return;
-		this.set({
-			...current,
+	setImage(data: ReadFileData, tabId: string): void {
+		const tab = this.getTab(tabId);
+		if (!tab || tab.status !== "loading") return;
+		this.patch(tab, {
 			status: "ready",
 			kind: "image",
 			imageSrc: `data:${data.mimeType ?? "application/octet-stream"};base64,${data.data ?? ""}`,
@@ -94,11 +147,10 @@ export class PreviewStore {
 		});
 	}
 
-	setUnsupported(data: ReadFileData): void {
-		const current = this.state;
-		if (!current || current.status !== "loading") return;
-		this.set({
-			...current,
+	setUnsupported(data: ReadFileData, tabId: string): void {
+		const tab = this.getTab(tabId);
+		if (!tab || tab.status !== "loading") return;
+		this.patch(tab, {
 			status: "ready",
 			kind: "unsupported",
 			size: data.size,
@@ -108,18 +160,23 @@ export class PreviewStore {
 		});
 	}
 
-	setError(message: string): void {
-		const current = this.state;
-		if (!current) return;
-		this.set({ ...current, status: "error", error: message });
+	setError(message: string, tabId: string): void {
+		const tab = this.getTab(tabId);
+		if (!tab) return;
+		this.patch(tab, { status: "error", error: message });
 	}
 
-	close(): void {
-		this.set(undefined);
+	private patch(tab: PreviewState, changes: Partial<PreviewState>): void {
+		this.tabs = this.tabs.map((candidate) => (candidate.id === tab.id ? { ...tab, ...changes } : candidate));
+		this.emit();
 	}
 
-	private set(next: PreviewState | undefined): void {
-		this.state = next;
+	private nextTabId(): string {
+		this.tabCounter++;
+		return `tab-${this.tabCounter}`;
+	}
+
+	private emit(): void {
 		for (const listener of this.listeners) {
 			listener();
 		}

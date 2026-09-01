@@ -130,7 +130,8 @@ export class App {
 
 		// File preview panel (right column); content-driven, hidden when closed.
 		this.previewView = new PreviewView(this.previewStore, {
-			onClose: () => this.previewStore.close(),
+			onActivate: (id) => this.previewStore.activate(id),
+			onCloseTab: (id) => this.previewStore.closeTab(id),
 			onLoadMore: () => void this.loadMorePreview(),
 			onRetry: () => this.retryPreview(),
 		});
@@ -436,19 +437,20 @@ export class App {
 	private async openPreview(path: string, sessionId: string | undefined): Promise<void> {
 		const connection = this.connection;
 		if (!connection) return;
-		this.previewStore.open(path, sessionId);
+		const tabId = this.previewStore.open(path, sessionId);
 		try {
 			const data = await connection.request<ReadFileData>({ type: "read_file", path, sessionId });
-			// Superseded check: a newer open (or close) won the race — drop this response.
-			const current = this.previewStore.getState();
-			if (!current || current.path !== path || current.status !== "loading") return;
-			if (data.kind === "text") this.previewStore.setText(data);
-			else if (data.kind === "image") this.previewStore.setImage(data);
-			else this.previewStore.setUnsupported(data);
+			// Superseded check: the tab was re-opened, closed, or replaced its
+			// content while this request was in flight — drop the response.
+			const tab = this.previewStore.getTab(tabId);
+			if (!tab || tab.path !== path || tab.status !== "loading") return;
+			if (data.kind === "text") this.previewStore.setText(data, tabId);
+			else if (data.kind === "image") this.previewStore.setImage(data, tabId);
+			else this.previewStore.setUnsupported(data, tabId);
 		} catch (error: unknown) {
-			const current = this.previewStore.getState();
-			if (current && current.path === path && current.status === "loading") {
-				this.previewStore.setError(error instanceof Error ? error.message : String(error));
+			const tab = this.previewStore.getTab(tabId);
+			if (tab && tab.path === path && tab.status === "loading") {
+				this.previewStore.setError(error instanceof Error ? error.message : String(error), tabId);
 			}
 		}
 	}
@@ -457,6 +459,7 @@ export class App {
 		const connection = this.connection;
 		const state = this.previewStore.getState();
 		if (!connection || !state || state.status !== "ready" || state.kind !== "text") return;
+		const tabId = state.id;
 		const offset = (state.shownLines ?? 0) + 1;
 		try {
 			const data = await connection.request<ReadFileData>({
@@ -466,23 +469,23 @@ export class App {
 				sessionId: state.sessionId,
 			});
 			if (data.kind === "text") {
-				// Apply only if this chunk is still the next one for the same file —
+				// Apply only if this chunk is still the next one for the same tab —
 				// drops stale responses after a switch or a duplicate Load more.
-				const current = this.previewStore.getState();
+				const tab = this.previewStore.getTab(tabId);
 				if (
-					current &&
-					current.path === state.path &&
-					current.status === "ready" &&
-					current.kind === "text" &&
-					(current.shownLines ?? 0) === offset - 1
+					tab &&
+					tab.path === state.path &&
+					tab.status === "ready" &&
+					tab.kind === "text" &&
+					(tab.shownLines ?? 0) === offset - 1
 				) {
-					this.previewStore.appendText(data);
+					this.previewStore.appendText(data, tabId);
 				}
 			}
 		} catch (error: unknown) {
-			const current = this.previewStore.getState();
-			if (current && current.path === state.path && current.kind === "text") {
-				this.previewStore.setError(error instanceof Error ? error.message : String(error));
+			const tab = this.previewStore.getTab(tabId);
+			if (tab && tab.path === state.path && tab.kind === "text") {
+				this.previewStore.setError(error instanceof Error ? error.message : String(error), tabId);
 			}
 		}
 	}

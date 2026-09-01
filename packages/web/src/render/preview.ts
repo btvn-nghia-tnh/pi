@@ -10,7 +10,10 @@ import { extensionToLanguage } from "../file-refs.ts";
 import type { PreviewState, PreviewStore } from "../preview-store.ts";
 
 export interface PreviewHandlers {
-	onClose(): void;
+	/** Activate a tab (click on the tab strip). */
+	onActivate(id: string): void;
+	/** Close a specific tab (× on a tab). */
+	onCloseTab(id: string): void;
 	/** Load the next text chunk (Load more). */
 	onLoadMore(): void;
 	/** Re-run the failed fetch (Retry). */
@@ -61,12 +64,40 @@ export class PreviewView {
 		this.element.classList.toggle("is-open", state !== undefined);
 		if (!state) return;
 
+		// Tab strip: one entry per open file, active highlighted, closable.
+		const strip = h("div", { class: "preview-tabs" });
+		for (const tab of this.store.getTabs()) {
+			strip.appendChild(
+				h(
+					"div",
+					{
+						class: `preview-tab${tab.id === state.id ? " active" : ""}`,
+						title: tab.path,
+						onclick: () => this.handlers.onActivate(tab.id),
+					},
+					h("span", { class: "preview-tab-name" }, basename(tab.path)),
+					h(
+						"button",
+						{
+							class: "preview-tab-close",
+							onclick: (event: Event) => {
+								// Keep the × from also activating the tab.
+								event.stopPropagation();
+								this.handlers.onCloseTab(tab.id);
+							},
+						},
+						"×",
+					),
+				),
+			);
+		}
+		this.element.appendChild(strip);
+
 		const header = h(
 			"div",
 			{ class: "preview-header" },
 			h("span", { class: "preview-title", title: state.path }, basename(state.path)),
 			h("span", { class: "preview-meta" }, this.metaText(state)),
-			h("button", { class: "preview-close", onclick: () => this.handlers.onClose() }, "×"),
 		);
 		this.element.appendChild(header);
 
