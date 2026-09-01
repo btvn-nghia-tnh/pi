@@ -524,6 +524,49 @@ describe("web commands", () => {
 			expect(data.truncated).toBe(true);
 		});
 
+		it("terminates paging on files ending with empty lines", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(join(tempDir, "blanky.txt"), "a\n\n");
+			const first = await core.handleCommand({ type: "read_file", path: join(tempDir, "blanky.txt") });
+			const firstData = responseData(first) as { shownLines: number; totalLines: number; truncated: boolean };
+			expect(firstData.totalLines).toBe(2);
+			expect(firstData.shownLines).toBe(2);
+			expect(firstData.truncated).toBe(false);
+
+			writeFileSync(join(tempDir, "middle.txt"), "a\n\nb");
+			const page1 = await core.handleCommand({ type: "read_file", path: join(tempDir, "middle.txt"), limit: 1 });
+			const page1Data = responseData(page1) as { shownLines: number; truncated: boolean };
+			expect(page1Data.shownLines).toBe(1);
+			expect(page1Data.truncated).toBe(true);
+			const page2 = await core.handleCommand({
+				type: "read_file",
+				path: join(tempDir, "middle.txt"),
+				offset: 2,
+				limit: 1,
+			});
+			const page2Data = responseData(page2) as { shownLines: number; truncated: boolean };
+			expect(page2Data.shownLines).toBe(2);
+			expect(page2Data.truncated).toBe(true);
+			const page3 = await core.handleCommand({
+				type: "read_file",
+				path: join(tempDir, "middle.txt"),
+				offset: 3,
+				limit: 1,
+			});
+			const page3Data = responseData(page3) as { shownLines: number; truncated: boolean };
+			expect(page3Data.shownLines).toBe(3);
+			expect(page3Data.truncated).toBe(false);
+		});
+
+		it("reports file size for text previews", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(join(tempDir, "sized.txt"), "hello\nworld");
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "sized.txt") });
+			const data = responseData(response) as { kind: string; size?: number };
+			expect(data.kind).toBe("text");
+			expect(data.size).toBe(11);
+		});
+
 		it("returns images as base64 data", async () => {
 			const { core, tempDir } = await fixture();
 			writeFileSync(join(tempDir, "pixel.png"), TINY_PNG);

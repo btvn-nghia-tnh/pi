@@ -61,6 +61,7 @@ export class PreviewStore {
 			shownLines: data.shownLines,
 			truncated: data.truncated,
 			truncatedBy: data.truncatedBy ?? undefined,
+			size: data.size,
 			error: undefined,
 		});
 	}

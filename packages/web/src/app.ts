@@ -446,7 +446,10 @@ export class App {
 			else if (data.kind === "image") this.previewStore.setImage(data);
 			else this.previewStore.setUnsupported(data);
 		} catch (error: unknown) {
-			this.previewStore.setError(error instanceof Error ? error.message : String(error));
+			const current = this.previewStore.getState();
+			if (current && current.path === path && current.status === "loading") {
+				this.previewStore.setError(error instanceof Error ? error.message : String(error));
+			}
 		}
 	}
 
@@ -477,7 +480,10 @@ export class App {
 				}
 			}
 		} catch (error: unknown) {
-			this.previewStore.setError(error instanceof Error ? error.message : String(error));
+			const current = this.previewStore.getState();
+			if (current && current.path === state.path && current.kind === "text") {
+				this.previewStore.setError(error instanceof Error ? error.message : String(error));
+			}
 		}
 	}
 

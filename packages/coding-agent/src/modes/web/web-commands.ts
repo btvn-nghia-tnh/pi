@@ -717,15 +717,18 @@ export function createWebCommandHandler(): WebCommandHandler {
 						`Offset ${command.offset} is beyond end of file (${allLines.length} lines total)`,
 					);
 				}
-				let selected = allLines.slice(startLine).join("\n");
-				if (command.limit !== undefined) {
-					selected = allLines.slice(startLine, Math.min(startLine + command.limit, allLines.length)).join("\n");
-				}
+				const endLine =
+					command.limit !== undefined ? Math.min(startLine + command.limit, allLines.length) : allLines.length;
+				const selected = allLines.slice(startLine, endLine).join("\n");
 				const truncation = truncateHead(selected);
 				if (truncation.firstLineExceedsLimit) {
 					return rpcError(id, "read_file", `Line ${startLine + 1} exceeds the preview size limit`);
 				}
-				const shownLines = startLine + truncation.outputLines;
+				// Count emitted lines in allLines space: truncateHead recounts the
+				// re-joined string and drops trailing empty lines, which would
+				// otherwise make paging loop forever on files ending with blanks.
+				const emittedLines = truncation.truncated ? truncation.outputLines : endLine - startLine;
+				const shownLines = startLine + emittedLines;
 				const truncated = truncation.truncated || shownLines < allLines.length;
 				return {
 					id,
@@ -739,6 +742,7 @@ export function createWebCommandHandler(): WebCommandHandler {
 						shownLines,
 						truncated,
 						truncatedBy: truncation.truncatedBy,
+						size: stats.size,
 					},
 				};
 			}

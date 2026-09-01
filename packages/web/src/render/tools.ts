@@ -69,7 +69,7 @@ function toolSummarySegments(card: ToolCardState): SummarySegment[] {
 			return [{ path: argPath("path") }, { text: ` (${lines} lines)` }];
 		}
 		case "edit": {
-			return [{ path: argPath("path") ?? argPath("filepath") }, { text: " (edit)" }];
+			return [{ path: argPath("path") || argPath("filepath") }, { text: " (edit)" }];
 		}
 		case "ls": {
 			return [{ path: argPath("path") }, { text: ` (${resultLines} entries)` }];
@@ -212,7 +212,9 @@ export function renderToolCard(card: ToolCardState, _options: { showImages: bool
 	const headerChildren: HTMLElement[] = [h("span", { class: "tool-name" }, card.toolName)];
 	for (const segment of toolSummarySegments(card)) {
 		if ("path" in segment) {
-			headerChildren.push(h("span", { class: "tool-summary file-ref", "data-path": segment.path }, segment.path));
+			if (segment.path) {
+				headerChildren.push(h("span", { class: "tool-summary file-ref", "data-path": segment.path }, segment.path));
+			}
 		} else {
 			headerChildren.push(h("span", { class: "tool-summary" }, segment.text));
 		}
