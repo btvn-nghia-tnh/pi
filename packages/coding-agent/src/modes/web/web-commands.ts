@@ -21,6 +21,7 @@ import { type Keybinding, KeybindingsManager } from "../../core/keybindings.ts";
 import { MissingSessionCwdError } from "../../core/session-cwd.ts";
 import { SessionManager } from "../../core/session-manager.ts";
 import type { SettingsManager } from "../../core/settings-manager.ts";
+import { resolveReadPath } from "../../core/tools/path-utils.ts";
 import { getProjectTrustOptions, ProjectTrustStore } from "../../core/trust-manager.ts";
 import { parseChangelog } from "../../utils/changelog.ts";
 import { getAvailableThemesWithPaths, getResolvedThemeColors, getThemeByName } from "../interactive/theme/theme.ts";
@@ -624,6 +625,29 @@ export function createWebCommandHandler(): WebCommandHandler {
 					? allFiles.filter((file) => file.toLowerCase().includes(query)).slice(0, limit)
 					: allFiles.slice(0, limit);
 				return { id, type: "response", command: "search_files", success: true, data: { files } };
+			}
+
+			case "stat_paths": {
+				const cwd = session.sessionManager.getCwd();
+				const inputs = (Array.isArray(command.paths) ? command.paths : [])
+					.filter((candidate) => typeof candidate === "string" && candidate.length > 0)
+					.slice(0, 64);
+				const results = inputs.map((input) => {
+					const absolute = resolveReadPath(input, cwd);
+					try {
+						const stats = statSync(absolute);
+						return {
+							input,
+							path: absolute,
+							exists: true,
+							kind: stats.isDirectory() ? ("dir" as const) : ("file" as const),
+							size: stats.isFile() ? stats.size : undefined,
+						};
+					} catch {
+						return { input, path: absolute, exists: false };
+					}
+				});
+				return { id, type: "response", command: "stat_paths", success: true, data: { results } };
 			}
 
 			case "get_session_dir": {

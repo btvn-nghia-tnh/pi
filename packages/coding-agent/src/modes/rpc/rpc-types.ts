@@ -103,6 +103,7 @@ export type RpcCommand =
 	| { id?: string; type: "get_changelog" }
 	| { id?: string; type: "get_keybindings" }
 	| { id?: string; type: "search_files"; query?: string; limit?: number }
+	| { id?: string; type: "stat_paths"; paths: string[] }
 	| { id?: string; type: "get_session_dir" }
 	| { id?: string; type: "reload" }
 	| { id?: string; type: "export_session"; path?: string }
@@ -340,6 +341,15 @@ export type RpcResponse =
 			data: { bindings: RpcKeybindingInfo[] };
 	  }
 	| { id?: string; type: "response"; command: "search_files"; success: true; data: { files: string[] } }
+	| {
+			id?: string;
+			type: "response";
+			command: "stat_paths";
+			success: true;
+			data: {
+				results: Array<{ input: string; path: string; exists: boolean; kind?: "file" | "dir"; size?: number }>;
+			};
+	  }
 	| { id?: string; type: "response"; command: "get_session_dir"; success: true; data: { dir: string } }
 	| { id?: string; type: "response"; command: "reload"; success: true }
 	| { id?: string; type: "response"; command: "export_session"; success: true; data: { path: string } }

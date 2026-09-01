@@ -10,6 +10,7 @@
 - Added auth prompt and auth event bridging (`auth_prompt`, `auth_event`) over the extension UI protocol.
 - Added `getEffectiveSettings()`, `getSettingsFilePaths()`, and `getSettingsLoadErrors()` to `SettingsManager`.
 - Extracted the RPC command core into a transport-agnostic `RpcCore` shared by stdio RPC mode and web mode.
+- `stat_paths` RPC command: batch file existence/type validation for web UI file references.
 
 ### Changed
 

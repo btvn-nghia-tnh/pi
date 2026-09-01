@@ -406,4 +406,39 @@ describe("web commands", () => {
 			expect(response?.success).toBe(false);
 		});
 	});
+
+	describe("stat_paths", () => {
+		it("stats existing, relative, missing paths and directories", async () => {
+			const { core, tempDir } = await fixture(true);
+			const response = await core.handleCommand({
+				type: "stat_paths",
+				paths: [join(tempDir, "visible.txt"), "visible.txt", join(tempDir, "missing.txt"), tempDir],
+			});
+			const results =
+				(responseData(response)?.results as Array<{
+					input: string;
+					path: string;
+					exists: boolean;
+					kind?: string;
+					size?: number;
+				}>) ?? [];
+			expect(results.length).toBe(4);
+			expect(results[0]!.input).toBe(join(tempDir, "visible.txt"));
+			expect(results[0]!.exists).toBe(true);
+			expect(results[0]!.kind).toBe("file");
+			expect(results[0]!.size).toBe(5);
+			expect(results[1]!.path).toBe(results[0]!.path);
+			expect(results[1]!.exists).toBe(true);
+			expect(results[2]!.exists).toBe(false);
+			expect(results[3]!.kind).toBe("dir");
+		});
+
+		it("caps the batch at 64 paths", async () => {
+			const { core } = await fixture();
+			const paths = Array.from({ length: 70 }, (_, index) => `/nope-${index}`);
+			const response = await core.handleCommand({ type: "stat_paths", paths });
+			const results = (responseData(response)?.results as unknown[]) ?? [];
+			expect(results.length).toBe(64);
+		});
+	});
 });
