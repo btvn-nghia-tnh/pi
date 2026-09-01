@@ -10,6 +10,7 @@
 import { spawnSync } from "node:child_process";
 import * as crypto from "node:crypto";
 import { type Dirent, existsSync, readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { basename, join, relative } from "node:path";
 import type { AuthEvent, AuthPrompt } from "@earendil-works/pi-ai";
 import ignore from "ignore";
@@ -22,8 +23,10 @@ import { MissingSessionCwdError } from "../../core/session-cwd.ts";
 import { SessionManager } from "../../core/session-manager.ts";
 import type { SettingsManager } from "../../core/settings-manager.ts";
 import { resolveReadPath } from "../../core/tools/path-utils.ts";
+import { truncateHead } from "../../core/tools/truncate.ts";
 import { getProjectTrustOptions, ProjectTrustStore } from "../../core/trust-manager.ts";
 import { parseChangelog } from "../../utils/changelog.ts";
+import { detectSupportedImageMimeTypeFromFile } from "../../utils/mime.ts";
 import { getAvailableThemesWithPaths, getResolvedThemeColors, getThemeByName } from "../interactive/theme/theme.ts";
 import { type RpcCore, rpcError } from "../rpc/rpc-core.ts";
 import type {
@@ -73,6 +76,8 @@ let fileListCache: FileListCacheEntry | undefined;
 const IGNORED_DIRECTORY_NAMES = new Set([".git", "node_modules", ".pi-cache"]);
 const MAX_PROJECT_FILES = 20000;
 const MAX_WALK_DEPTH = 12;
+const MAX_PREVIEW_IMAGE_BYTES = 5 * 1024 * 1024;
+const BINARY_PROBE_BYTES = 8192;
 
 function collectProjectFiles(cwd: string): string[] {
 	const files: string[] = [];
@@ -648,6 +653,94 @@ export function createWebCommandHandler(): WebCommandHandler {
 					}
 				});
 				return { id, type: "response", command: "stat_paths", success: true, data: { results } };
+			}
+
+			case "read_file": {
+				const cwd = session.sessionManager.getCwd();
+				const absolute = resolveReadPath(command.path, cwd);
+				let stats: ReturnType<typeof statSync>;
+				try {
+					stats = statSync(absolute);
+				} catch {
+					return rpcError(id, "read_file", `File not found: ${command.path}`);
+				}
+				if (stats.isDirectory()) {
+					return rpcError(id, "read_file", `Path is a directory: ${command.path}`);
+				}
+				let buffer: Buffer;
+				try {
+					buffer = await readFile(absolute);
+				} catch (readError: unknown) {
+					return rpcError(id, "read_file", readError instanceof Error ? readError.message : String(readError));
+				}
+				const imageMime = await detectSupportedImageMimeTypeFromFile(absolute).catch(() => null);
+				if (imageMime) {
+					if (stats.size > MAX_PREVIEW_IMAGE_BYTES) {
+						return {
+							id,
+							type: "response",
+							command: "read_file",
+							success: true,
+							data: { kind: "unsupported", size: stats.size, mimeType: imageMime, reason: "too-large" },
+						};
+					}
+					return {
+						id,
+						type: "response",
+						command: "read_file",
+						success: true,
+						data: {
+							kind: "image",
+							data: buffer.toString("base64"),
+							mimeType: imageMime,
+							size: stats.size,
+						},
+					};
+				}
+				if (buffer.subarray(0, BINARY_PROBE_BYTES).includes(0)) {
+					return {
+						id,
+						type: "response",
+						command: "read_file",
+						success: true,
+						data: { kind: "unsupported", size: stats.size },
+					};
+				}
+				const allText = buffer.toString("utf-8");
+				const splitLines = allText.split("\n");
+				const allLines = allText === "" ? [] : allText.endsWith("\n") ? splitLines.slice(0, -1) : splitLines;
+				const startLine = command.offset !== undefined ? Math.max(0, command.offset - 1) : 0;
+				if (command.offset !== undefined && startLine >= allLines.length) {
+					return rpcError(
+						id,
+						"read_file",
+						`Offset ${command.offset} is beyond end of file (${allLines.length} lines total)`,
+					);
+				}
+				let selected = allLines.slice(startLine).join("\n");
+				if (command.limit !== undefined) {
+					selected = allLines.slice(startLine, Math.min(startLine + command.limit, allLines.length)).join("\n");
+				}
+				const truncation = truncateHead(selected);
+				if (truncation.firstLineExceedsLimit) {
+					return rpcError(id, "read_file", `Line ${startLine + 1} exceeds the preview size limit`);
+				}
+				const shownLines = startLine + truncation.outputLines;
+				const truncated = truncation.truncated || shownLines < allLines.length;
+				return {
+					id,
+					type: "response",
+					command: "read_file",
+					success: true,
+					data: {
+						kind: "text",
+						text: truncation.content,
+						totalLines: allLines.length,
+						shownLines,
+						truncated,
+						truncatedBy: truncation.truncatedBy,
+					},
+				};
 			}
 
 			case "get_session_dir": {

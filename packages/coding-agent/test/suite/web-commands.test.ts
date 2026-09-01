@@ -441,4 +441,138 @@ describe("web commands", () => {
 			expect(results.length).toBe(64);
 		});
 	});
+
+	describe("read_file", () => {
+		const TINY_PNG = Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+			"base64",
+		);
+
+		it("reads a small text file completely", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(join(tempDir, "small.txt"), "hello\nworld");
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "small.txt") });
+			const data = responseData(response) as {
+				kind: string;
+				text: string;
+				totalLines: number;
+				shownLines: number;
+				truncated: boolean;
+			};
+			expect(data.kind).toBe("text");
+			expect(data.text).toBe("hello\nworld");
+			expect(data.totalLines).toBe(2);
+			expect(data.shownLines).toBe(2);
+			expect(data.truncated).toBe(false);
+		});
+
+		it("reads an empty file", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(join(tempDir, "empty.txt"), "");
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "empty.txt") });
+			const data = responseData(response) as { kind: string; text: string; totalLines: number };
+			expect(data.kind).toBe("text");
+			expect(data.text).toBe("");
+			expect(data.totalLines).toBe(0);
+		});
+
+		it("truncates long text files and pages with offset", async () => {
+			const { core, tempDir } = await fixture();
+			const lines = Array.from({ length: 2500 }, (_, index) => `line-${index}`);
+			writeFileSync(join(tempDir, "big.txt"), `${lines.join("\n")}\n`);
+			const first = await core.handleCommand({ type: "read_file", path: join(tempDir, "big.txt") });
+			const firstData = responseData(first) as {
+				text: string;
+				totalLines: number;
+				shownLines: number;
+				truncated: boolean;
+				truncatedBy: string;
+			};
+			expect(firstData.totalLines).toBe(2500);
+			expect(firstData.shownLines).toBe(2000);
+			expect(firstData.truncated).toBe(true);
+			expect(firstData.truncatedBy).toBe("lines");
+			expect(firstData.text.split("\n").length).toBe(2000);
+			expect(firstData.text.startsWith("line-0\n")).toBe(true);
+
+			const second = await core.handleCommand({
+				type: "read_file",
+				path: join(tempDir, "big.txt"),
+				offset: 2001,
+			});
+			const secondData = responseData(second) as {
+				text: string;
+				shownLines: number;
+				truncated: boolean;
+			};
+			expect(secondData.text.startsWith("line-2000\n")).toBe(true);
+			expect(secondData.shownLines).toBe(2500);
+			expect(secondData.truncated).toBe(false);
+		});
+
+		it("honors an explicit line limit and marks truncation", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(join(tempDir, "three.txt"), "a\nb\nc");
+			const response = await core.handleCommand({
+				type: "read_file",
+				path: join(tempDir, "three.txt"),
+				limit: 2,
+			});
+			const data = responseData(response) as { text: string; shownLines: number; truncated: boolean };
+			expect(data.text).toBe("a\nb");
+			expect(data.shownLines).toBe(2);
+			expect(data.truncated).toBe(true);
+		});
+
+		it("returns images as base64 data", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(join(tempDir, "pixel.png"), TINY_PNG);
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "pixel.png") });
+			const data = responseData(response) as {
+				kind: string;
+				data: string;
+				mimeType: string;
+				size: number;
+			};
+			expect(data.kind).toBe("image");
+			expect(data.mimeType).toBe("image/png");
+			expect(data.size).toBe(TINY_PNG.length);
+			expect(data.data).toBe(TINY_PNG.toString("base64"));
+		});
+
+		it("flags oversized images as unsupported", async () => {
+			const { core, tempDir } = await fixture();
+			const big = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0x00]), Buffer.alloc(5 * 1024 * 1024 + 1, 0x41)]);
+			writeFileSync(join(tempDir, "huge.jpg"), big);
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "huge.jpg") });
+			const data = responseData(response) as { kind: string; size: number; reason: string };
+			expect(data.kind).toBe("unsupported");
+			expect(data.size).toBe(big.length);
+			expect(data.reason).toBe("too-large");
+		});
+
+		it("flags binary content as unsupported", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(join(tempDir, "blob.bin"), Buffer.from([0x01, 0x00, 0x02, 0x03]));
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "blob.bin") });
+			const data = responseData(response) as { kind: string; size: number };
+			expect(data.kind).toBe("unsupported");
+			expect(data.size).toBe(4);
+		});
+
+		it("errors for missing files, directories, and out-of-range offsets", async () => {
+			const { core, tempDir } = await fixture();
+			const missing = await core.handleCommand({ type: "read_file", path: join(tempDir, "nope.txt") });
+			expect(missing?.success).toBe(false);
+			const directory = await core.handleCommand({ type: "read_file", path: tempDir });
+			expect(directory?.success).toBe(false);
+			writeFileSync(join(tempDir, "two.txt"), "a\nb");
+			const beyond = await core.handleCommand({
+				type: "read_file",
+				path: join(tempDir, "two.txt"),
+				offset: 99,
+			});
+			expect(beyond?.success).toBe(false);
+		});
+	});
 });

@@ -104,6 +104,7 @@ export type RpcCommand =
 	| { id?: string; type: "get_keybindings" }
 	| { id?: string; type: "search_files"; query?: string; limit?: number }
 	| { id?: string; type: "stat_paths"; paths: string[] }
+	| { id?: string; type: "read_file"; path: string; offset?: number; limit?: number }
 	| { id?: string; type: "get_session_dir" }
 	| { id?: string; type: "reload" }
 	| { id?: string; type: "export_session"; path?: string }
@@ -350,6 +351,7 @@ export type RpcResponse =
 				results: Array<{ input: string; path: string; exists: boolean; kind?: "file" | "dir"; size?: number }>;
 			};
 	  }
+	| { id?: string; type: "response"; command: "read_file"; success: true; data: RpcReadFileData }
 	| { id?: string; type: "response"; command: "get_session_dir"; success: true; data: { dir: string } }
 	| { id?: string; type: "response"; command: "reload"; success: true }
 	| { id?: string; type: "response"; command: "export_session"; success: true; data: { path: string } }
@@ -575,6 +577,23 @@ export interface RpcTrustState {
 	options: Array<{ label: string; trusted: boolean; savedPath?: string }>;
 	savedDecision?: { path: string; decision: boolean };
 	trustPath?: string;
+}
+
+export interface RpcReadFileData {
+	kind: "text" | "image" | "unsupported";
+	/** text kind */
+	text?: string;
+	totalLines?: number;
+	shownLines?: number;
+	truncated?: boolean;
+	truncatedBy?: "lines" | "bytes" | null;
+	/** image kind */
+	data?: string;
+	/** image + unsupported */
+	mimeType?: string;
+	size?: number;
+	/** unsupported */
+	reason?: string;
 }
 
 // ============================================================================
