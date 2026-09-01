@@ -219,7 +219,9 @@ export function renderToolCard(card: ToolCardState, _options: { showImages: bool
 	}
 	headerChildren.push(h("span", { class: "tool-hint" }, card.expanded ? "▾" : "▸"));
 	const header = h("div", { class: "tool-header" }, ...headerChildren);
-	header.addEventListener("click", () => {
+	header.addEventListener("click", (event) => {
+		// File-ref clicks open the preview; they must not toggle the card.
+		if ((event.target as HTMLElement).closest(".file-ref")) return;
 		card.expanded = !card.expanded;
 		element.dispatchEvent(new CustomEvent("toggle-tool", { bubbles: true, detail: card.toolCallId }));
 	});
