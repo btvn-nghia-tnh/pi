@@ -33,6 +33,10 @@ function basename(path: string): string {
 	return path.split(/[\\/]/).pop() ?? path;
 }
 
+function isHtmlFile(path: string): boolean {
+	return /\.(?:html?|xhtml)$/i.test(path);
+}
+
 interface HighlightJs {
 	highlight(code: string, options: { language: string }): { value: string };
 	getLanguage?: (language: string) => unknown;
@@ -43,6 +47,9 @@ export class PreviewView {
 	private readonly store: PreviewStore;
 	private readonly handlers: PreviewHandlers;
 	private unsubscribe: (() => void) | undefined;
+	/** HTML files toggle between rendered page and source; resets on tab switch. */
+	private htmlViewSource = false;
+	private lastActiveTabId: string | undefined;
 
 	constructor(store: PreviewStore, handlers: PreviewHandlers) {
 		this.store = store;
@@ -132,6 +139,10 @@ export class PreviewView {
 		this.element.replaceChildren();
 		this.element.classList.toggle("is-open", state !== undefined);
 		if (!state) return;
+		if (state.id !== this.lastActiveTabId) {
+			this.lastActiveTabId = state.id;
+			this.htmlViewSource = false;
+		}
 
 		// Tab strip: one entry per open file, active highlighted, closable.
 		const strip = h("div", { class: "preview-tabs" });
@@ -162,13 +173,26 @@ export class PreviewView {
 		}
 		this.element.appendChild(strip);
 
-		const header = h(
-			"div",
-			{ class: "preview-header" },
+		const headerChildren: HTMLElement[] = [
 			h("span", { class: "preview-title", title: state.path }, basename(state.path)),
 			h("span", { class: "preview-meta" }, this.metaText(state)),
-		);
-		this.element.appendChild(header);
+		];
+		if (state.kind === "text" && isHtmlFile(state.path)) {
+			headerChildren.push(
+				h(
+					"button",
+					{
+						class: "preview-toggle",
+						onclick: () => {
+							this.htmlViewSource = !this.htmlViewSource;
+							this.render();
+						},
+					},
+					this.htmlViewSource ? "Preview" : "Source",
+				),
+			);
+		}
+		this.element.appendChild(h("div", { class: "preview-header" }, ...headerChildren));
 
 		if (state.status === "loading") {
 			this.element.appendChild(h("div", { class: "preview-status" }, "Loading…"));
@@ -209,6 +233,33 @@ export class PreviewView {
 		}
 		if (state.kind === "text") {
 			const text = state.text ?? "";
+			if (isHtmlFile(state.path) && !this.htmlViewSource) {
+				// Sandboxed render: scripts run, but no same-origin access to the
+				// pi app (opaque origin). srcdoc has no base URL, so relative
+				// resources do not resolve — self-contained pages only.
+				const body = h("div", { class: "preview-body preview-html-body" });
+				body.appendChild(
+					h("iframe", {
+						class: "preview-html-frame",
+						sandbox: "allow-scripts allow-modals",
+						srcdoc: text,
+						title: basename(state.path),
+					}),
+				);
+				this.element.appendChild(body);
+				if (state.truncated) {
+					this.element.appendChild(
+						h(
+							"button",
+							{ class: "preview-more", onclick: () => this.handlers.onLoadMore() },
+							`Load more (showing ${state.shownLines ?? text.split("\n").length} of ${
+								state.totalLines ?? text.split("\n").length
+							} lines)`,
+						),
+					);
+				}
+				return;
+			}
 			const lineCount = text.split("\n").length;
 			const gutter = h(
 				"pre",
