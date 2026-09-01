@@ -17,7 +17,8 @@ Let users preview files referenced in the web GUI transcript without leaving the
 1. **Detection scope: whole transcript.** Tool cards (`read`/`edit`/`write`/`ls` paths),
    assistant message text, bash output, `Full output: <path>` hints, and user messages.
 2. **Preview types (v1): text + images.** Text with syntax highlight and line numbers;
-   images (jpg/png/gif/webp/bmp/svg) as data URIs; everything else shows a notice with
+   images (jpg/png/gif/webp/bmp — exactly what `detectSupportedImageMimeType`
+   sniffs) as data URIs; everything else shows a notice with
    basic info. PDF/video/audio are future work.
 3. **Path policy: unrestricted.** Any absolute path that exists is previewable, like the
    agent's own read tool. The web token is the access boundary (same precedent as
@@ -96,8 +97,9 @@ Response data, by file kind:
 - Image: `{ kind: "image", data: base64, mimeType, size }` — mime from
   `detectSupportedImageMimeTypeFromFile` (`utils/mime.ts`); hard cap 5MB, larger files
   return `unsupported` with `reason: "too-large"`.
-- Unsupported binary: `{ kind: "unsupported", size, mimeType? }` — decided by extension
-  first; extensionless files probe the first 8KB for null bytes / invalid UTF-8.
+- Unsupported binary: `{ kind: "unsupported", size, mimeType? }` — decided by a null-byte
+  probe of the first 8KB (catches every binary form, including images the sniffer
+  rejects).
 
 Errors (missing file, EACCES, is-a-directory) return the standard `rpcError` shape; the
 client surfaces them in the panel.
@@ -168,9 +170,10 @@ interface PreviewState {
 }
 ```
 
-`AppState.preview: PreviewState | undefined`; store methods `openPreview`,
-`appendPreviewText`, `setPreviewError`, `closePreview` (all through the existing
-`update()`/emit pattern).
+`PreviewState` lives in a dedicated app-level `PreviewStore` (`packages/web/src/preview-store.ts`),
+not in the per-session `AppState`: the panel survives session switches, and transcript
+views from any session drive it through `open`, `setText`, `appendText`, `setImage`,
+`setUnsupported`, `setError`, `close` (same subscribe/emit pattern as `Store`).
 
 ### 6.2 Layout and DOM
 
