@@ -1194,7 +1194,13 @@ export class App {
 		};
 
 		// Widget/status side effects land in the OWNING session's store — the
-		// active view may be a different session.
+		// active view may be a different session. Events for a session the
+		// client has not registered yet race ahead of its session_opened payload
+		// (the server broadcasts extension events during openSession, before
+		// session_opened); that payload is authoritative — including
+		// pendingUiRequests for dialogs — so drop them rather than letting one
+		// session's widgets clobber the active session's store.
+		if (request.sessionId !== undefined && !this.sessionStores.has(request.sessionId)) return;
 		const store =
 			(request.sessionId !== undefined ? this.sessionStores.get(request.sessionId) : undefined) ?? this.store;
 		switch (request.method) {
