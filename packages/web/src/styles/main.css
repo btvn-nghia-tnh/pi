@@ -132,10 +132,20 @@ body {
 
 .message-user {
 	background: var(--color-user-bg);
+	border-left: 3px solid var(--color-accent);
 	border-radius: 6px;
 	padding: 8px 12px;
 	margin: 10px 0;
 	white-space: pre-wrap;
+}
+
+.message-user .message-role-label {
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--color-dim);
+	margin-bottom: 4px;
 }
 
 .message-user .attachments {

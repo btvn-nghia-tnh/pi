@@ -175,6 +175,15 @@ export class WidgetAreaView {
 	private unsubscribe: (() => void) | undefined;
 
 	private readonly placement: "aboveEditor" | "belowEditor";
+	/**
+	 * Render memoization. Streaming re-renders the transcript on every
+	 * message chunk; rebuilding the widget DOM on each one makes docked
+	 * panels (the todo list) jitter and resets their scroll position. The
+	 * store replaces the widgets Map / collapsedWidgets set identities only
+	 * when widget state actually changes, so identity comparison is enough.
+	 */
+	private lastWidgets: ReadonlyMap<string, unknown> | undefined;
+	private lastCollapsed: ReadonlySet<string> | undefined;
 
 	constructor(store: Store, placement: "aboveEditor" | "belowEditor") {
 		this.placement = placement;
@@ -193,6 +202,26 @@ export class WidgetAreaView {
 
 	private render(): void {
 		const state = this.store.getState();
+		if (
+			state.widgets === this.lastWidgets &&
+			state.collapsedWidgets === this.lastCollapsed &&
+			this.element.childElementCount > 0
+		) {
+			return;
+		}
+		this.lastWidgets = state.widgets;
+		this.lastCollapsed = state.collapsedWidgets;
+		// Keep the visible scroll offsets of scrollable panel bodies across
+		// re-renders (e.g. a todo list that gains a task mid-read).
+		const scrollOffsets = new Map<string, number>();
+		for (const panel of this.element.children) {
+			if (panel instanceof HTMLElement) {
+				const scroller = panel.querySelector(".widget-body, .todo-list");
+				if (scroller instanceof HTMLElement && scroller.scrollTop > 0) {
+					scrollOffsets.set(panel.title ?? "", scroller.scrollTop);
+				}
+			}
+		}
 		while (this.element.firstChild) {
 			this.element.removeChild(this.element.firstChild);
 		}
@@ -212,6 +241,11 @@ export class WidgetAreaView {
 			panel.classList.add("widget-registered");
 			panel.title = key;
 			this.element.appendChild(panel);
+			const offset = scrollOffsets.get(key);
+			if (offset !== undefined) {
+				const scroller = panel.querySelector(".widget-body, .todo-list");
+				if (scroller instanceof HTMLElement) scroller.scrollTop = offset;
+			}
 		}
 	}
 }

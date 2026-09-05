@@ -36,6 +36,8 @@ function renderContentBlocks(content: unknown, className: string): HTMLElement[]
 export function renderUserMessage(item: TranscriptItem): HTMLElement {
 	const message = item.message as { content?: unknown; timestamp?: number } | undefined;
 	const container = h("div", { class: "message-user" });
+	// Small role marker: user and assistant bubbles otherwise read identically.
+	container.appendChild(h("div", { class: "message-role-label" }, "User"));
 	const body = h("div", {});
 	if (message && typeof message.content === "string") {
 		body.appendChild(h("div", {}, message.content));

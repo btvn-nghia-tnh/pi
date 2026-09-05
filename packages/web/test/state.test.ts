@@ -302,3 +302,22 @@ test("markDisconnected clears transient state", () => {
 	assert.equal(state.connected, false);
 	assert.equal(state.retry, undefined);
 });
+
+test("streaming updates keep the widgets map identity (render memoization)", () => {
+	const store = new Store();
+	store.setWidget("rpiv-todos", ["Todos (0/1)"], "aboveEditor");
+	const widgetsBefore = store.getState().widgets;
+
+	// A streaming assistant message fires many updates; none may replace the
+	// widgets map, or the docked widget area would rebuild (and jitter) on
+	// every chunk.
+	store.applyAgentEvent({ type: "message_start", message: { role: "assistant", content: [], timestamp: 1 } });
+	store.applyAgentEvent({
+		type: "message_update",
+		message: { role: "assistant", content: [{ type: "text", text: "chunk" }], timestamp: 1 },
+	});
+	assert.equal(store.getState().widgets, widgetsBefore);
+
+	store.setWidget("rpiv-todos", ["Todos (1/1)"], "aboveEditor");
+	assert.notEqual(store.getState().widgets, widgetsBefore);
+});
