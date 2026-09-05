@@ -39,6 +39,7 @@
 - Added `fullscreenCopyOnSelect` to disable automatic fullscreen selection copy; when disabled, `Ctrl+X` copies the active text selection before falling back to the last assistant message, while `/tree` still copies the selected message ([#7720](https://github.com/earendil-works/pi/issues/7720)).
 
 ### Fixed
+- Numeric XML entities (`&#NNN;`/`&#xHH;`) now decode in xlsx/docx previews: openpyxl escapes every non-ASCII character as numeric entities, so Vietnamese sheet names and cell text rendered as literal `&#7897;`-style sequences.
 
 - Fixed toggling thinking visibility clearing partial output from running Bash tools ([#8611](https://github.com/earendil-works/pi/issues/8611)).
 - Fixed Windows shell aborts crashing Pi when `taskkill.exe` is unavailable on `PATH` ([#6596](https://github.com/earendil-works/pi/issues/6596)).

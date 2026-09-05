@@ -50,15 +50,27 @@ function attributeOf(tag: string, name: string): string | undefined {
 }
 
 function decodeXmlEntities(value: string): string {
-	return value
-		.replaceAll("&lt;", "<")
-		.replaceAll("&gt;", ">")
-		.replaceAll("&quot;", '"')
-		.replaceAll("&apos;", "'")
-		.replaceAll("&#10;", "\n")
-		.replaceAll("&#13;", "\r")
-		.replaceAll("&#9;", "\t")
-		.replaceAll("&amp;", "&");
+	return (
+		value
+			.replaceAll("&lt;", "<")
+			.replaceAll("&gt;", ">")
+			.replaceAll("&quot;", '"')
+			.replaceAll("&apos;", "'")
+			// General numeric entities — openpyxl escapes every non-ASCII character
+			// as &#NNN; (decimal) or &#xHH; (hex). Invalid code points (surrogates,
+			// beyond U+10FFFF) decode to U+FFFD instead of broken strings.
+			.replace(
+				/&#(?:x([0-9a-fA-F]+)|(\d+));/g,
+				(_match: string, hex: string | undefined, dec: string | undefined) => {
+					const code = hex !== undefined ? Number.parseInt(hex, 16) : Number.parseInt(dec ?? "", 10);
+					if (!Number.isInteger(code) || code < 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) {
+						return "\uFFFD";
+					}
+					return String.fromCodePoint(code);
+				},
+			)
+			.replaceAll("&amp;", "&")
+	);
 }
 
 /** Concatenate every <t>…</t> run inside a shared-string item. */

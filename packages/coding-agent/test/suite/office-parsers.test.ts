@@ -65,6 +65,38 @@ function buildXlsx(): Buffer {
 	});
 }
 
+describe("xml entity decoding", () => {
+	it("decodes numeric entities in cell text and sheet names (openpyxl output)", () => {
+		const data = parseXlsx(
+			buildZip({
+				"xl/workbook.xml":
+					'<workbook><sheets><sheet name="T&#243;m t&#7855;t" sheetId="1" r:id="rId1"/></sheets></workbook>',
+				"xl/_rels/workbook.xml.rels":
+					'<Relationships><Relationship Id="rId1" Type="worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
+				"xl/sharedStrings.xml": '<sst count="1"><si><t>N&#7897;i dung</t></si></sst>',
+				"xl/styles.xml": "<styleSheet/>",
+				"xl/worksheets/sheet1.xml":
+					"<worksheet><sheetData>" +
+					'<row r="1"><c r="A1" t="s"><v>0</v></c>' +
+					'<c r="B1" t="inlineStr"><is><t>Nh&#243;m &#10003;</t></is></c>' +
+					'<c r="C1" t="inlineStr"><is><t>hex &#x1F600;</t></is></c>' +
+					'<c r="D1" t="inlineStr"><is><t>escaped &amp;#7897; stays</t></is></c>' +
+					'<c r="E1" t="inlineStr"><is><t>bad &#1114112; and &#xD800;</t></is></c>' +
+					"</row></sheetData></worksheet>",
+			}),
+			LIMITS,
+		);
+		expect(data.sheets[0].name).toBe("Tóm tắt");
+		expect(data.sheets[0].rows[0]).toEqual([
+			"Nội dung",
+			"Nhóm ✓",
+			"hex 😀",
+			"escaped &#7897; stays",
+			"bad \uFFFD and \uFFFD",
+		]);
+	});
+});
+
 describe("parseXlsx", () => {
 	it("extracts sheets, shared strings, numbers, booleans and dates", () => {
 		const data = parseXlsx(buildXlsx(), LIMITS);
