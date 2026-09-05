@@ -179,8 +179,21 @@ export interface NotebookCell {
 	outputs?: NotebookOutput[];
 }
 
+export interface SpreadsheetSheet {
+	name: string;
+	rows: string[][];
+}
+
+export interface DocumentBlock {
+	type: "paragraph" | "heading" | "listItem" | "table";
+	level?: number;
+	ordered?: boolean;
+	text?: string;
+	rows?: string[][];
+}
+
 export interface ReadFileData {
-	kind: "text" | "image" | "unsupported" | "notebook";
+	kind: "text" | "image" | "unsupported" | "notebook" | "spreadsheet" | "document";
 	/** text kind */
 	text?: string;
 	totalLines?: number;
@@ -196,6 +209,10 @@ export interface ReadFileData {
 	reason?: string;
 	/** notebook kind */
 	cells?: NotebookCell[];
+	/** spreadsheet kind (xlsx preview) */
+	sheets?: SpreadsheetSheet[];
+	/** document kind (docx preview) */
+	blocks?: DocumentBlock[];
 }
 
 export interface RpcResponseMessage {

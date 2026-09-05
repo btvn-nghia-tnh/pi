@@ -9,7 +9,7 @@ import { h } from "../dom.ts";
 import { extensionToLanguage } from "../file-refs.ts";
 import { renderMarkdown, sanitizeMarkdownHtml } from "../markdown.ts";
 import type { PreviewState, PreviewStore } from "../preview-store.ts";
-import type { NotebookCell, NotebookOutput } from "../types.ts";
+import type { DocumentBlock, NotebookCell, NotebookOutput, SpreadsheetSheet } from "../types.ts";
 
 export interface PreviewHandlers {
 	/** Activate a tab (click on the tab strip). */
@@ -54,6 +54,8 @@ export class PreviewView {
 	/** HTML/markdown files toggle between rendered view and source; resets on tab switch. */
 	private viewSource = false;
 	private lastActiveTabId: string | undefined;
+	/** Active sheet per tab id — spreadsheet tab strip selection. */
+	private readonly activeSheetByTab = new Map<string, number>();
 
 	constructor(store: PreviewStore, handlers: PreviewHandlers) {
 		this.store = store;
@@ -235,6 +237,18 @@ export class PreviewView {
 			this.element.appendChild(body);
 			return;
 		}
+		if (state.kind === "spreadsheet") {
+			this.element.appendChild(this.renderSpreadsheet(state));
+			return;
+		}
+		if (state.kind === "document") {
+			const body = h("div", { class: "preview-body document-body" });
+			for (const block of state.blocks ?? []) {
+				body.appendChild(this.renderDocumentBlock(block));
+			}
+			this.element.appendChild(body);
+			return;
+		}
 		if (state.kind === "text") {
 			const text = state.text ?? "";
 			if (isHtmlFile(state.path) && !this.viewSource) {
@@ -289,12 +303,101 @@ export class PreviewView {
 		);
 	}
 
+	/** Spreadsheet: sheet tab strip + data table (first row is the header). */
+	private renderSpreadsheet(state: PreviewState): HTMLElement {
+		const sheets = state.sheets ?? [];
+		const body = h("div", { class: "preview-body spreadsheet-body" });
+		if (sheets.length === 0) {
+			body.appendChild(h("div", { class: "preview-status" }, "No worksheets found."));
+			return body;
+		}
+		const tabId = state.id;
+		let active = this.activeSheetByTab.get(tabId) ?? 0;
+		if (active >= sheets.length) active = 0;
+
+		if (sheets.length > 1) {
+			const strip = h("div", { class: "sheet-tabs" });
+			sheets.forEach((sheet, index) => {
+				const tab = h(
+					"button",
+					{
+						class: `sheet-tab${index === active ? " active" : ""}`,
+						onclick: () => {
+							this.activeSheetByTab.set(tabId, index);
+							this.render();
+						},
+					},
+					sheet.name,
+				);
+				strip.appendChild(tab);
+			});
+			body.appendChild(strip);
+		}
+
+		const table = this.renderSheetTable(sheets[active]);
+		body.appendChild(table);
+		return body;
+	}
+
+	private renderSheetTable(sheet: SpreadsheetSheet): HTMLElement {
+		const scroller = h("div", { class: "sheet-table-scroll" });
+		const table = h("table", { class: "sheet-table" });
+		const head = h("thead", {});
+		const headRow = h("tr", {});
+		const headerCells = sheet.rows[0] ?? [];
+		for (const cell of headerCells) {
+			headRow.appendChild(h("th", {}, cell));
+		}
+		head.appendChild(headRow);
+		table.appendChild(head);
+		const tableBody = h("tbody", {});
+		for (const row of sheet.rows.slice(1)) {
+			const tr = h("tr", {});
+			for (const cell of row) {
+				const isNumeric = cell !== "" && !Number.isNaN(Number(cell));
+				tr.appendChild(h("td", { class: isNumeric ? "num" : undefined }, cell));
+			}
+			tableBody.appendChild(tr);
+		}
+		table.appendChild(tableBody);
+		scroller.appendChild(table);
+		return scroller;
+	}
+
+	/** docx block → element (headings, paragraphs, list markers, tables). */
+	private renderDocumentBlock(block: DocumentBlock): HTMLElement {
+		if (block.type === "heading") {
+			return h(`h${Math.min(Math.max(block.level ?? 1, 1), 6)}`, { class: "doc-heading" }, block.text ?? "");
+		}
+		if (block.type === "listItem") {
+			return h("div", { class: "doc-list-item" }, `${block.ordered ? "1." : "•"} ${block.text ?? ""}`);
+		}
+		if (block.type === "table") {
+			const table = h("table", { class: "sheet-table" });
+			for (const row of block.rows ?? []) {
+				const tr = h("tr", {});
+				for (const cell of row) {
+					tr.appendChild(h("td", {}, cell));
+				}
+				table.appendChild(tr);
+			}
+			return table;
+		}
+		return h("p", { class: "doc-paragraph" }, block.text ?? "");
+	}
+
 	private metaText(state: PreviewState): string {
 		if (state.status === "error") return "";
 		if (state.kind === "image") return formatSize(state.size ?? 0);
 		if (state.kind === "unsupported") return "binary";
 		if (state.kind === "notebook")
 			return `${state.cells?.length ?? 0} cells${state.size !== undefined ? ` · ${formatSize(state.size)}` : ""}`;
+		if (state.kind === "spreadsheet")
+			return `${state.sheets?.length ?? 0} sheet${(state.sheets?.length ?? 0) === 1 ? "" : "s"}${
+				state.size !== undefined ? ` · ${formatSize(state.size)}` : ""
+			}`;
+		if (state.kind === "document")
+			return `${state.blocks?.length ?? 0} blocks${state.size !== undefined ? ` · ${formatSize(state.size)}` : ""}`;
 		if (state.kind === "text")
 			return `${state.totalLines ?? 0} lines${state.size !== undefined ? ` · ${formatSize(state.size)}` : ""}`;
 		return "";

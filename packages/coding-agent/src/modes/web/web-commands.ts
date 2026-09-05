@@ -39,6 +39,7 @@ import type {
 	RpcSlashCommand,
 	RpcTrustState,
 } from "../rpc/rpc-types.ts";
+import { OfficeParseError, parseDocx, parseXlsx, type SpreadsheetLimits } from "./office-parsers.ts";
 import { shareSessionHeadless } from "./web-share.ts";
 
 export type WebCommandHandler = (command: RpcCommand, core: RpcCore) => Promise<RpcResponse | undefined>;
@@ -79,6 +80,11 @@ const IGNORED_DIRECTORY_NAMES = new Set([".git", "node_modules", ".pi-cache"]);
 const MAX_PROJECT_FILES = 20000;
 const MAX_WALK_DEPTH = 12;
 const MAX_PREVIEW_IMAGE_BYTES = 5 * 1024 * 1024;
+/** xlsx/docx Office Open XML files are ZIP containers; parsed server-side. */
+const MAX_OFFICE_BYTES = 5 * 1024 * 1024;
+const SPREADSHEET_LIMITS: SpreadsheetLimits = { maxRows: 2000, maxColumns: 128 };
+const MAX_DOCUMENT_BLOCKS = 2000;
+const OFFICE_EXTENSIONS = /\.(xlsx|xlsm|docx)$/i;
 const BINARY_PROBE_BYTES = 8192;
 const MAX_NOTEBOOK_BYTES = 20 * 1024 * 1024;
 
@@ -816,6 +822,47 @@ export function createWebCommandHandler(): WebCommandHandler {
 							size: stats.size,
 						},
 					};
+				}
+				if (OFFICE_EXTENSIONS.test(absolute)) {
+					if (stats.size > MAX_OFFICE_BYTES) {
+						return {
+							id,
+							type: "response",
+							command: "read_file",
+							success: true,
+							data: { kind: "unsupported", size: stats.size, reason: "too-large" },
+						};
+					}
+					try {
+						if (/\.docx$/i.test(absolute)) {
+							return {
+								id,
+								type: "response",
+								command: "read_file",
+								success: true,
+								data: {
+									kind: "document",
+									blocks: parseDocx(buffer, MAX_DOCUMENT_BLOCKS).blocks,
+									size: stats.size,
+								},
+							};
+						}
+						return {
+							id,
+							type: "response",
+							command: "read_file",
+							success: true,
+							data: {
+								kind: "spreadsheet",
+								sheets: parseXlsx(buffer, SPREADSHEET_LIMITS).sheets,
+								size: stats.size,
+							},
+						};
+					} catch (error: unknown) {
+						const detail =
+							error instanceof OfficeParseError ? error.message : "file is not a valid Office document";
+						return rpcError(id, "read_file", detail);
+					}
 				}
 				if (buffer.subarray(0, BINARY_PROBE_BYTES).includes(0)) {
 					return {

@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { crc32, deflateRawSync } from "node:zlib";
 import { fauxAssistantMessage, registerFauxProvider } from "@earendil-works/pi-ai/compat";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -616,6 +617,90 @@ describe("web commands", () => {
 				offset: 99,
 			});
 			expect(beyond?.success).toBe(false);
+		});
+
+		/** Build an in-memory ZIP with deflated entries (office fixtures). */
+		const buildZip = (files: Record<string, string>): Buffer => {
+			const locals: Buffer[] = [];
+			const centrals: Buffer[] = [];
+			let offset = 0;
+			for (const [name, content] of Object.entries(files)) {
+				const nameBuffer = Buffer.from(name, "utf-8");
+				const data = Buffer.from(content, "utf-8");
+				const compressed = deflateRawSync(data);
+				const crc = crc32(data) >>> 0;
+				const local = Buffer.alloc(30);
+				local.writeUInt32LE(0x04034b50, 0);
+				local.writeUInt16LE(8, 8);
+				local.writeUInt32LE(crc, 14);
+				local.writeUInt32LE(compressed.length, 18);
+				local.writeUInt32LE(data.length, 22);
+				local.writeUInt16LE(nameBuffer.length, 26);
+				locals.push(local, nameBuffer, compressed);
+				const central = Buffer.alloc(46);
+				central.writeUInt32LE(0x02014b50, 0);
+				central.writeUInt16LE(8, 10);
+				central.writeUInt32LE(crc, 16);
+				central.writeUInt32LE(compressed.length, 20);
+				central.writeUInt32LE(data.length, 24);
+				central.writeUInt16LE(nameBuffer.length, 28);
+				central.writeUInt32LE(offset, 42);
+				centrals.push(central, nameBuffer);
+				offset += 30 + nameBuffer.length + compressed.length;
+			}
+			const centralDirectory = Buffer.concat(centrals);
+			const eocd = Buffer.alloc(22);
+			eocd.writeUInt32LE(0x06054b50, 0);
+			eocd.writeUInt16LE(Object.keys(files).length, 8);
+			eocd.writeUInt16LE(Object.keys(files).length, 10);
+			eocd.writeUInt32LE(centralDirectory.length, 12);
+			eocd.writeUInt32LE(offset, 16);
+			return Buffer.concat([...locals, centralDirectory, eocd]);
+		};
+
+		it("previews xlsx files as a spreadsheet", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(
+				join(tempDir, "data.xlsx"),
+				buildZip({
+					"xl/workbook.xml": '<workbook><sheets><sheet name="Data" sheetId="1" r:id="rId1"/></sheets></workbook>',
+					"xl/_rels/workbook.xml.rels":
+						'<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+					"xl/sharedStrings.xml": "<sst><si><t>Name</t></si></sst>",
+					"xl/worksheets/sheet1.xml":
+						'<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1"><v>7</v></c></row></sheetData></worksheet>',
+				}),
+			);
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "data.xlsx") });
+			const data = responseData(response) as { kind: string; sheets: { name: string; rows: string[][] }[] };
+			expect(data.kind).toBe("spreadsheet");
+			expect(data.sheets[0].name).toBe("Data");
+			expect(data.sheets[0].rows).toEqual([["Name", "7"]]);
+		});
+
+		it("previews docx files as a document", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(
+				join(tempDir, "doc.docx"),
+				buildZip({
+					"word/document.xml":
+						'<w:document><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Hello</w:t></w:r></w:p></w:body></w:document>',
+				}),
+			);
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "doc.docx") });
+			const data = responseData(response) as {
+				kind: string;
+				blocks: { type: string; text?: string; level?: number }[];
+			};
+			expect(data.kind).toBe("document");
+			expect(data.blocks[0]).toEqual({ type: "heading", level: 1, text: "Hello" });
+		});
+
+		it("errors for corrupt office files instead of falling through to binary", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(join(tempDir, "bad.xlsx"), "not a zip at all");
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "bad.xlsx") });
+			expect(response?.success).toBe(false);
 		});
 	});
 

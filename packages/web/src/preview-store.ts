@@ -6,7 +6,7 @@
  * address a previous generation of a tab are dropped by the setters.
  */
 
-import type { NotebookCell, ReadFileData } from "./types.ts";
+import type { DocumentBlock, NotebookCell, ReadFileData, SpreadsheetSheet } from "./types.ts";
 
 export interface PreviewState {
 	/** Tab id; changes every time the tab is re-opened (refresh). */
@@ -16,13 +16,17 @@ export interface PreviewState {
 	/** Session whose transcript was clicked; used to route read_file. */
 	sessionId: string | undefined;
 	status: "loading" | "ready" | "error";
-	kind?: "text" | "image" | "unsupported" | "notebook";
+	kind?: "text" | "image" | "unsupported" | "notebook" | "spreadsheet" | "document";
 	/** text kind */
 	text?: string;
 	/** image kind */
 	imageSrc?: string;
 	/** notebook kind */
 	cells?: NotebookCell[];
+	/** spreadsheet kind */
+	sheets?: SpreadsheetSheet[];
+	/** document kind */
+	blocks?: DocumentBlock[];
 	mimeType?: string;
 	size?: number;
 	totalLines?: number;
@@ -169,6 +173,30 @@ export class PreviewStore {
 			status: "ready",
 			kind: "notebook",
 			cells: data.cells ?? [],
+			size: data.size,
+			error: undefined,
+		});
+	}
+
+	setSpreadsheet(data: ReadFileData, tabId: string): void {
+		const tab = this.getTab(tabId);
+		if (!tab || tab.status !== "loading") return;
+		this.patch(tab, {
+			status: "ready",
+			kind: "spreadsheet",
+			sheets: data.sheets ?? [],
+			size: data.size,
+			error: undefined,
+		});
+	}
+
+	setDocument(data: ReadFileData, tabId: string): void {
+		const tab = this.getTab(tabId);
+		if (!tab || tab.status !== "loading") return;
+		this.patch(tab, {
+			status: "ready",
+			kind: "document",
+			blocks: data.blocks ?? [],
 			size: data.size,
 			error: undefined,
 		});

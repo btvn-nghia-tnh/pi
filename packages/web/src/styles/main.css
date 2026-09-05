@@ -2158,3 +2158,97 @@ body {
 .preview-md :first-child {
 	margin-top: 0;
 }
+
+/* Spreadsheet (xlsx) and document (docx) previews */
+
+.sheet-tabs {
+	display: flex;
+	gap: 2px;
+	flex-wrap: wrap;
+	padding: 4px 10px;
+	border-bottom: 1px solid var(--color-border-muted);
+}
+
+.sheet-tab {
+	background: none;
+	border: none;
+	border-bottom: 2px solid transparent;
+	color: var(--color-dim);
+	cursor: pointer;
+	font-size: 12px;
+	padding: 3px 10px;
+}
+
+.sheet-tab:hover {
+	color: var(--color-text);
+}
+
+.sheet-tab.active {
+	color: var(--color-accent);
+	border-bottom-color: var(--color-accent);
+}
+
+.sheet-table-scroll {
+	overflow: auto;
+	flex: 1 1 auto;
+}
+
+.sheet-table {
+	border-collapse: collapse;
+	font-size: 12px;
+	min-width: 100%;
+}
+
+.sheet-table th,
+.sheet-table td {
+	border: 1px solid var(--color-border-muted);
+	padding: 3px 8px;
+	max-width: 420px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sheet-table th {
+	background: var(--color-page-bg);
+	position: sticky;
+	top: 0;
+	font-weight: 600;
+	text-align: left;
+}
+
+.sheet-table td.num {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.sheet-table tbody tr:nth-child(even) {
+	background: color-mix(in srgb, var(--color-page-bg) 45%, transparent);
+}
+
+.document-body {
+	padding: 12px 16px;
+}
+
+.doc-heading {
+	margin: 16px 0 6px;
+	color: var(--color-accent);
+}
+
+.document-body .doc-heading:first-child {
+	margin-top: 2px;
+}
+
+.doc-paragraph {
+	margin: 6px 0;
+	line-height: 1.5;
+}
+
+.doc-list-item {
+	margin: 3px 0 3px 8px;
+	color: var(--color-text);
+}
+
+.document-body .sheet-table {
+	margin: 8px 0;
+}

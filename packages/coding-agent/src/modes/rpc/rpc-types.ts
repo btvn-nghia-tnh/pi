@@ -624,8 +624,25 @@ export interface RpcNotebookCell {
 	outputs?: RpcNotebookOutput[];
 }
 
+export interface RpcSpreadsheetSheet {
+	name: string;
+	rows: string[][];
+}
+
+export interface RpcDocumentBlock {
+	type: "paragraph" | "heading" | "listItem" | "table";
+	/** heading kind */
+	level?: number;
+	/** listItem kind */
+	ordered?: boolean;
+	/** paragraph / heading / listItem kind */
+	text?: string;
+	/** table kind */
+	rows?: string[][];
+}
+
 export interface RpcReadFileData {
-	kind: "text" | "image" | "unsupported" | "notebook";
+	kind: "text" | "image" | "unsupported" | "notebook" | "spreadsheet" | "document";
 	/** text kind */
 	text?: string;
 	totalLines?: number;
@@ -641,6 +658,10 @@ export interface RpcReadFileData {
 	reason?: string;
 	/** notebook kind */
 	cells?: RpcNotebookCell[];
+	/** spreadsheet kind (xlsx preview) */
+	sheets?: RpcSpreadsheetSheet[];
+	/** document kind (docx preview) */
+	blocks?: RpcDocumentBlock[];
 }
 
 // ============================================================================
