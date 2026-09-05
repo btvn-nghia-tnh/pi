@@ -268,6 +268,12 @@ export async function startWebServer(runtime: AgentSessionRuntime, options: WebM
 					};
 				}
 				const slot = await sessions.openSession(command.sessionPath);
+				// Extension session_start handlers run async (file reads, state
+				// replay); their setWidget calls go through the RpcCore created inside
+				// openSession. A short settle delay lets them finish before the
+				// slot payload snapshots the widget cache — otherwise the payload is
+				// missing widgets like the todo list for sidebar-opened sessions.
+				await new Promise((resolve) => setTimeout(resolve, 200));
 				// Announce the new session with its full rehydration payload so
 				// connected clients can build their view of it.
 				broadcast({ type: "session_opened", ...(await slotPayload(slot)) });
