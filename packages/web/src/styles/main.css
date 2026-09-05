@@ -1578,6 +1578,12 @@ body {
 
 .sidebar-row.active {
 	background: var(--color-selected-bg);
+	box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+.sidebar-row.active .sidebar-session-name {
+	color: var(--color-text);
+	font-weight: 600;
 }
 
 .sidebar-marker {
