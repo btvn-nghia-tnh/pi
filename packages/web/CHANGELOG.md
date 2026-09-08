@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Custom messages (intercom, subagent notices, subagent slash results) render their content: the human-readable `content` payload (markdown or content blocks) now renders in the body with a friendly label per type, and the structured `details` payload stays available in a collapsed section. Previously the renderer read a nonexistent `data` field, so these messages showed only a bare type label with no message text.
+
 ### Added
 
 - Initial browser GUI package for `pi web`: transcript rendering (markdown, thinking blocks, tool cards with word-level diffs, images), editor with slash commands, `@` file completion, shell mode, image paste, queue management, footer stats, all selectors and dialogs (model, thinking, sessions, tree, settings, themes, trust, login, share, import/export, changelog, hotkeys), keyboard shortcuts, reconnect handling, and transcript search.

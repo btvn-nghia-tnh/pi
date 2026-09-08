@@ -498,6 +498,27 @@ body {
 	font-size: 12.5px;
 }
 
+.custom-item .md-body {
+	font-size: 12.5px;
+}
+
+.custom-details {
+	margin-top: 6px;
+}
+
+.custom-details summary {
+	cursor: pointer;
+	color: var(--color-dim);
+	font-size: 11px;
+}
+
+.custom-details pre {
+	max-height: 240px;
+	overflow: auto;
+	font-size: 11px;
+	white-space: pre-wrap;
+}
+
 /* ------------------------------------------------------------------ */
 /* Editor dock                                                          */
 /* ------------------------------------------------------------------ */

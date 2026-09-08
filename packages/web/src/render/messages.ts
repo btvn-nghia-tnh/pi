@@ -117,17 +117,69 @@ export function renderAssistantMessage(
 	return container;
 }
 
-export function renderCustomMessage(item: TranscriptItem): HTMLElement {
-	const message = item.message as { customType?: string; data?: unknown } | undefined;
-	const container = h("div", { class: "custom-item" });
-	container.appendChild(h("div", { class: "custom-label" }, `[${message?.customType ?? "custom"}]`));
-	const body = h("pre", {});
-	try {
-		body.textContent = typeof message?.data === "string" ? message.data : JSON.stringify(message?.data, null, 2);
-	} catch {
-		body.textContent = String(message?.data ?? "");
+/** Friendly display labels for known custom message types. */
+export const CUSTOM_TYPE_LABELS: Record<string, string> = {
+	intercom_message: "Intercom",
+	subagent_control_notice: "Subagent",
+	subagent_steering_notice: "Steering",
+	"subagent-slash-result": "Subagent result",
+	"subagent-slash-text-result": "Subagent result",
+	subagent_supervisor_request: "Subagent supervisor",
+	"subagent-compaction-resume": "Subagent compaction",
+};
+
+/** Human-readable body text for a custom message's `content` field (markdown string or blocks). */
+export function customMessageBody(message: { content?: unknown }): string | null {
+	if (typeof message.content === "string" && message.content.trim()) return message.content;
+	if (Array.isArray(message.content)) {
+		const text = message.content
+			.map((block) =>
+				block && typeof block === "object" && block.type === "text" && typeof block.text === "string"
+					? block.text
+					: "",
+			)
+			.join("")
+			.trim();
+		return text || null;
 	}
-	container.appendChild(body);
+	return null;
+}
+
+/** Stable text for a custom message's `details` payload, for the collapsed debug section. */
+export function customMessageDetailsText(details: unknown): string {
+	try {
+		if (typeof details === "string") return details;
+		const json = JSON.stringify(details, null, 2);
+		return json ?? String(details);
+	} catch {
+		return String(details);
+	}
+}
+
+export function renderCustomMessage(item: TranscriptItem): HTMLElement {
+	const message = item.message as { customType?: string; content?: unknown; details?: unknown } | undefined;
+	const container = h("div", { class: "custom-item" });
+	const customType = message?.customType ?? "custom";
+	container.appendChild(h("div", { class: "custom-label" }, CUSTOM_TYPE_LABELS[customType] ?? customType));
+	// Custom messages carry their human-readable payload in `content` — a
+	// markdown string ("**From X** ...body") or an array of content blocks.
+	const bodyText = message ? customMessageBody(message) : null;
+	if (bodyText) {
+		const rendered = h("div", { class: "md-body" });
+		rendered.innerHTML = renderMarkdown(bodyText);
+		container.appendChild(rendered);
+	}
+	// Structured details stay available for debugging, collapsed by default.
+	if (message?.details != null) {
+		container.appendChild(
+			h(
+				"details",
+				{ class: "custom-details" },
+				h("summary", {}, "Details"),
+				h("pre", {}, customMessageDetailsText(message.details)),
+			),
+		);
+	}
 	return container;
 }
 
