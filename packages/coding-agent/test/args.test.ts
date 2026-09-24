@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { normalizeSessionName, parseArgs } from "../src/cli/args.ts";
+import { normalizeSessionName, parseArgs, parseWebSubcommand } from "../src/cli/args.ts";
 
 describe("parseArgs", () => {
 	describe("--version flag", () => {
@@ -496,5 +496,59 @@ describe("parseArgs", () => {
 			expect(result.fileArgs).toEqual(["prompt.md"]);
 			expect(result.messages).toEqual(["Do the task"]);
 		});
+	});
+});
+
+describe("parseWebSubcommand", () => {
+	test("returns undefined for non-web args", () => {
+		expect(parseWebSubcommand(["--model", "sonnet"])).toBeUndefined();
+	});
+
+	test("defaults: ephemeral port, loopback host, random token, open browser", () => {
+		const parsed = parseWebSubcommand(["web"])!;
+		expect(parsed.options.port).toBe(0);
+		expect(parsed.options.host).toBe("127.0.0.1");
+		expect(parsed.options.token).toBe(true);
+		expect(parsed.options.tokenValue).toBeUndefined();
+		expect(parsed.options.open).toBe(true);
+		expect(parsed.rest).toEqual([]);
+	});
+
+	test("--token <value> pins a custom token", () => {
+		const parsed = parseWebSubcommand(["web", "--token", "my-secret"])!;
+		expect(parsed.options.token).toBe(true);
+		expect(parsed.options.tokenValue).toBe("my-secret");
+	});
+
+	test("--token=<value> form pins a custom token", () => {
+		const parsed = parseWebSubcommand(["web", "--token=my-secret"])!;
+		expect(parsed.options.token).toBe(true);
+		expect(parsed.options.tokenValue).toBe("my-secret");
+	});
+
+	test("--no-token disables the token and clears a custom value", () => {
+		const parsed = parseWebSubcommand(["web", "--token", "my-secret", "--no-token"])!;
+		expect(parsed.options.token).toBe(false);
+		expect(parsed.options.tokenValue).toBeUndefined();
+	});
+
+	test("--token re-enables after --no-token (last flag wins)", () => {
+		const parsed = parseWebSubcommand(["web", "--no-token", "--token=abc"])!;
+		expect(parsed.options.token).toBe(true);
+		expect(parsed.options.tokenValue).toBe("abc");
+	});
+
+	test("an empty --token value keeps the random token", () => {
+		const space = parseWebSubcommand(["web", "--token", ""])!;
+		expect(space.options.token).toBe(true);
+		expect(space.options.tokenValue).toBeUndefined();
+		const equals = parseWebSubcommand(["web", "--token="])!;
+		expect(equals.options.tokenValue).toBeUndefined();
+	});
+
+	test("non-web flags pass through to the shared startup path", () => {
+		const parsed = parseWebSubcommand(["web", "--port", "9000", "--model", "sonnet", "hello"])!;
+		expect(parsed.options.port).toBe(9000);
+		expect(parsed.rest).toEqual(["--model", "sonnet", "hello"]);
 	});
 });

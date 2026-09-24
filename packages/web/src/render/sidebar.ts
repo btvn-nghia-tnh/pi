@@ -107,6 +107,15 @@ export class SidebarView {
 		this.render();
 	}
 
+	/** Absolute paths of open sessions; bulk cleanup excludes these. */
+	getOpenSessionPaths(): string[] {
+		const paths = new Set<string>();
+		for (const session of this.openSessions.values()) {
+			if (session.sessionPath) paths.add(session.sessionPath);
+		}
+		return [...paths];
+	}
+
 	removeSession(id: string): void {
 		this.openSessions.delete(id);
 		this.render();

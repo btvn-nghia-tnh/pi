@@ -259,10 +259,18 @@ export function openThinkingSelector(
 	});
 }
 
+export interface SessionSelectorOptions {
+	onResume: (sessionPath: string) => void;
+	/** Absolute paths of open sessions; their checkboxes stay disabled. */
+	getOpenSessionPaths?: () => string[];
+	/** Notifies the host after sessions were deleted (refresh sidebar lists). */
+	onSessionsChanged?: () => void;
+}
+
 export function openSessionSelector(
 	dialogs: DialogStack,
 	connection: PiConnection,
-	options: { onResume: (sessionPath: string) => void },
+	options: SessionSelectorOptions,
 ): void {
 	dialogs.open((close) => {
 		let sessions: RpcSessionSummary[] = [];
@@ -271,6 +279,8 @@ export function openSessionSelector(
 		let namedOnly = false;
 		let showPaths = false;
 		let selected = 0;
+		/** Session files marked for deletion via checkboxes. */
+		const checked = new Set<string>();
 
 		const search = h("input", {
 			type: "text",
@@ -279,6 +289,7 @@ export function openSessionSelector(
 		}) as HTMLInputElement;
 		const list = h("div", {});
 		const meta = h("div", { style: "color: var(--color-dim); font-size: 11px; margin-top: 6px" }, "");
+		const deleteSelectedBtn = h("button", { title: "Delete every checked session" }, "Delete selected");
 
 		const filtered = (): RpcSessionSummary[] => {
 			let result = sessions;
@@ -298,17 +309,38 @@ export function openSessionSelector(
 			return result;
 		};
 
+		const updateDeleteSelectedBtn = () => {
+			deleteSelectedBtn.textContent = checked.size > 0 ? `Delete selected (${checked.size})` : "Delete selected";
+		};
+
 		const render = () => {
 			const visible = filtered();
+			const openPaths = new Set(options.getOpenSessionPaths?.() ?? []);
 			while (list.firstChild) list.removeChild(list.firstChild);
 			selected = Math.min(selected, Math.max(0, visible.length - 1));
 			for (const [index, session] of visible.entries()) {
 				const date = new Date(session.modified);
 				const label = session.name ?? (session.firstMessage.slice(0, 60) || "(empty)");
 				const meta2 = showPaths ? session.file : `${session.messageCount} msgs`;
+				const isOpen = openPaths.has(session.file);
 				const row = h(
 					"div",
 					{ class: `list-item${index === selected ? " selected" : ""}` },
+					h("input", {
+						class: "item-check",
+						type: "checkbox",
+						checked: checked.has(session.file),
+						disabled: isOpen,
+						"aria-label": `Mark ${label} for deletion`,
+						title: isOpen ? "Session is open" : "Mark for deletion",
+						onclick: (event: Event) => {
+							// Keep the row click (resume) from firing.
+							event.stopPropagation();
+							if (checked.has(session.file)) checked.delete(session.file);
+							else checked.add(session.file);
+							updateDeleteSelectedBtn();
+						},
+					}),
 					h("span", { class: "item-label" }, label),
 					h("span", { class: "item-meta" }, `${meta2} · ${date.toLocaleDateString()}`),
 				);
@@ -325,7 +357,15 @@ export function openSessionSelector(
 		const load = () => {
 			void connection.request<{ sessions: RpcSessionSummary[] }>({ type: "list_sessions", scope }).then((data) => {
 				sessions = data.sessions ?? [];
+				// Scope switches and deletions replace the list; drop checks
+				// for sessions that are no longer in it so the button count
+				// never counts unremovable entries.
+				const present = new Set(sessions.map((session) => session.file));
+				for (const file of checked) {
+					if (!present.has(file)) checked.delete(file);
+				}
 				render();
+				updateDeleteSelectedBtn();
 			});
 		};
 
@@ -370,10 +410,38 @@ export function openSessionSelector(
 				const session = visible[selected];
 				if (session && window.confirm(`Delete session ${session.name ?? session.id}?`)) {
 					void connection.request({ type: "delete_session", sessionPath: session.file }).then(load);
+					options.onSessionsChanged?.();
 				}
 			}
 		});
 
+		const deleteSelected = () => {
+			const targets = sessions.filter((session) => checked.has(session.file));
+			if (targets.length === 0) return;
+			const preview = targets
+				.slice(0, 8)
+				.map((session) => session.name ?? (session.firstMessage.slice(0, 40) || session.id))
+				.join("\n");
+			const more = targets.length > 8 ? `\n… and ${targets.length - 8} more` : "";
+			if (
+				!window.confirm(
+					`Delete ${targets.length} session(s)?\n\n${preview}${more}\n\nDeleted files move to the trash when available.`,
+				)
+			) {
+				return;
+			}
+			void Promise.all(
+				targets.map((session) =>
+					connection.request({ type: "delete_session", sessionPath: session.file }).catch(() => undefined),
+				),
+			).then(() => {
+				checked.clear();
+				updateDeleteSelectedBtn();
+				load();
+				options.onSessionsChanged?.();
+			});
+		};
+		deleteSelectedBtn.addEventListener("click", deleteSelected);
 		load();
 
 		return h(
@@ -405,6 +473,7 @@ export function openSessionSelector(
 					},
 					"Toggle scope",
 				),
+				deleteSelectedBtn,
 				h("button", { onclick: close }, "Close"),
 			),
 		);

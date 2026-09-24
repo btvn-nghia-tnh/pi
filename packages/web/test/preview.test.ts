@@ -105,6 +105,15 @@ test("setImage builds a data URI", () => {
 	assert.equal(state?.size, 3);
 });
 
+test("setImage declares a utf-8 charset for svg data URIs", () => {
+	const store = new PreviewStore();
+	const id = store.open("logo.svg", "s1");
+	store.setImage({ kind: "image", data: "PHN2Zz4=", mimeType: "image/svg+xml", size: 6 }, id);
+	const state = store.getTab(id);
+	assert.equal(state?.imageSrc, "data:image/svg+xml;charset=utf-8;base64,PHN2Zz4=");
+	assert.equal(state?.mimeType, "image/svg+xml");
+});
+
 test("setUnsupported records size and reason", () => {
 	const store = new PreviewStore();
 	const id = store.open("blob.bin", undefined);

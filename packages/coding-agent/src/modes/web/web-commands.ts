@@ -87,6 +87,21 @@ const MAX_DOCUMENT_BLOCKS = 2000;
 const OFFICE_EXTENSIONS = /\.(xlsx|xlsm|docx)$/i;
 const BINARY_PROBE_BYTES = 8192;
 const MAX_NOTEBOOK_BYTES = 20 * 1024 * 1024;
+const SVG_EXTENSION = /\.svg$/i;
+const SVG_HEAD_SNIFF_BYTES = 1024;
+/** SVG prologue: optional BOM, XML declaration, DOCTYPE, leading comments. */
+const SVG_START_RE = /^\uFEFF?\s*(?:<\?xml[\s\S]*?\?>\s*)?(?:<!DOCTYPE[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg[\s/>]/;
+
+/**
+ * SVG preview check: SVG is a text-based image format, so detection is
+ * extension-gated content sniffing. Files with an .svg extension that do not
+ * look like SVG fall through to the text renderer instead of a broken image.
+ */
+function isSvgPreview(path: string, buffer: Buffer): boolean {
+	if (!SVG_EXTENSION.test(path)) return false;
+	const head = buffer.subarray(0, SVG_HEAD_SNIFF_BYTES).toString("utf-8");
+	return SVG_START_RE.test(head);
+}
 
 /** nbformat sources are either a plain string or an array of line fragments. */
 function normalizeNotebookText(value: unknown): string {
@@ -819,6 +834,24 @@ export function createWebCommandHandler(): WebCommandHandler {
 							kind: "image",
 							data: buffer.toString("base64"),
 							mimeType: imageMime,
+							size: stats.size,
+						},
+					};
+				}
+				// SVG previews render as images in the web UI: rendered via <img>,
+				// where browsers disable SVG scripts and external references.
+				// Oversized files fall through: SVG is text, so the text renderer
+				// still pages it.
+				if (isSvgPreview(absolute, buffer) && stats.size <= MAX_PREVIEW_IMAGE_BYTES) {
+					return {
+						id,
+						type: "response",
+						command: "read_file",
+						success: true,
+						data: {
+							kind: "image",
+							data: buffer.toString("base64"),
+							mimeType: "image/svg+xml",
 							size: stats.size,
 						},
 					};

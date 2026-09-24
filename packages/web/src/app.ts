@@ -694,6 +694,8 @@ export class App {
 							.request({ type: "switch_session", sessionPath })
 							.then(() => this.syncAfterSessionSwitch());
 					},
+					getOpenSessionPaths: () => this.sidebar?.getOpenSessionPaths() ?? [],
+					onSessionsChanged: () => this.refreshSessionsList(),
 				});
 				return true;
 			case "reload":
@@ -1306,6 +1308,8 @@ export class App {
 									.request({ type: "switch_session", sessionPath })
 									.then(() => this.syncAfterSessionSwitch());
 							},
+							getOpenSessionPaths: () => this.sidebar?.getOpenSessionPaths() ?? [],
+							onSessionsChanged: () => this.refreshSessionsList(),
 						});
 						return true;
 					case "app.session.new":

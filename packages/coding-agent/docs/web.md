@@ -8,6 +8,7 @@ pi web                  # random free port (http://127.0.0.1:<port>/?token=...)
 pi web --port 9000      # pin a specific port
 pi web --no-open        # do not open a browser
 pi web --no-token       # no URL token (not recommended)
+pi web --token my-secret # pin a custom URL token (default: random per run)
 pi web --host 0.0.0.0   # expose to the network (use with care)
 ```
 
@@ -42,7 +43,9 @@ sessions in place, like the TUI.
   prints a warning. Combine with your own TLS/VPN for remote access.
 - The token travels in the URL query string. This is acceptable for localhost
   use; use a reverse proxy with authentication before exposing `pi web` to a
-  network.
+  network. `--token <value>` pins a fixed token instead of the random per-run
+  one: convenient for bookmarks and scripts, but a memorable value is easier
+  to guess — keep it long and random for anything beyond localhost.
 
 ## Feature parity
 

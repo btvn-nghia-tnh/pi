@@ -2,8 +2,9 @@
  * Web mode: serve the browser GUI for the coding agent.
  *
  * Runs an HTTP server (static assets + WebSocket) in front of one
- * AgentSessionRuntime. A random token gates every request; the CLI prints
- * (and optionally opens) the full URL including the token.
+ * AgentSessionRuntime. A token gates every request (random per run, or a
+ * fixed value via `--token`); the CLI prints (and optionally opens) the
+ * full URL including the token.
  */
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -23,8 +24,10 @@ export interface WebModeOptions {
 	port: number;
 	/** Bind address. Defaults to 127.0.0.1. */
 	host: string;
-	/** Require a per-run random token on every request. */
+	/** Require a token on every request (random unless `tokenValue` is set). */
 	token: boolean;
+	/** Explicit token value; replaces the random per-run token when set. */
+	tokenValue?: string;
 	/** Open the default browser after the server is ready. */
 	open: boolean;
 }
@@ -96,7 +99,7 @@ function isLoopback(host: string): boolean {
  */
 export async function startWebServer(runtime: AgentSessionRuntime, options: WebModeOptions): Promise<WebModeHandle> {
 	const distDir = resolveWebDistDir();
-	const token = options.token ? randomBytes(24).toString("base64url") : undefined;
+	const token = options.token ? (options.tokenValue ?? randomBytes(24).toString("base64url")) : undefined;
 	const sockets = new Set<WebSocket>();
 	let shuttingDown = false;
 

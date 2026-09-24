@@ -143,11 +143,15 @@ export class PreviewStore {
 	setImage(data: ReadFileData, tabId: string): void {
 		const tab = this.getTab(tabId);
 		if (!tab || tab.status !== "loading") return;
+		const mimeType = data.mimeType ?? "application/octet-stream";
+		// SVG data URIs carry text: declare the charset so non-ASCII content
+		// (e.g. accented labels) decodes as UTF-8 in every browser.
+		const charset = mimeType === "image/svg+xml" ? ";charset=utf-8" : "";
 		this.patch(tab, {
 			status: "ready",
 			kind: "image",
-			imageSrc: `data:${data.mimeType ?? "application/octet-stream"};base64,${data.data ?? ""}`,
-			mimeType: data.mimeType,
+			imageSrc: `data:${mimeType}${charset};base64,${data.data ?? ""}`,
+			mimeType,
 			size: data.size,
 			error: undefined,
 		});

@@ -584,6 +584,61 @@ describe("web commands", () => {
 			expect(data.data).toBe(TINY_PNG.toString("base64"));
 		});
 
+		it("returns svg files as image previews", async () => {
+			const { core, tempDir } = await fixture();
+			const svg =
+				'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><circle cx="5" cy="5" r="4"/></svg>';
+			writeFileSync(join(tempDir, "logo.svg"), svg);
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "logo.svg") });
+			const data = responseData(response) as {
+				kind: string;
+				data: string;
+				mimeType: string;
+				size: number;
+			};
+			expect(data.kind).toBe("image");
+			expect(data.mimeType).toBe("image/svg+xml");
+			expect(data.size).toBe(Buffer.byteLength(svg));
+			expect(data.data).toBe(Buffer.from(svg).toString("base64"));
+		});
+
+		it("returns xml-declared and non-ascii svg files as image previews", async () => {
+			const { core, tempDir } = await fixture();
+			const svg =
+				'<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg"><text>Tiếng Việt</text></svg>';
+			writeFileSync(join(tempDir, "vn.svg"), svg, "utf-8");
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "vn.svg") });
+			const data = responseData(response) as { kind: string; data: string; mimeType: string };
+			expect(data.kind).toBe("image");
+			expect(data.mimeType).toBe("image/svg+xml");
+			expect(Buffer.from(data.data ?? "", "base64").toString("utf-8")).toBe(svg);
+		});
+
+		it("falls back to text when a .svg file is not svg", async () => {
+			const { core, tempDir } = await fixture();
+			writeFileSync(join(tempDir, "fake.svg"), "just text, not svg");
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "fake.svg") });
+			const data = responseData(response) as { kind: string; text: string };
+			expect(data.kind).toBe("text");
+			expect(data.text).toBe("just text, not svg");
+		});
+
+		it("renders oversized svg files as text instead of unsupported", async () => {
+			const { core, tempDir } = await fixture();
+			// Multi-line padding: a single huge line would exceed the text
+			// renderer's per-line limit, which reports a proper error anyway.
+			const lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<svg xmlns="http://www.w3.org/2000/svg">'];
+			while (lines.join("\n").length <= 5 * 1024 * 1024) {
+				lines.push(`<path d="M0 0 ${"a".repeat(512)}"/>`);
+			}
+			lines.push("</svg>");
+			writeFileSync(join(tempDir, "huge.svg"), lines.join("\n"));
+			const response = await core.handleCommand({ type: "read_file", path: join(tempDir, "huge.svg") });
+			const data = responseData(response) as { kind: string; truncated: boolean };
+			expect(data.kind).toBe("text");
+			expect(data.truncated).toBe(true);
+		});
+
 		it("flags oversized images as unsupported", async () => {
 			const { core, tempDir } = await fixture();
 			const big = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0x00]), Buffer.alloc(5 * 1024 * 1024 + 1, 0x41)]);

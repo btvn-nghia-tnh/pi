@@ -14,7 +14,10 @@ export type Mode = "text" | "json" | "rpc";
 export interface WebSubcommandOptions {
 	port: number;
 	host: string;
+	/** Require a token on every request (random unless `tokenValue` is set). */
 	token: boolean;
+	/** Explicit token value; replaces the random per-run token when set. */
+	tokenValue?: string;
 	open: boolean;
 }
 
@@ -55,8 +58,22 @@ export function parseWebSubcommand(args: string[]): { options: WebSubcommandOpti
 			options.host = args[i]!;
 		} else if (arg.startsWith("--host=")) {
 			options.host = arg.slice("--host=".length);
+		} else if (arg === "--token" && i + 1 < args.length) {
+			i++;
+			const value = args[i]!;
+			if (value.length > 0) {
+				options.token = true;
+				options.tokenValue = value;
+			}
+		} else if (arg.startsWith("--token=")) {
+			const value = arg.slice("--token=".length);
+			if (value.length > 0) {
+				options.token = true;
+				options.tokenValue = value;
+			}
 		} else if (arg === "--no-token") {
 			options.token = false;
+			options.tokenValue = undefined;
 		} else if (arg === "--no-open") {
 			options.open = false;
 		} else {

@@ -903,6 +903,12 @@ body {
 	background: var(--color-selected-bg);
 }
 
+.dialog .list-item .item-check {
+	flex: none;
+	align-self: center;
+	cursor: pointer;
+}
+
 .dialog .list-item .item-label {
 	flex: 1;
 }
