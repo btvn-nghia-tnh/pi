@@ -54,6 +54,12 @@ export class PreviewView {
 	/** HTML/markdown files toggle between rendered view and source; resets on tab switch. */
 	private viewSource = false;
 	private lastActiveTabId: string | undefined;
+	/** In-file search (text kind): current query, active hit, DOM helpers. */
+	private searchQuery = "";
+	private searchIndex = 0;
+	private searchInput?: HTMLInputElement;
+	private searchCounter?: HTMLElement;
+	private lastActiveMark: HTMLElement | undefined;
 	/** Active sheet per tab id — spreadsheet tab strip selection. */
 	private readonly activeSheetByTab = new Map<string, number>();
 
@@ -148,6 +154,8 @@ export class PreviewView {
 		if (state.id !== this.lastActiveTabId) {
 			this.lastActiveTabId = state.id;
 			this.viewSource = false;
+			this.searchQuery = "";
+			this.searchIndex = 0;
 		}
 
 		// Tab strip: one entry per open file, active highlighted, closable.
@@ -197,6 +205,48 @@ export class PreviewView {
 					this.viewSource ? "Preview" : "Source",
 				),
 			);
+		}
+		if (state.kind === "text") {
+			// In-file search: only plain-text views (HTML/markdown rendered
+			// views keep the toggle instead; search targets the source).
+			const input = h("input", {
+				type: "text",
+				class: "preview-search",
+				placeholder: "Find…",
+				value: this.searchQuery,
+				"aria-label": "Search in file",
+			}) as HTMLInputElement;
+			input.addEventListener("input", () => {
+				this.searchQuery = input.value;
+				this.searchIndex = 0;
+				this.render();
+				this.searchInput?.focus();
+			});
+			input.addEventListener("keydown", (event) => {
+				if (event.key === "Enter") {
+					event.preventDefault();
+					this.stepSearch(event.shiftKey ? -1 : 1);
+				} else if (event.key === "Escape") {
+					event.preventDefault();
+					if (this.searchQuery) {
+						this.searchQuery = "";
+						this.searchIndex = 0;
+						this.render();
+					}
+					this.searchInput?.blur();
+				}
+			});
+			const prev = h("button", { class: "preview-search-nav", title: "Previous match (Shift+Enter)" }, "\u2039");
+			prev.addEventListener("click", () => this.stepSearch(-1));
+			const next = h("button", { class: "preview-search-nav", title: "Next match (Enter)" }, "\u203a");
+			next.addEventListener("click", () => this.stepSearch(1));
+			const counter = h("span", { class: "preview-search-counter" }, "");
+			headerChildren.push(input, prev, next, counter);
+			this.searchInput = input;
+			this.searchCounter = counter;
+		} else {
+			this.searchInput = undefined;
+			this.searchCounter = undefined;
 		}
 		this.element.appendChild(h("div", { class: "preview-header" }, ...headerChildren));
 
@@ -287,8 +337,83 @@ export class PreviewView {
 			this.highlightInto(code, text, extensionToLanguage(state.path));
 			const body = h("div", { class: "preview-body" }, h("div", { class: "preview-code-row" }, gutter, code));
 			this.element.appendChild(body);
+			this.lastActiveMark = this.searchQuery ? this.applySearchHits(code) : undefined;
+			if (this.lastActiveMark) this.lastActiveMark.scrollIntoView({ block: "nearest" });
 			this.appendLoadMore(state);
 		}
+	}
+
+	/** Cycle the active match (Enter / Shift+Enter / header buttons). */
+	private stepSearch(direction: number): void {
+		if (!this.searchQuery) return;
+		this.render();
+		// render() recomputed the hit list; advance, then re-mark.
+		this.searchIndex += direction;
+		const code = this.element.querySelector<HTMLElement>(".preview-code");
+		if (!code) return;
+		const marks = [...code.querySelectorAll<HTMLElement>("mark.preview-hit")];
+		if (marks.length === 0) return;
+		const active = ((this.searchIndex % marks.length) + marks.length) % marks.length;
+		this.searchIndex = active;
+		for (const mark of marks) mark.classList.toggle("active", false);
+		const current = marks[active];
+		current.classList.add("active");
+		current.scrollIntoView({ block: "nearest" });
+		this.lastActiveMark = current;
+		if (this.searchCounter) this.searchCounter.textContent = `${active + 1}/${marks.length}`;
+	}
+
+	/**
+	 * Wrap case-insensitive query matches in mark elements (within single
+	 * text nodes, so syntax-highlight spans keep working). Returns the
+	 * active mark or undefined when nothing matched.
+	 */
+	private applySearchHits(code: HTMLElement): HTMLElement | undefined {
+		const query = this.searchQuery;
+		const lowerQuery = query.toLowerCase();
+		const textNodes: Text[] = [];
+		const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+		for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+			textNodes.push(node as Text);
+		}
+		const marks: HTMLElement[] = [];
+		for (const textNode of textNodes) {
+			let current: Text = textNode;
+			let from = 0;
+			for (;;) {
+				const at = current.data.toLowerCase().indexOf(lowerQuery, from);
+				if (at === -1) break;
+				const matchNode = current.splitText(at);
+				const tail = matchNode.splitText(query.length);
+				const mark = document.createElement("mark");
+				mark.className = "preview-hit";
+				mark.appendChild(matchNode);
+				tail.parentNode?.insertBefore(mark, tail);
+				marks.push(mark);
+				current = tail;
+				from = 0;
+			}
+		}
+		if (marks.length === 0) {
+			if (this.searchCounter) this.searchCounter.textContent = query ? "0/0" : "";
+			return undefined;
+		}
+		const active = ((this.searchIndex % marks.length) + marks.length) % marks.length;
+		this.searchIndex = active;
+		const current = marks[active];
+		for (const [index, mark] of marks.entries()) {
+			mark.classList.toggle("active", index === active);
+		}
+		if (this.searchCounter) this.searchCounter.textContent = `${active + 1}/${marks.length}`;
+		return current;
+	}
+
+	/** Focus the in-file search box (Ctrl+F wiring). */
+	focusSearch(): boolean {
+		if (!this.searchInput) return false;
+		this.searchInput.focus();
+		this.searchInput.select();
+		return true;
 	}
 
 	private appendLoadMore(state: PreviewState): void {

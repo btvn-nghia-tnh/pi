@@ -12,6 +12,13 @@
 - File preview panel: an expanding right column rendering text (syntax highlighted, line-numbered, load-more paging) and images fetched over `read_file`.
 - SVG image preview: `.svg` files render as images in the preview panel via a `data:image/svg+xml;charset=utf-8;base64,...` URI (browsers disable SVG scripts and external references in `<img>` context); oversized or mislabeled files fall back to the source view.
 - Session picker multi-select deletion: checkboxes mark sessions for deletion and "Delete selected" removes exactly the checked ones (open sessions cannot be checked; deleted files go to the trash when available); deletes refresh the sidebar too.
+- Session picker "Select all" toggle: one click checks (or unchecks) every closable session in the current scope.
+- Inline ask-user cards: extension select/confirm/input questions render as cards above the editor instead of modals — the transcript stays readable while the question is answered ("is this plan ok?" no longer covers the plan). Auth prompts and long-form editors stay modal.
+- Browser tab status: while any session runs, the tab title pulses (▶) and the favicon shows a green dot; when all turns finish while the tab is hidden, a desktop notification fires when permission was already granted (never prompted).
+- Transcript code fences get a hover copy button that copies the exact code text (with a brief ✓ confirmation); bare tool-output blocks are untouched.
+- Editor prompt history: ArrowUp on an empty input recalls previous prompts, ArrowDown walks back to the draft, typing cancels — persisted in localStorage, capped at 100, immediate repeats deduped.
+- Preview in-file search: text previews get a find box (Ctrl+F when the preview is open) with case-insensitive highlighting, an n/m counter, Enter/Shift+Enter navigation, and Esc to clear; the query resets on tab switches.
+- /quit closes the active session slot (running sessions confirm first; the primary session explains that the browser tab must be closed instead — window.close() is blocked for tabs the browser opened).
 - Clickable file references across the transcript (assistant text, user messages, bash output, tool cards) — validated against the server before linkifying; clicking opens the preview panel; Esc closes it.
 - Syntax-colored code blocks and file previews: the active theme's syntax colors now map to `.hljs` token styles (markdown fences included).
 - Tabbed file preview panel: multiple files stay open as VSCode-style tabs; clicking an already-open reference re-opens and refreshes its tab; Esc closes the active tab (the panel hides when the last tab closes).

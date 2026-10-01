@@ -53,6 +53,8 @@ export interface EditorOptions {
 	onClear: () => void;
 	searchFiles: (query: string) => Promise<string[]>;
 	commands: () => RpcSlashCommandUi[];
+	/** Submitted-prompt history, newest last (ArrowUp/Down when the input is empty). */
+	history?: { entries: () => string[] };
 }
 
 interface Attachment {
@@ -77,6 +79,10 @@ export class EditorController {
 	private autocompleteActive = false;
 	private searchDebounce: ReturnType<typeof setTimeout> | undefined;
 	private autocompleteElement: HTMLElement;
+	/** History navigation index; -1 = not browsing (draft input). */
+	private historyIndex = -1;
+	/** The unsubmitted input saved when history browsing starts. */
+	private historyDraft = "";
 
 	constructor(options: EditorOptions) {
 		this.options = options;
@@ -253,10 +259,54 @@ export class EditorController {
 			this.options.onEscape();
 			return;
 		}
+		if (event.key === "ArrowUp" && (this.historyIndex !== -1 || this.textarea.value === "")) {
+			if (this.historyUp()) {
+				event.preventDefault();
+				return;
+			}
+		}
+		if (event.key === "ArrowDown" && this.historyIndex !== -1) {
+			if (this.historyDown()) {
+				event.preventDefault();
+				return;
+			}
+		}
 		if (event.key === "Tab") {
 			event.preventDefault();
 			this.tabCompletePath();
 		}
+	}
+
+	// ------------------------------------------------------------------
+	// Prompt history (ArrowUp/Down on an empty input)
+	// ------------------------------------------------------------------
+
+	private historyUp(): boolean {
+		const entries = this.options.history?.entries() ?? [];
+		if (entries.length === 0) return false;
+		if (this.historyIndex === -1) {
+			this.historyDraft = this.textarea.value;
+			this.historyIndex = entries.length - 1;
+		} else if (this.historyIndex > 0) {
+			this.historyIndex--;
+		}
+		const value = entries[this.historyIndex];
+		if (value === undefined) return false;
+		this.setText(value);
+		return true;
+	}
+
+	private historyDown(): boolean {
+		const entries = this.options.history?.entries() ?? [];
+		if (this.historyIndex === -1) return false;
+		if (this.historyIndex < entries.length - 1) {
+			this.historyIndex++;
+			this.setText(entries[this.historyIndex] ?? "");
+		} else {
+			this.historyIndex = -1;
+			this.setText(this.historyDraft);
+		}
+		return true;
 	}
 
 	private submitCurrent(mode: EditorSubmitEvent["mode"]): void {
@@ -292,6 +342,9 @@ export class EditorController {
 
 		this.options.submit({ text, images: this.getAttachments(), mode });
 		this.clear();
+		// Submitting always returns to the draft (browsing canceled).
+		this.historyIndex = -1;
+		this.historyDraft = "";
 	}
 
 	// ------------------------------------------------------------------

@@ -290,6 +290,14 @@ export function openSessionSelector(
 		const list = h("div", {});
 		const meta = h("div", { style: "color: var(--color-dim); font-size: 11px; margin-top: 6px" }, "");
 		const deleteSelectedBtn = h("button", { title: "Delete every checked session" }, "Delete selected");
+		const selectAllBtn = h(
+			"button",
+			{ title: "Toggle the checkbox of every closable session in scope" },
+			"Select all",
+		);
+
+		/** Fresh snapshot of open-session paths — checkboxes stay disabled for these. */
+		const openSessionPaths = (): Set<string> => new Set(options.getOpenSessionPaths?.() ?? []);
 
 		const filtered = (): RpcSessionSummary[] => {
 			let result = sessions;
@@ -311,11 +319,26 @@ export function openSessionSelector(
 
 		const updateDeleteSelectedBtn = () => {
 			deleteSelectedBtn.textContent = checked.size > 0 ? `Delete selected (${checked.size})` : "Delete selected";
+			const checkable = sessions.filter((session) => !openSessionPaths().has(session.file));
+			const allChecked = checkable.length > 0 && checkable.every((session) => checked.has(session.file));
+			selectAllBtn.textContent = allChecked ? "Deselect all" : "Select all";
 		};
+
+		selectAllBtn.addEventListener("click", () => {
+			const checkable = sessions.filter((session) => !openSessionPaths().has(session.file));
+			if (checkable.length === 0) return;
+			const allChecked = checkable.every((session) => checked.has(session.file));
+			for (const session of checkable) {
+				if (allChecked) checked.delete(session.file);
+				else checked.add(session.file);
+			}
+			render();
+			updateDeleteSelectedBtn();
+		});
 
 		const render = () => {
 			const visible = filtered();
-			const openPaths = new Set(options.getOpenSessionPaths?.() ?? []);
+			const openPaths = openSessionPaths();
 			while (list.firstChild) list.removeChild(list.firstChild);
 			selected = Math.min(selected, Math.max(0, visible.length - 1));
 			for (const [index, session] of visible.entries()) {
@@ -474,6 +497,7 @@ export function openSessionSelector(
 					"Toggle scope",
 				),
 				deleteSelectedBtn,
+				selectAllBtn,
 				h("button", { onclick: close }, "Close"),
 			),
 		);

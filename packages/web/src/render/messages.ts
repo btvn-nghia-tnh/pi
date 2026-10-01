@@ -63,6 +63,35 @@ export function renderUserMessage(item: TranscriptItem): HTMLElement {
 
 const THINKING_LEVEL_LABEL = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
+/** Attach a hover-revealed copy button to every fenced markdown code block. */
+export function decorateCodeBlockCopies(root: HTMLElement): void {
+	for (const pre of root.querySelectorAll<HTMLPreElement>("pre")) {
+		if (pre.querySelector(":scope > .code-copy")) continue;
+		// Markdown fences are pre>code; bare <pre> blocks (bash output, tool
+		// cards) keep their own affordances.
+		const code = pre.querySelector<HTMLElement>(":scope > code");
+		if (!code) continue;
+		// Capture before appending the button — after that, pre.textContent
+		// would include the button's own label.
+		const codeText = code.textContent ?? "";
+		const button = h("button", { class: "code-copy", title: "Copy code", type: "button" }, "Copy");
+		button.addEventListener("click", () => {
+			void navigator.clipboard
+				.writeText(codeText)
+				.then(() => {
+					button.textContent = "✓";
+					button.classList.add("copied");
+					setTimeout(() => {
+						button.textContent = "Copy";
+						button.classList.remove("copied");
+					}, 1200);
+				})
+				.catch(() => undefined);
+		});
+		pre.appendChild(button);
+	}
+}
+
 export function renderAssistantMessage(
 	item: TranscriptItem,
 	options: { thinkingLevel: string; thinkingVisible: boolean; hideThinkingBlock: boolean },

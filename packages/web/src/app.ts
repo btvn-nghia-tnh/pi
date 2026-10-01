@@ -22,8 +22,11 @@ import { h } from "./dom.ts";
 import { EditorController, type EditorSubmitEvent } from "./editor/editor.ts";
 import { decorateFileRefs } from "./file-refs.ts";
 import { FooterView, QueueView, StatusRowsView, ToastsView, WidgetAreaView } from "./footer.ts";
+import { appendPromptHistory, loadPromptHistory, savePromptHistory } from "./history.ts";
 import { registerGlobalKeyboard, type ShortcutAction } from "./keyboard.ts";
+import { renderMarkdown, sanitizeMarkdownHtml } from "./markdown.ts";
 import { PreviewStore } from "./preview-store.ts";
+import { decorateCodeBlockCopies } from "./render/messages.ts";
 import { PreviewView } from "./render/preview.ts";
 import { SidebarView } from "./render/sidebar.ts";
 import { TranscriptView } from "./render/transcript.ts";
@@ -42,6 +45,13 @@ import type {
 	SessionReplacedMessage,
 	StatPathsData,
 } from "./types.ts";
+
+/** Browser-tab favicon for idle (matches index.html) and running states. */
+const FAVICON_IDLE =
+	"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>\u03c0</text></svg>";
+const FAVICON_RUNNING = `data:image/svg+xml,${encodeURIComponent(
+	"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>\u03c0</text><circle cx='13.5' cy='2.5' r='2.5' fill='#4caf50'/></svg>",
+)}`;
 
 /** Session-bound view bundle — rebuilt when the active session changes. */
 interface SessionViews {
@@ -63,6 +73,16 @@ export class App {
 	/** One store per open session, keyed by session id. */
 	private readonly sessionStores = new Map<string, Store>();
 	private activeSessionId: string | undefined;
+	/** Inline ask-user card host (above the editor, below widgets). */
+	private askHost!: HTMLElement;
+	/** Mounted inline ask cards by extension request id (dedupe on rehydrates). */
+	private readonly inlineAsks = new Map<string, HTMLElement>();
+	/** Submitted-prompt history, newest last (localStorage-backed). */
+	private promptHistory: string[] = loadPromptHistory();
+	/** Tab title owned by extensions; the running pulse composes on top. */
+	private baseTitle = "pi";
+	/** Last observed all-sessions running state (tab status diffing). */
+	private anySessionRunning = false;
 	/** Editor drafts per session, preserved across switches. */
 	private readonly editorDrafts = new Map<string, string>();
 	/** Mount hosts for the session views (persistent across switches). */
@@ -119,6 +139,8 @@ export class App {
 		editorInner.appendChild(statusRowsHost);
 		editorInner.appendChild(queueHost);
 		editorInner.appendChild(widgetsHost);
+		this.askHost = h("div", { class: "inline-asks" });
+		editorInner.appendChild(this.askHost);
 		editorInner.appendChild(h("div", {}, this.buildEditorHost()));
 		editorInner.appendChild(widgetsBelowHost);
 		editorDock.appendChild(editorInner);
@@ -214,6 +236,7 @@ export class App {
 
 		const header = this.buildHeader();
 		const decorate = (element: HTMLElement): void => {
+			decorateCodeBlockCopies(element);
 			if (!this.connection) return;
 			decorateFileRefs(element, {
 				sessionId,
@@ -388,6 +411,7 @@ export class App {
 				}
 			},
 			commands: () => this.store.getState().commands,
+			history: { entries: () => this.promptHistory },
 		});
 		return this.editor.element;
 	}
@@ -403,6 +427,8 @@ export class App {
 			});
 			return;
 		}
+		this.promptHistory = appendPromptHistory(this.promptHistory, event.text);
+		savePromptHistory(this.promptHistory);
 		if (event.mode === "steer") {
 			connection.send({ type: "prompt", message: event.text, images: event.images, streamingBehavior: "steer" });
 			return;
@@ -702,11 +728,28 @@ export class App {
 				void connection.request({ type: "reload" }).then(() => this.syncAfterSessionSwitch());
 				store.pushNotification("Reloaded", "info");
 				return true;
-			case "quit":
-				if (window.confirm("Quit pi?")) {
-					window.close();
+			case "quit": {
+				// window.close() is blocked for tabs the browser opened; closing the
+				// active slot gives the command real meaning (primary cannot close).
+				const activeId = this.activeSessionId;
+				if (activeId === undefined) return true;
+				if (store.isTurnRunning() && !window.confirm("This session is still running. Close it anyway?")) {
+					return true;
 				}
+				void connection
+					.request<{ closed?: boolean; reason?: string }>({ type: "close_session", sessionId: activeId })
+					.then((data) => {
+						if (data.closed) store.pushNotification("Session closed", "info");
+						else if (data.reason === "primary")
+							store.pushNotification(
+								"The primary session cannot be closed — close the browser tab to quit",
+								"warning",
+							);
+						else store.pushNotification("Session not found; it may already be closed", "warning");
+					})
+					.catch((error: Error) => store.pushNotification(`Close failed: ${error.message}`, "error"));
 				return true;
+			}
 			default:
 				return false;
 		}
@@ -954,6 +997,7 @@ export class App {
 			getSessionId: () => this.activeSessionId,
 		});
 		this.wireKeyboard();
+		setInterval(() => this.updateTabStatus(), 500);
 	}
 
 	private handleServerMessage(message: ServerMessage): void {
@@ -1175,6 +1219,116 @@ export class App {
 		this.sidebar?.setActive(id);
 	}
 
+	/**
+	 * Keep the browser tab in sync with session activity: title pulse and a
+	 * favicon dot while any session runs, plus a desktop notification on
+	 * completion when the tab is hidden and the user already granted
+	 * permission (no permission prompts here).
+	 */
+	private updateTabStatus(): void {
+		let running = false;
+		for (const store of this.sessionStores.values()) {
+			if (store.isTurnRunning() || (store.getState().sessionState?.isStreaming ?? false)) {
+				running = true;
+				break;
+			}
+		}
+		if (this.sessionStores.size === 0 && this.fallbackStore.isTurnRunning()) running = true;
+		if (running === this.anySessionRunning) return;
+		const wasRunning = this.anySessionRunning;
+		this.anySessionRunning = running;
+		document.title = running ? `\u25b6 ${this.baseTitle}` : this.baseTitle;
+		const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+		if (icon) icon.href = running ? FAVICON_RUNNING : FAVICON_IDLE;
+		if (!running && wasRunning && document.hidden) {
+			const NotificationCtor = globalThis.Notification;
+			if (NotificationCtor?.permission === "granted") {
+				try {
+					new NotificationCtor(this.baseTitle, { body: "All turns finished" });
+				} catch {
+					// Notification construction can throw on some platforms.
+				}
+			}
+		}
+	}
+
+	/**
+	 * Ask-style extension requests render inline above the editor instead of
+	 * as a modal: the question stays visible next to the transcript the user
+	 * needs for context ("is this plan ok?" over the plan itself).
+	 */
+	private renderInlineAsk(
+		request: ExtensionUiRequestMessage,
+		respond: (response: { value?: string; confirmed?: boolean; cancelled?: boolean }) => void,
+	): void {
+		if (this.inlineAsks.has(request.id)) return;
+		const options = (request.options ?? []).map((option) =>
+			typeof option === "string" ? { id: option, label: option, description: "" } : option,
+		);
+		const card = h("div", { class: "inline-ask" });
+		const answer = (response: { value?: string; confirmed?: boolean; cancelled?: boolean }): void => {
+			if (card.isConnected) respond(response);
+			card.remove();
+			this.inlineAsks.delete(request.id);
+		};
+
+		const label = request.method === "confirm" ? "Confirm" : request.method === "input" ? "Input" : "Select";
+		const fromOtherSession = request.sessionId !== undefined && request.sessionId !== this.activeSessionId;
+		const header = h(
+			"div",
+			{ class: "inline-ask-header" },
+			h("span", { class: "inline-ask-label" }, label),
+			fromOtherSession ? h("span", { class: "inline-ask-source" }, "another session") : undefined,
+			h(
+				"button",
+				{ class: "inline-ask-cancel", title: "Cancel", onclick: () => answer({ cancelled: true }) },
+				"\u00d7",
+			),
+		);
+		const body = h("div", { class: "md-body inline-ask-body" });
+		const markdown = `${request.title ? `**${request.title}**\n\n` : ""}${request.message ?? ""}`;
+		body.innerHTML = sanitizeMarkdownHtml(renderMarkdown(markdown));
+
+		const actions = h("div", { class: "inline-ask-actions" });
+		if (request.method === "select") {
+			for (const option of options) {
+				const button = h(
+					"button",
+					{ class: "inline-ask-option", title: option.description || undefined },
+					option.label,
+				);
+				button.addEventListener("click", () => answer({ value: option.id }));
+				actions.appendChild(button);
+			}
+		} else if (request.method === "confirm") {
+			const yes = h("button", { class: "inline-ask-option primary" }, "Yes");
+			yes.addEventListener("click", () => answer({ confirmed: true }));
+			const no = h("button", { class: "inline-ask-option" }, "No");
+			no.addEventListener("click", () => answer({ confirmed: false }));
+			actions.append(yes, no);
+		} else if (request.method === "input") {
+			const input = h("input", {
+				type: "text",
+				placeholder: request.placeholder ?? "",
+				class: "inline-ask-input",
+			}) as HTMLInputElement;
+			input.addEventListener("keydown", (event) => {
+				if (event.key === "Enter") {
+					event.preventDefault();
+					answer({ value: input.value });
+				}
+			});
+			const send = h("button", { class: "inline-ask-option primary" }, "Send");
+			send.addEventListener("click", () => answer({ value: input.value }));
+			actions.append(input, send);
+		} else {
+			return;
+		}
+		card.append(header, body, actions);
+		this.askHost.appendChild(card);
+		this.inlineAsks.set(request.id, card);
+	}
+
 	private handleExtensionUiRequest(request: ExtensionUiRequestMessage): void {
 		const connection = this.connection;
 		if (!connection) return;
@@ -1224,7 +1378,8 @@ export class App {
 				store.setWidgetData(request.widgetKey ?? "", request.widgetData);
 				return;
 			case "setTitle":
-				document.title = request.text ?? "pi";
+				this.baseTitle = request.text ?? "pi";
+				document.title = this.anySessionRunning ? `▶ ${this.baseTitle}` : this.baseTitle;
 				return;
 			case "set_editor_text":
 				if (store === this.store) this.editor.setText(request.text ?? "");
@@ -1235,8 +1390,16 @@ export class App {
 			case "auth_event":
 				openAuthEventDialog(this.dialogs, request as never);
 				return;
-			default:
+			default: {
+				// Ask-style requests render inline above the editor: a modal would
+				// cover the transcript the user needs to read for context. Auth
+				// prompts and long-form editors stay modal.
+				if (request.method === "select" || request.method === "confirm" || request.method === "input") {
+					this.renderInlineAsk(request, respond);
+					return;
+				}
 				openExtensionUiDialog(this.dialogs, request, respond);
+			}
 		}
 	}
 
@@ -1369,6 +1532,10 @@ export class App {
 					case "app.search":
 						this.toggleSearch();
 						return true;
+					case "app.preview.search":
+						// Only claim Ctrl+F when the preview panel is open with a text
+						// file; otherwise let the browser's native find run.
+						return this.previewView?.focusSearch() ?? false;
 					default:
 						return false;
 				}

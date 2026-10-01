@@ -26,6 +26,7 @@ export type ShortcutAction =
 	| "app.tree.foldOrUp"
 	| "app.tree.unfoldOrDown"
 	| "app.search"
+	| "app.preview.search"
 	| "dialog.cancel"
 	| "dialog.confirm"
 	| "dialog.up"
@@ -65,6 +66,7 @@ const SHORTCUTS: Record<ShortcutAction, string[]> = {
 	"app.tree.foldOrUp": ["ctrl+left"],
 	"app.tree.unfoldOrDown": ["ctrl+right"],
 	"app.search": ["ctrl+shift+f"],
+	"app.preview.search": ["ctrl+f"],
 	"dialog.cancel": ["escape"],
 	"dialog.confirm": ["enter"],
 	"dialog.up": ["up"],

@@ -4,6 +4,7 @@ import { ansiToHtml, stripAnsi } from "../src/ansi.ts";
 import { intraLineDiffHtml, parseDiffLine } from "../src/diff.ts";
 import { buildFooterStats, computeCacheHitRate, formatCwdForFooter, formatTokens } from "../src/footer-format.ts";
 import { fuzzyFilter, fuzzyScore } from "../src/fuzz.ts";
+import { appendPromptHistory, loadPromptHistory } from "../src/history.ts";
 import { eventToKey } from "../src/keyboard.ts";
 
 test("formatTokens matches the TUI formatting", () => {
@@ -97,4 +98,27 @@ test("eventToKey normalizes modifiers", () => {
 	assert.equal(eventToKey({ key: "P", shiftKey: true, ctrlKey: true } as KeyboardEvent), "ctrl+shift+p");
 	assert.equal(eventToKey({ key: "Enter", altKey: true } as KeyboardEvent), "alt+enter");
 	assert.equal(eventToKey({ key: " " } as KeyboardEvent), "space");
+});
+
+test("appendPromptHistory appends, skips empties and immediate repeats", () => {
+	assert.deepEqual(appendPromptHistory([], "hello"), ["hello"]);
+	assert.deepEqual(appendPromptHistory(["hello"], "hello"), ["hello"]);
+	// whitespace-only and empty texts are ignored
+	assert.deepEqual(appendPromptHistory(["hello"], "   "), ["hello"]);
+	assert.deepEqual(appendPromptHistory(["hello"], ""), ["hello"]);
+	// repeats of an older entry still append (only the last entry is deduped)
+	assert.deepEqual(appendPromptHistory(["hello"], "hello  ".trim()), ["hello"]);
+	assert.deepEqual(appendPromptHistory(["hello", "world"], "hello"), ["hello", "world", "hello"]);
+});
+
+test("appendPromptHistory caps the buffer keeping the newest entries", () => {
+	let entries: string[] = [];
+	for (let i = 0; i < 30; i++) entries = appendPromptHistory(entries, `p${i}`, 10);
+	assert.equal(entries.length, 10);
+	assert.deepEqual(entries, ["p20", "p21", "p22", "p23", "p24", "p25", "p26", "p27", "p28", "p29"]);
+});
+
+test("loadPromptHistory tolerates missing and corrupt storage", () => {
+	// no localStorage at all (node): reads empty
+	assert.deepEqual(loadPromptHistory(), []);
 });

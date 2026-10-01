@@ -2285,3 +2285,181 @@ body {
 .document-body .sheet-table {
 	margin: 8px 0;
 }
+
+/* ------------------------------------------------------------------ */
+/* Code block copy buttons (transcript markdown fences)                */
+/* ------------------------------------------------------------------ */
+
+.md-body pre {
+	position: relative;
+}
+
+.md-body pre > .code-copy {
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	font-size: 10px;
+	font-family: var(--mono-font);
+	padding: 2px 8px;
+	border-radius: 4px;
+	border: 1px solid var(--color-border, #444);
+	background: var(--color-card-bg, #1e1e24);
+	color: var(--color-dim, #888);
+	opacity: 0;
+	cursor: pointer;
+}
+
+.md-body pre:hover > .code-copy,
+.md-body pre > .code-copy:focus-visible,
+.md-body pre > .code-copy.copied {
+	opacity: 1;
+}
+
+.md-body pre > .code-copy.copied {
+	border-color: var(--color-success, #4caf50);
+	color: var(--color-success, #4caf50);
+}
+
+/* ------------------------------------------------------------------ */
+/* Inline ask-user cards (extension select/confirm/input)              */
+/* ------------------------------------------------------------------ */
+
+.inline-asks:empty {
+	display: none;
+}
+
+.inline-ask {
+	border: 1px solid var(--color-border, #444);
+	border-left: 3px solid var(--color-accent, #7aa2f7);
+	border-radius: 6px;
+	padding: 8px 10px;
+	margin: 4px 0 10px;
+	background: var(--color-selected-bg, rgba(255, 255, 255, 0.04));
+}
+
+.inline-ask-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+
+.inline-ask-label {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--color-dim, #888);
+}
+
+.inline-ask-source {
+	font-size: 10px;
+	font-style: italic;
+	color: var(--color-dim, #888);
+}
+
+.inline-ask-cancel {
+	margin-left: auto;
+	border: none;
+	background: none;
+	color: var(--color-dim, #888);
+	cursor: pointer;
+	font-size: 13px;
+	padding: 0 4px;
+}
+
+.inline-ask-body {
+	font-size: 13px;
+	max-height: 220px;
+	overflow-y: auto;
+}
+
+.inline-ask-body p:first-child {
+	margin-top: 0;
+}
+
+.inline-ask-body p:last-child {
+	margin-bottom: 0;
+}
+
+.inline-ask-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 6px;
+	align-items: center;
+}
+
+.inline-ask-option {
+	font-size: 12px;
+	padding: 4px 12px;
+	border-radius: 4px;
+	border: 1px solid var(--color-border, #444);
+	background: var(--color-card-bg, #1e1e24);
+	cursor: pointer;
+	white-space: normal;
+	text-align: left;
+}
+
+.inline-ask-option.primary {
+	border-color: var(--color-accent, #7aa2f7);
+}
+
+.inline-ask-input {
+	flex: 1;
+	min-width: 160px;
+	font-size: 12px;
+	padding: 4px 8px;
+	border-radius: 4px;
+	border: 1px solid var(--color-border, #444);
+	background: var(--color-card-bg, #1e1e24);
+	color: inherit;
+}
+
+/* ------------------------------------------------------------------ */
+/* Preview panel in-file search                                         */
+/* ------------------------------------------------------------------ */
+
+.preview-header .preview-search {
+	width: 110px;
+	font-size: 11px;
+	font-family: var(--mono-font);
+	padding: 2px 6px;
+	border-radius: 4px;
+	border: 1px solid var(--color-border, #444);
+	background: var(--color-card-bg, #1e1e24);
+	color: inherit;
+}
+
+.preview-header .preview-search:focus {
+	outline: none;
+	border-color: var(--color-accent, #7aa2f7);
+}
+
+.preview-search-nav {
+	font-size: 12px;
+	padding: 1px 6px;
+	border-radius: 4px;
+	border: 1px solid var(--color-border, #444);
+	background: var(--color-card-bg, #1e1e24);
+	cursor: pointer;
+}
+
+.preview-search-nav:hover {
+	color: var(--color-accent, #7aa2f7);
+}
+
+.preview-search-counter {
+	font-size: 10px;
+	font-family: var(--mono-font);
+	color: var(--color-dim, #888);
+}
+
+mark.preview-hit {
+	background: rgba(255, 213, 0, 0.35);
+	color: inherit;
+	border-radius: 2px;
+}
+
+mark.preview-hit.active {
+	background: rgba(255, 149, 0, 0.55);
+}
