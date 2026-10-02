@@ -1420,6 +1420,18 @@ export class App {
 	// Keyboard
 	// ------------------------------------------------------------------
 
+	/** True while text is selected anywhere — native copy/cut should win over
+	 * TUI-parity chords (Ctrl+C clear / Ctrl+X copy-last-message). */
+	private hasTextSelection(): boolean {
+		const selection = window.getSelection();
+		if (selection && selection.type === "Range" && selection.toString().length > 0) return true;
+		const active = document.activeElement;
+		if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) {
+			return active.selectionStart !== active.selectionEnd;
+		}
+		return false;
+	}
+
 	private wireKeyboard(): void {
 		registerGlobalKeyboard({
 			serverBindings: this.store.getState().keybindings?.bindings,
@@ -1482,11 +1494,15 @@ export class App {
 					case "app.session.fork":
 						this.openForkPicker();
 						return true;
-					case "app.message.copy":
+					case "app.message.copy": {
+						// With text selected anywhere, Ctrl+X keeps its native meaning
+						// (cut/copy the selection) — fall back to the browser.
+						if (this.hasTextSelection()) return false;
 						void connection.request<{ text: string | null }>({ type: "get_last_assistant_text" }).then((data) => {
 							void navigator.clipboard.writeText(data.text ?? "");
 						});
 						return true;
+					}
 					case "app.message.dequeue":
 						void connection
 							.request<{ steering: string[]; followUp: string[] }>({ type: "clear_queue" })

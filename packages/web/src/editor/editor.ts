@@ -249,6 +249,9 @@ export class EditorController {
 			return;
 		}
 		if (event.key === "c" && event.ctrlKey && !event.shiftKey) {
+			// With a selection inside the input, Ctrl+C must stay native copy —
+			// clearing here would destroy the draft while copying.
+			if (this.textarea.selectionStart !== this.textarea.selectionEnd) return;
 			event.preventDefault();
 			this.options.onClear();
 			this.clear();

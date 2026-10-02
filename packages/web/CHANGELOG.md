@@ -19,6 +19,7 @@
 - Editor prompt history: ArrowUp on an empty input recalls previous prompts, ArrowDown walks back to the draft, typing cancels — persisted in localStorage, capped at 100, immediate repeats deduped.
 - Preview in-file search: text previews get a find box (Ctrl+F when the preview is open) with case-insensitive highlighting, an n/m counter, Enter/Shift+Enter navigation, and Esc to clear; the query resets on tab switches.
 - /quit closes the active session slot (running sessions confirm first; the primary session explains that the browser tab must be closed instead — window.close() is blocked for tabs the browser opened).
+- Browser-native copy/cut win: Ctrl+C with a selection inside the editor no longer clears the draft (it copies), and Ctrl+X with text selected anywhere falls through to the native cut instead of copying the last assistant message. Without a selection, the TUI-parity chords still work (Ctrl+C clears the draft, Ctrl+X copies the last assistant message).
 - Clickable file references across the transcript (assistant text, user messages, bash output, tool cards) — validated against the server before linkifying; clicking opens the preview panel; Esc closes it.
 - Syntax-colored code blocks and file previews: the active theme's syntax colors now map to `.hljs` token styles (markdown fences included).
 - Tabbed file preview panel: multiple files stay open as VSCode-style tabs; clicking an already-open reference re-opens and refreshes its tab; Esc closes the active tab (the panel hides when the last tab closes).
