@@ -30,13 +30,20 @@ export class WidgetOverlayView {
 	private questionnaireKey: string | undefined;
 	/** Widget payload reference for the mounted questionnaire (change detection). */
 	private questionnaireData: unknown;
+	/** Inline host above the editor — questionnaires render here when given. */
+	private readonly inlineHost: HTMLElement | undefined;
+	/** Inline questionnaire mount tracking (key + payload for change detection). */
+	private inlineKey: string | undefined;
+	private inlineData: unknown;
 
 	constructor(
 		store: Store,
 		sendCommand: (message: string) => void,
 		submitWidgetResponse: (key: string, payload: unknown) => void,
+		inlineHost?: HTMLElement,
 	) {
 		this.store = store;
+		this.inlineHost = inlineHost;
 		this.sendCommand = sendCommand;
 		this.submitWidgetResponse = submitWidgetResponse;
 		this.element = h("div", { class: "dialog-overlay widget-overlay", style: "display:none" });
@@ -85,16 +92,31 @@ export class WidgetOverlayView {
 		const overlay = this.findOverlayWidget();
 
 		if (!overlay) {
+			this.hideEverything();
+			return;
+		}
+
+		const questionnaire = parseAskQuestionnaire(overlay.widget.data);
+
+		// Questionnaires render inline above the editor: a fullscreen modal
+		// hides the transcript — the very context the question is about
+		// ("is this plan ok?" over the plan itself). Other overlay widgets
+		// (status panels) keep the modal.
+		if (questionnaire && this.inlineHost) {
 			this.element.style.display = "none";
 			this.element.replaceChildren();
 			this.currentKey = undefined;
 			this.contentHost = undefined;
 			this.titleElement = undefined;
 			this.questionnaireKey = undefined;
+			this.questionnaireData = undefined;
+			if (this.inlineKey !== overlay.key || overlay.widget.data !== this.inlineData) {
+				this.inlineKey = overlay.key;
+				this.inlineData = overlay.widget.data;
+				this.inlineHost.replaceChildren(this.buildInlineQuestionnaire(overlay, questionnaire));
+			}
 			return;
 		}
-
-		const questionnaire = parseAskQuestionnaire(overlay.widget.data);
 
 		if (this.currentKey !== overlay.key || !this.contentHost) {
 			this.buildDialog(overlay, questionnaire);
@@ -116,6 +138,46 @@ export class WidgetOverlayView {
 		// Focus after the element is visible — focus() on a display:none
 		// element is a no-op, and focus lets Escape close the panel.
 		this.element.focus();
+	}
+
+	private hideEverything(): void {
+		this.element.style.display = "none";
+		this.element.replaceChildren();
+		this.currentKey = undefined;
+		this.contentHost = undefined;
+		this.titleElement = undefined;
+		this.questionnaireKey = undefined;
+		this.questionnaireData = undefined;
+		this.inlineKey = undefined;
+		this.inlineData = undefined;
+		this.inlineHost?.replaceChildren();
+	}
+
+	/** Inline card above the editor; the questionnaire view owns answering. */
+	private buildInlineQuestionnaire(
+		overlay: OverlayWidgetEntry,
+		questionnaire: NonNullable<ReturnType<typeof parseAskQuestionnaire>>,
+	): HTMLElement {
+		const card = h("div", { class: "inline-ask inline-questionnaire" });
+		card.appendChild(
+			h("div", { class: "inline-ask-header" }, h("span", { class: "inline-ask-label" }, overlay.title)),
+		);
+		card.appendChild(
+			h(
+				"div",
+				{ class: "inline-ask-body inline-questionnaire-body" },
+				createQuestionnaireView(
+					questionnaire,
+					(payload: AskSubmitPayload) => {
+						this.submitWidgetResponse(overlay.key, payload);
+					},
+					() => {
+						this.submitWidgetResponse(overlay.key, { answers: [], cancelled: true });
+					},
+				),
+			),
+		);
+		return card;
 	}
 
 	private buildDialog(overlay: OverlayWidgetEntry, questionnaire: ReturnType<typeof parseAskQuestionnaire>): void {

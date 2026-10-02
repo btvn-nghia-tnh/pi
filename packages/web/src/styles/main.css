@@ -2463,3 +2463,16 @@ mark.preview-hit {
 mark.preview-hit.active {
 	background: rgba(255, 149, 0, 0.55);
 }
+
+/* Inline questionnaire (from the ask_user_question overlay): fits the
+   editor-column width instead of the modal's fixed 480-760px. */
+.inline-questionnaire-body {
+	max-height: 42vh;
+	overflow-y: auto;
+}
+
+.inline-questionnaire .ask-questionnaire {
+	min-width: 0;
+	max-width: none;
+	gap: 8px;
+}

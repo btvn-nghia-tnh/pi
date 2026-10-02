@@ -264,6 +264,7 @@ export class App {
 			(key, payload) => {
 				void this.connection?.request({ type: "widget_response", key, payload }).catch(() => {});
 			},
+			this.askHost,
 		);
 
 		// Overlay widgets (questionnaires, MCP panels) render as modals on
