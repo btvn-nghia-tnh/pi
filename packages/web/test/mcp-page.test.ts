@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { addServerRequest, controlOutcome, mcpCard, mcpTiles, toolRows } from "../src/pages/mcp.ts";
+import {
+	addServerRequest,
+	controlOutcome,
+	type McpConfigEntry,
+	mcpCard,
+	mcpTiles,
+	sectionsFromEntries,
+	toolRows,
+	transportOf,
+} from "../src/pages/mcp.ts";
 import type { McpServerWidgetEntry } from "../src/render/widget-data.ts";
 
 const servers: McpServerWidgetEntry[] = [
@@ -241,4 +250,118 @@ test("addServerRequest: http happy path, name trimmed, env/headers not sent", ()
 		server: "search",
 		definition: { url: "https://mcp.example.test/api" },
 	});
+});
+
+// ---------------------------------------------------------------------------
+// Config layers (mcp_config_list) — per-project & global sections
+// ---------------------------------------------------------------------------
+
+const configEntries: McpConfigEntry[] = [
+	{
+		scope: "project",
+		cwd: "/w/pi",
+		path: "/w/pi/.pi/mcp.json",
+		name: "github",
+		definition: { command: "npx", args: ["-y", "gh-mcp"] },
+	},
+	{
+		scope: "project",
+		cwd: "/w/pi",
+		path: "/w/pi/.pi/mcp.json",
+		name: "scratch",
+		definition: { command: "node", args: ["srv.js"], disabled: true },
+	},
+	{
+		scope: "project",
+		cwd: "/w/media",
+		path: "/w/media/.pi/mcp.json",
+		name: "ytdl",
+		definition: { url: "https://mcp.media.test/ytdl" },
+	},
+	{
+		scope: "global",
+		path: "/home/u/.pi/agent/mcp.json",
+		name: "bioturing",
+		definition: { url: "https://api.bioturing.test/mcp" },
+	},
+	{
+		scope: "global",
+		path: "/home/u/.pi/agent/mcp.json",
+		name: "legacy",
+		definition: { disabled: true },
+	},
+];
+
+const projectCwds = ["/w/pi", "/w/media", "/w/dotfiles"];
+
+test("transportOf derives stdio/http from the definition, command wins", () => {
+	assert.equal(transportOf({ command: "npx -y gh-mcp" }), "stdio");
+	assert.equal(transportOf({ url: "https://mcp.host/api" }), "http");
+	assert.equal(transportOf({ command: "npx", url: "https://both.test" }), "stdio");
+	assert.equal(transportOf({}), "—");
+	assert.equal(transportOf({ command: "", url: "" }), "—");
+	const weird: Record<string, unknown> = { command: 42, url: null };
+	assert.equal(transportOf(weird), "—");
+});
+
+test("sectionsFromEntries lays out project sections in cwds order, global last", () => {
+	const sections = sectionsFromEntries(configEntries, projectCwds, "/w/pi", ["github", "playwright"]);
+	assert.equal(sections.length, 4);
+	assert.deepEqual(
+		sections.map((s) => s.title),
+		["pi", "media", "dotfiles", "Global"],
+	);
+	assert.equal(sections[0].scope, "project");
+	assert.equal(sections[0].pathHint, "/w/pi/.pi/mcp.json");
+	assert.deepEqual(
+		sections[0].entries.map((e) => e.name),
+		["github", "scratch"],
+	);
+	assert.deepEqual(
+		sections[1].entries.map((e) => e.name),
+		["ytdl"],
+	);
+	assert.deepEqual(sections[2].entries, []);
+	assert.equal(sections[3].scope, "global");
+	assert.deepEqual(
+		sections[3].entries.map((e) => e.name),
+		["bioturing", "legacy"],
+	);
+});
+
+test("live merging flows only to the section matching the active cwd", () => {
+	const sections = sectionsFromEntries(configEntries, projectCwds, "/w/media", ["ytdl", "github"]);
+	assert.deepEqual(sections[0].liveNames, []); // pi section is not active
+	assert.deepEqual(sections[1].liveNames, ["ytdl", "github"]); // media is active
+	assert.deepEqual(sections[3].liveNames, []); // global rows never get live chips
+
+	const noActive = sectionsFromEntries(configEntries, projectCwds, undefined, ["github"]);
+	assert.deepEqual(noActive[0].liveNames, []);
+});
+
+test("sectionsFromEntries dedupes repeated cwds, drops orphan entries", () => {
+	const ghost: McpConfigEntry = {
+		scope: "project",
+		cwd: "/w/ghost",
+		path: "/w/ghost/.pi/mcp.json",
+		name: "x",
+		definition: {},
+	};
+	const sections = sectionsFromEntries([...configEntries, ghost], ["/w/pi", "/w/pi", "/w/media"], undefined);
+	assert.equal(sections.length, 3); // pi, media, Global
+	assert.deepEqual(
+		sections.map((s) => s.cwd ?? "global"),
+		["/w/pi", "/w/media", "global"],
+	);
+	// the ghost entry (cwd absent from cwds) is dropped, not invented into a section
+	assert.ok(!sections.some((s) => s.entries.some((e) => e.name === "x")));
+});
+
+test("sectionsFromEntries basename handles the filesystem root and slashes", () => {
+	const sections = sectionsFromEntries([], ["/", "/w/pi/"], undefined);
+	assert.equal(sections[0].title, "/");
+	assert.equal(sections[0].pathHint, "/.pi/mcp.json");
+	assert.equal(sections[1].title, "pi");
+	assert.equal(sections[1].pathHint, "/w/pi/.pi/mcp.json");
+	assert.equal(sections.length, 3); // /, /w/pi/, Global
 });
