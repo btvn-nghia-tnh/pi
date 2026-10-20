@@ -7,8 +7,11 @@ import {
 	mcpCard,
 	mcpTiles,
 	sectionsFromEntries,
+	testKeyOf,
+	testStatePill,
 	toolRows,
 	transportOf,
+	trim60,
 } from "../src/pages/mcp.ts";
 import type { McpServerWidgetEntry } from "../src/render/widget-data.ts";
 
@@ -364,4 +367,57 @@ test("sectionsFromEntries basename handles the filesystem root and slashes", () 
 	assert.equal(sections[1].title, "pi");
 	assert.equal(sections[1].pathHint, "/w/pi/.pi/mcp.json");
 	assert.equal(sections.length, 3); // /, /w/pi/, Global
+});
+
+// ---------------------------------------------------------------------------
+// Lane F: test-connection projections
+// ---------------------------------------------------------------------------
+
+test("testStatePill maps ok results with latency and tool count", () => {
+	assert.deepEqual(
+		testStatePill({ kind: "result", result: { ok: true, detail: "handshake ok", latencyMs: 320, toolCount: 7 } }),
+		{ label: "connected 320ms · 7 tools", tone: "ok" },
+	);
+	assert.deepEqual(testStatePill({ kind: "result", result: { ok: true, detail: "" } }), {
+		label: "connected",
+		tone: "ok",
+	});
+});
+
+test("testStatePill maps auth-required, reachable-failure, unreachable", () => {
+	assert.deepEqual(
+		testStatePill({ kind: "result", result: { ok: false, reachable: true, authRequired: true, detail: "401" } }),
+		{ label: "reachable — sign in required", tone: "warn" },
+	);
+	const longDetail = `${"x".repeat(70)} tail`;
+	const reachableFail = testStatePill({ kind: "result", result: { ok: false, reachable: true, detail: longDetail } });
+	assert.equal(reachableFail.tone, "warn");
+	assert.equal(reachableFail.label, `${"x".repeat(60)}…`);
+	const unreachable = testStatePill({ kind: "result", result: { ok: false, reachable: false, detail: "ENOTFOUND" } });
+	assert.deepEqual(unreachable, { label: "unreachable: ENOTFOUND", tone: "danger" });
+});
+
+test("testStatePill degrades unknown-command errors and shows busy", () => {
+	assert.deepEqual(testStatePill({ kind: "error", error: "Unknown command: mcp_test" }), {
+		label: "mcp_test needs a newer server build",
+		tone: "warn",
+	});
+	const busy = testStatePill({ kind: "busy" });
+	assert.deepEqual(busy, { label: "testing…", tone: "neutral" });
+	const other = testStatePill({ kind: "error", error: "boom".repeat(40) });
+	assert.equal(other.tone, "danger");
+	assert.match(other.label, /^unreachable: .{60}…$/);
+});
+
+test("trim60 keeps 60 chars verbatim and appends an ellipsis past it", () => {
+	assert.equal(trim60(`${"a".repeat(60)}`), "a".repeat(60));
+	assert.equal(trim60(`${"a".repeat(60)}b`), `${"a".repeat(60)}…`);
+	assert.equal(trim60("  padded  "), "padded");
+});
+
+test("testKeyOf separates scopes, cwds, and server names", () => {
+	assert.equal(testKeyOf("project", "/w/pi", "github"), "project:/w/pi#github");
+	assert.equal(testKeyOf("global", undefined, "github"), "global:#github");
+	assert.notEqual(testKeyOf("project", "/w/pi", "github"), testKeyOf("project", "/w/other", "github"));
+	assert.notEqual(testKeyOf("project", "/w/pi", "github"), testKeyOf("global", undefined, "github"));
 });

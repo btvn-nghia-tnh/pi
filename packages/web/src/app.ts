@@ -389,6 +389,8 @@ export class App {
 				onNavigate: navigate,
 				openPreview,
 				pushToast,
+				// Lane F: /mcp-auth sign-in fallback drafts the command in chat.
+				promptDraft: (text: string) => this.promptDraft(text),
 			},
 			usage: {
 				connection: () => this.connection,
@@ -404,6 +406,12 @@ export class App {
 				setDensity: (on: boolean) => this.setDensity(on),
 			},
 		};
+	}
+
+	/** Drop text into the chat editor (focused) and switch to the Chat page. */
+	private promptDraft(text: string): void {
+		this.editor.setText(text);
+		this.router?.navigate({ page: "chat" });
 	}
 
 	/** Widget feed for MCP/Home: replay + active-store updates, switch-aware. */
@@ -764,7 +772,7 @@ export class App {
 		});
 		hosts.statusBarHost.replaceChildren(statusBar.element);
 
-		const panel = new SessionPanel({ store });
+		const panel = new SessionPanel({ store, connection });
 		hosts.panelHost.replaceChildren(panel.element);
 
 		transcript.mount(hosts.transcriptWrap);

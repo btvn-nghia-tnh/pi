@@ -102,6 +102,13 @@ export type ClientCommand =
 	  })
 	| (RpcCommandBase & { type: "mcp_config_list"; cwds: string[] })
 	| (RpcCommandBase & { type: "subagent_status" })
+	| (RpcCommandBase & {
+			type: "mcp_test";
+			server: string;
+			scope: "project" | "global";
+			/** Project dir — required for scope "project" tests. */
+			cwd?: string;
+	  })
 	| (RpcCommandBase & { type: "export_html"; outputPath?: string })
 	| (RpcCommandBase & { type: "switch_session"; sessionPath: string })
 	| (RpcCommandBase & { type: "fork"; entryId: string })

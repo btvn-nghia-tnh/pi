@@ -183,6 +183,67 @@ export function controlOutcome(operation: McpOperation, delivered: boolean): Con
 }
 
 // ---------------------------------------------------------------------------
+// Test-connection (Lane F): pure projections + pill mapping per the contract
+// ---------------------------------------------------------------------------
+
+/** `mcp_test` response payload (Lane E contract). */
+export interface McpTestResult {
+	ok: boolean;
+	reachable?: boolean;
+	authRequired?: boolean;
+	httpStatus?: number;
+	toolCount?: number;
+	detail: string;
+	latencyMs?: number;
+}
+
+export type McpTestState =
+	| { kind: "busy" }
+	| { kind: "result"; result: McpTestResult }
+	| { kind: "error"; error: string };
+
+export interface McpTestPill {
+	label: string;
+	tone: Tone;
+}
+
+/** Cap a detail/error string at 60 chars with an ellipsis. Pure. */
+export function trim60(text: string): string {
+	const t = text.trim();
+	return t.length > 60 ? `${t.slice(0, 60)}…` : t;
+}
+
+/**
+ * Map a test state to the inline pill. Decision table (per the Lane F brief):
+ * ok → `connected <latency>ms[ · N tools]`; authRequired → reachable-sign-in
+ * warn; reachable&&!ok → warn detail; !reachable → danger unreachable:detail;
+ * unknown-command error → warn upgrade hint; busy → neutral testing.
+ */
+export function testStatePill(state: McpTestState): McpTestPill {
+	if (state.kind === "busy") return { label: "testing…", tone: "neutral" };
+	if (state.kind === "error") {
+		if (/unknown command: mcp_test/i.test(state.error)) {
+			return { label: "mcp_test needs a newer server build", tone: "warn" };
+		}
+		return { label: `unreachable: ${trim60(state.error)}`, tone: "danger" };
+	}
+	const r = state.result;
+	if (r.ok) {
+		const ms = r.latencyMs !== undefined ? `${r.latencyMs}ms` : "";
+		const tools = r.toolCount !== undefined ? ` · ${r.toolCount} tools` : "";
+		return { label: `connected ${ms}${tools}`.trim(), tone: "ok" };
+	}
+	if (r.authRequired) return { label: "reachable — sign in required", tone: "warn" };
+	if (r.reachable) return { label: trim60(r.detail), tone: "warn" };
+	return { label: `unreachable: ${trim60(r.detail)}`, tone: "danger" };
+}
+
+/** Stable identity for a per-row/per-card test slot. */
+export function testKeyOf(scope: "project" | "global", cwd: string | undefined, server: string): string {
+	return `${scope}:${cwd ?? ""}#${server}`;
+}
+
+// ---------------------------------------------------------------------------
 // Add-server form (user issue batch 2): pure request builder + dialog
 // ---------------------------------------------------------------------------
 
@@ -332,6 +393,12 @@ export interface McpPageDeps {
 	/** Opens the file preview panel at the given absolute path. */
 	openPreview(path: string): void;
 	pushToast(message: string, level: "info" | "warning" | "error"): void;
+	/**
+	 * Optional (Lane F): drafts text into the chat editor (focused) and
+	 * switches to Chat. Used as the /mcp-auth OAuth fallback when the
+	 * adapter lacks a widget_response handler. Absent → banner-only degrade.
+	 */
+	promptDraft?(text: string): void;
 }
 
 const CONFIG_OVERRIDE_RELPATH = "/.pi/mcp.json";
@@ -345,6 +412,8 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 	let configEntries: McpConfigEntry[] | undefined;
 	let configError: string | undefined;
 	let configLoaded = false;
+	/** Test-connection slots (Lane F): key → busy/result/error; persists across renders. */
+	const testResults = new Map<string, McpTestState>();
 
 	const element = h("div", { class: "c-page mcp-page" });
 
@@ -409,6 +478,75 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 		degradedBanner = outcome.banner;
 		degradedHint = operation.action === "start-auth" ? "hint: run /mcp-auth in chat to sign in now" : undefined;
 		render();
+		// Lane F OAuth fallback: the installed adapter has no widget_response
+		// handler — draft `/mcp-auth <server>` in the chat editor (the adapter's
+		// own slash command then drives the browser OAuth flow).
+		if (operation.action === "start-auth" && deps.promptDraft) {
+			deps.promptDraft(`/mcp-auth ${operation.server}`);
+			deps.onNavigate("chat");
+			deps.pushToast("Drafted /mcp-auth in chat — press Enter to run it.", "info");
+		}
+	}
+
+	/** Fire an mcp_test probe and persist the outcome at the slot key. */
+	async function runTest(payload: { server: string; scope: "project" | "global"; cwd?: string }): Promise<void> {
+		const connection = deps.connection();
+		if (!connection) {
+			deps.pushToast("MCP test unavailable — not connected", "error");
+			return;
+		}
+		const key = testKeyOf(payload.scope, payload.cwd, payload.server);
+		testResults.set(key, { kind: "busy" });
+		render();
+		try {
+			const result = await connection.request<McpTestResult>({ type: "mcp_test", ...payload });
+			testResults.set(key, { kind: "result", result });
+		} catch (error: unknown) {
+			testResults.set(key, { kind: "error", error: error instanceof Error ? error.message : String(error) });
+		}
+		render();
+	}
+
+	/**
+	 * Row/card-local test control (Lane F): before firing — a "test" button
+	 * (disabled when the live card carries no project cwd); after firing — the
+	 * result pill plus a small re-run affordance, replacing the button.
+	 */
+	function testControlEl(payload: { server: string; scope: "project" | "global"; cwd?: string }): HTMLElement {
+		const key = testKeyOf(payload.scope, payload.cwd, payload.server);
+		const state = testResults.get(key);
+		const rerunControl = h(
+			"button",
+			{ class: "c-btn", title: `test ${payload.server} again`, onclick: () => void runTest(payload) },
+			iconEl("refresh"),
+		);
+		if (state) {
+			const pill = testStatePill(state);
+			return h(
+				"span",
+				{ style: "display:inline-flex;align-items:center;gap:4px" },
+				chipEl(pill.label, {
+					tone: pill.tone,
+					mono: true,
+					title: state.kind === "result" ? state.result.detail : undefined,
+				}),
+				state.kind === "busy" ? undefined : rerunControl,
+			);
+		}
+		const disabled = payload.scope === "project" && payload.cwd === undefined;
+		return h(
+			"button",
+			{
+				class: "c-btn",
+				disabled: disabled || undefined,
+				title: disabled
+					? "open a session in this project first"
+					: "Probe this server (MCP initialize handshake, 5s budget)",
+				onclick: disabled ? undefined : () => void runTest(payload),
+			},
+			iconEl("search"),
+			"test",
+		);
 	}
 
 	function revealConfig(): void {
@@ -575,6 +713,9 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 		actionsRow.appendChild(
 			h("span", { class: "c-usage-sub" }, card.enabled ? "enabled in config" : "disabled in config"),
 		);
+		// Lane F: live cards live in the ACTIVE project's circuit (cwd = that
+		// project); without one the probe would target nothing — disable it.
+		actionsRow.appendChild(testControlEl({ server: entry.name, scope: "project", cwd: deps.projectCwd() }));
 		if (card.actionsAvailable.includes("sign-in")) {
 			actionsRow.appendChild(
 				h(
@@ -700,6 +841,7 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 			row.appendChild(chipEl("live", { tone: "ok", title: "running in the active session" }));
 		}
 		row.appendChild(h("span", { style: "flex:1" }));
+		row.appendChild(testControlEl({ server: entry.name, scope: section.scope, cwd: section.cwd }));
 		row.appendChild(
 			h(
 				"button",
@@ -739,33 +881,32 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 
 		const body = h("div", { style: "padding:20px;display:flex;flex-direction:column;gap:16px" });
 
-		const liveMissing = widgetData === undefined;
-		const configEmpty = configLoaded && (configEntries?.length ?? 0) === 0;
-		if (liveMissing && configEmpty) {
-			// Both surfaces empty: nothing is configured and no adapter has spoken.
+		const configLoadedEmpty = configLoaded && (configEntries?.length ?? 0) === 0;
+		if (widgetData === undefined) {
+			// When no adapter statuses exist, distinguish "nothing configured at
+			// all" (extension never spoke) from "configured but silent so far".
 			body.appendChild(
 				h(
 					"div",
 					{ class: "c-card" },
-					h("div", { class: "c-card-title" }, "MCP extension not loaded"),
-					h("span", { class: "c-usage-sub" }, "statuses appear when pi-mcp-adapter registers"),
-				),
-			);
-		} else if (liveMissing) {
-			body.appendChild(
-				h(
-					"div",
-					{ class: "c-card" },
-					h("div", { class: "c-card-title" }, "No live statuses"),
-					h("span", { class: "c-usage-sub" }, "statuses appear when pi-mcp-adapter pushes its next event"),
+					h("div", { class: "c-card-title" }, configLoadedEmpty ? "MCP extension not loaded" : "No live statuses"),
+					h(
+						"span",
+						{ class: "c-usage-sub" },
+						configLoadedEmpty
+							? "statuses appear when pi-mcp-adapter registers"
+							: "statuses appear when pi-mcp-adapter pushes its next event",
+					),
 				),
 			);
 		} else {
-			const tiles = mcpTiles(widgetData.servers ?? [], widgetData.totals);
+			// Narrowed: the live adapter payload exists — render tiles + cards.
+			const live = widgetData;
+			const tiles = mcpTiles(live.servers ?? [], live.totals);
 			body.appendChild(h("div", { style: "display:flex;gap:12px;flex-wrap:wrap" }, ...tiles.map(tileEl)));
 
 			const grid = h("div", { style: "display:flex;gap:12px;flex-wrap:wrap" });
-			for (const entry of widgetData?.servers ?? []) {
+			for (const entry of live.servers ?? []) {
 				grid.appendChild(serverCardEl(entry));
 			}
 			body.appendChild(grid);
@@ -797,6 +938,7 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 			configEntries = undefined;
 			configError = undefined;
 			configLoaded = false;
+			testResults.clear();
 		},
 	};
 }
