@@ -71,7 +71,7 @@ export class EditorToolbar {
 		const state = this.opts.store.getState();
 		const session = state.sessionState;
 		const model = session?.model;
-		const modelName = model ? (model.id.split("/").pop() ?? model.id) : "no-model";
+		const modelName = model ? model.name || (model.id.split("/").pop() ?? model.id) : "no-model";
 		const think = session?.thinkingLevel ?? "think";
 		const busy = Boolean(session?.isStreaming || state.compaction || state.retry);
 

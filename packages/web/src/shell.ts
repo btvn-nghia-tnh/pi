@@ -29,6 +29,8 @@ export class AppShell {
 	private readonly railButtons = new Map<PageId, HTMLButtonElement>();
 	private host!: HTMLElement;
 	private readonly onNavigate: (page: PageId) => void;
+	/** Currently mounted page; unmounted on the next setPage swap. */
+	private mounted: ShellPage | undefined;
 
 	constructor(opts: ShellOpts) {
 		this.onNavigate = opts.onNavigate;
@@ -63,9 +65,11 @@ export class AppShell {
 		if (badge) badge.textContent = count > 9 ? "9+" : String(count);
 	}
 
-	/** Swap the mounted page. Unmounts the previous ShellPage. */
+	/** Swap the mounted page. Unmounts the previous ShellPage first. */
 	setPage(page: ShellPage | undefined): void {
+		if (this.mounted) this.mounted.unmount();
 		clearElement(this.host);
+		this.mounted = page;
 		if (!page) return;
 		this.host.appendChild(page.element);
 		page.mount();

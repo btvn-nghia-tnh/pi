@@ -228,16 +228,13 @@ export class WidgetAreaView {
 		}
 		for (const [key, widget] of state.widgets) {
 			if (widget.placement !== this.placement) continue;
-			// Overlay widgets (display: "overlay") render as modals in the
-			// WidgetOverlayView — do not duplicate them as empty docked panels.
-			if (widget.data?.display === "overlay") continue;
-			// Structured widgets live in the right session panel (spec §3.2.6);
-			// the docked area renders lines-only widgets (Task 12, R12).
+			// Structured widgets (any widget.data — including overlay Display) live
+			// in the right session panel / overlay view (spec §3.2.6); the docked
+			// area renders lines-only widgets (Task 12, R12).
 			if (widget.data) continue;
-			// Defense in depth against ghost entries: a widget with no
-			// structured payload and no fallback lines renders as an empty
-			// box. Skip it entirely.
-			if (!widget.data && (widget.lines ?? []).every((line) => line.trim().length === 0)) continue;
+			// Defense in depth against ghost entries: a widget with no fallback
+			// lines renders as an empty box. Skip it entirely.
+			if ((widget.lines ?? []).every((line) => line.trim().length === 0)) continue;
 			const panel = renderWidget(widget, key, {
 				collapsed: state.collapsedWidgets.has(key),
 				onToggle: () => this.store.toggleWidgetCollapsed(key),

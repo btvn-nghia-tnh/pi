@@ -243,11 +243,6 @@
 	border-radius: 14px;
 	padding: 10px 14px;
 }
-.chat-dock .c-statusbar {
-	flex: 0 0 auto;
-	border-right: 0;
-	border-bottom: 0;
-}
 @media (max-width: 1279px) {
 	.chat-right {
 		display: none;
