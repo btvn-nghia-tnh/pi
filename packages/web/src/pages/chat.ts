@@ -164,8 +164,38 @@ export function createChatPage(deps: ChatAppDeps): ChatPage {
 	});
 
 	// Right column: widget cards only (is-empty hides the whole column until
-	// a structured widget registers — SessionPanel flips the class).
-	const right = h("aside", { class: "chat-right is-empty" }, panelHost);
+	// a structured widget registers — SessionPanel flips the class). The
+	// column owns a persisted collapse toggle (issue-batch): a thin vertical
+	// tab on the panel's left edge; collapsed parks the panel off and keeps
+	// the tab to restore (spec block: `.chat-right.is-collapsed{display:none}`).
+	const RIGHT_COLLAPSE_KEY = "pi-web-right-collapsed";
+	const rightCollapsed = window.localStorage.getItem(RIGHT_COLLAPSE_KEY) === "1";
+	const right = h("aside", { class: `chat-right is-empty${rightCollapsed ? " is-collapsed" : ""}` }, panelHost);
+	const applyRightCollapsed = (collapsed: boolean, persist = true): void => {
+		right.classList.toggle("is-collapsed", collapsed);
+		rightToggle.textContent = collapsed ? "‹" : "›";
+		rightToggle.title = collapsed ? "Show panel" : "Hide panel";
+		rightToggle.setAttribute("aria-expanded", String(!collapsed));
+		if (persist) window.localStorage.setItem(RIGHT_COLLAPSE_KEY, collapsed ? "1" : "0");
+	};
+	const rightToggle = h(
+		"button",
+		{
+			class: "chat-right-toggle",
+			"aria-label": "Toggle right panel",
+			"aria-expanded": String(!rightCollapsed),
+			title: rightCollapsed ? "Show panel" : "Hide panel",
+		},
+		rightCollapsed ? "‹" : "›",
+	) as HTMLButtonElement;
+	rightToggle.addEventListener("click", () => {
+		applyRightCollapsed(!right.classList.contains("is-collapsed"));
+	});
+	applyRightCollapsed(rightCollapsed, false);
+	// The toggle tab stays outside the collapsible panel so it survives
+	// display:none — the host carries the is-panel-empty flag (set by
+	// SessionPanel) that hides the tab while the column is empty anyway.
+	const rightHost = h("div", { class: "chat-right-host" }, rightToggle, right);
 
 	// `chat-console` scopes the Task-14 restyle layer (pages.css) to the chat page.
 	const pageRoot = h(
@@ -189,7 +219,7 @@ export function createChatPage(deps: ChatAppDeps): ChatPage {
 	// via .is-open; existing CSS sizes it 320-640px).
 	const preview = deps.previewElement();
 	if (preview) pageRoot.appendChild(preview);
-	pageRoot.appendChild(right);
+	pageRoot.appendChild(rightHost);
 
 	// Ctrl+K / ⌘K opens the model picker anchored at the toolbar's model chip.
 	const onKeydown = (event: KeyboardEvent): void => {

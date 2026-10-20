@@ -697,21 +697,195 @@
 	color: var(--c-dim);
 	font-weight: 500;
 }
-.sidebar-scope-toggle {
-	border: 1px solid var(--c-border);
-	background: none;
-	color: var(--c-dim);
-	border-radius: var(--radius-chip);
-	height: 22px;
-	padding: 0 9px;
-	font: 600 10.5px var(--font-ui);
-	cursor: pointer;
-	white-space: nowrap;
-}
-.sidebar-scope-toggle:hover {
- color: var(--c-text-2);
-	background: var(--c-raised);
-}
 .sidebar.collapsed .sidebar-scope {
 	display: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Lane D (issue-batch chat UX): flat project-scoped sidebar rows,      */
+/* collapsible right panel with edge tab, subagents card. Chat-only.   */
+/* ------------------------------------------------------------------ */
+
+/* Project-scoped conversation list renders flat (scope chip names the
+ * project already) — just a hairline divider above the rows. */
+.sidebar-group-flat {
+	border-top: 1px solid var(--c-hairline);
+	margin: 0 4px;
+	padding-top: 6px;
+}
+
+/* Right column: panel + collapse tab live in a flex wrap so the tab stays
+ * visible when the panel itself is display:none (spec) or column-empty. */
+.chat-right-host {
+	display: flex;
+	flex: 0 0 auto;
+	min-width: 0;
+}
+.chat-right-toggle {
+	flex: 0 0 14px;
+	align-self: center;
+	height: 56px;
+	border: 1px solid var(--c-hairline);
+	border-right: 0;
+	border-radius: 7px 0 0 7px;
+	background: var(--c-bg-col);
+	color: var(--c-dim);
+	font: 600 10px var(--font-ui);
+	cursor: pointer;
+	padding: 0;
+	line-height: 1;
+}
+.chat-right-toggle:hover {
+	color: var(--c-accent);
+	background: var(--c-raised);
+	border-color: var(--c-border);
+}
+.chat-right-toggle:focus-visible {
+	outline: 1px solid var(--c-accent);
+	outline-offset: -2px;
+}
+/* User-collapsed panel parks off; the tab remains to restore. */
+.chat-right.is-collapsed {
+	display: none;
+}
+/* Column empty (no widgets, no subagent runs) → no tab either. */
+.chat-right-host.is-panel-empty .chat-right-toggle {
+	display: none;
+}
+@media (max-width: 1279px) {
+	.chat-right-host {
+		display: none;
+	}
+}
+
+/* Subagents card (components/session-panel.ts). */
+.c-subagent-card .c-card-title {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+.c-subagent-count {
+	font: 700 10.5px var(--font-ui);
+	color: var(--c-dim);
+	background: var(--c-hairline);
+	border-radius: var(--radius-chip);
+	padding: 1px 8px;
+}
+.c-subagent-count.is-running {
+	color: var(--c-accent);
+	background: var(--c-accent-dim);
+}
+.c-subagent-body {
+	max-height: 40vh;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-top: 8px;
+}
+.c-subagent-empty {
+	color: var(--c-dim);
+	font: 400 11px var(--font-ui);
+	padding: 2px 0;
+}
+.c-subagent-row {
+	border: 1px solid var(--c-hairline);
+	border-radius: 8px;
+	padding: 6px 8px;
+	cursor: pointer;
+	background: var(--c-bg);
+}
+.c-subagent-row:hover {
+	border-color: var(--c-border);
+}
+.c-subagent-row:focus-visible {
+	outline: 1px solid var(--c-accent);
+}
+.c-subagent-row-head {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	min-width: 0;
+}
+.c-subagent-dot {
+	flex: 0 0 7px;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--c-dim);
+}
+.c-subagent-dot.tone-accent {
+	background: var(--c-accent);
+}
+.c-subagent-dot.tone-ok {
+	background: var(--c-ok);
+}
+.c-subagent-dot.tone-danger {
+	background: var(--c-danger);
+}
+.c-subagent-dot.tone-warn {
+	background: var(--c-warn);
+}
+.c-subagent-dot.is-pulsing {
+	animation: c-subagent-pulse 1.2s ease-in-out infinite;
+}
+@keyframes c-subagent-pulse {
+	50% {
+		opacity: 0.35;
+	}
+}
+.c-subagent-task {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font: 600 11px var(--font-mono);
+	color: var(--c-text-2);
+}
+.c-subagent-meta {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	margin-top: 2px;
+}
+.c-subagent-model {
+	font: 500 9.5px var(--font-mono);
+	color: var(--c-accent);
+	background: var(--c-accent-dim);
+	border-radius: var(--radius-chip);
+	padding: 0 6px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 55%;
+}
+.c-subagent-time {
+	font: 400 9.5px var(--font-ui);
+	color: var(--c-faint);
+	margin-left: auto;
+	white-space: nowrap;
+}
+.c-subagent-activity {
+	margin-top: 3px;
+	font: 400 10px var(--font-mono);
+	color: var(--c-dim);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.c-subagent-detail {
+	margin-top: 5px;
+	padding-top: 5px;
+	border-top: 1px dashed var(--c-hairline);
+	font: 400 10px var(--font-mono);
+	color: var(--c-faint);
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.c-subagent-dir {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }

@@ -1,22 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { scopedGroupKeys } from "../src/render/sidebar.ts";
+import { isFlatScope, scopedGroupKeys } from "../src/render/sidebar.ts";
 
-test("scope=all passes every group key through, order preserved", () => {
+// The chat sidebar is PERMANENTLY project-scoped (mid-flight spec update:
+// no "All projects" toggle — the Projects page owns cross-project views).
+
+test("scopedGroupKeys keeps only the active project's group", () => {
 	const keys = ["/a/proj1", "/b/proj2", "(no project)"];
-	assert.deepEqual(scopedGroupKeys(keys, { scope: "all", activeCwd: "/b/proj1" }), keys);
+	assert.deepEqual(scopedGroupKeys(keys, { activeCwd: "/a/proj1" }), ["/a/proj1"]);
+	assert.deepEqual(scopedGroupKeys(keys, { activeCwd: "/b/proj2" }), ["/b/proj2"]);
 });
 
-test("scope=project keeps only the active project group", () => {
-	const keys = ["/a/proj1", "/b/proj2", "(no project)"];
-	assert.deepEqual(scopedGroupKeys(keys, { scope: "project", activeCwd: "/a/proj1" }), ["/a/proj1"]);
-});
-
-test("scope=project without a known active cwd degrades to all", () => {
+test("scopedGroupKeys without an active cwd (pre-connect) passes everything through", () => {
 	const keys = ["/a/proj1", "/b/proj2"];
-	assert.deepEqual(scopedGroupKeys(keys, { scope: "project", activeCwd: undefined }), keys);
+	assert.deepEqual(scopedGroupKeys(keys, { activeCwd: undefined }), keys);
 });
 
-test("scope=project tolerates a zero-session project (empty list)", () => {
-	assert.deepEqual(scopedGroupKeys([], { scope: "project", activeCwd: "/a/proj1" }), []);
+test("a zero-session project yields an empty key list", () => {
+	assert.deepEqual(scopedGroupKeys([], { activeCwd: "/a/proj1" }), []);
+});
+
+test("isFlatScope is flat whenever a scoping cwd exists", () => {
+	assert.equal(isFlatScope("/home/u/pi"), true);
+	assert.equal(isFlatScope(undefined), false);
 });

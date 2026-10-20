@@ -1,7 +1,9 @@
 /**
- * Multi-session sidebar: every session on disk, grouped by project (cwd),
- * with open markers, running spinners, open/switch on click, explicit close
- * for open sessions, and a new-session button. Collapsible (persisted).
+ * Multi-session sidebar: PERMANENTLY project-scoped — only the active
+ * session's project renders (flat, no group headers; the Projects page owns
+ * cross-project browsing). Open markers, running spinners, open/switch on
+ * click, explicit close for open sessions, new-session button, and a
+ * persisted whole-sidebar collapse.
  */
 
 import { h } from "../dom.ts";
@@ -31,18 +33,28 @@ export interface SidebarHandlers {
 
 const COLLAPSED_KEY = "pi-web-sidebar-collapsed";
 const EXPANDED_GROUPS_KEY = "pi-web-sidebar-expanded-groups";
-const SCOPE_KEY = "pi-web-sidebar-scope";
-
-export type SidebarScope = "project" | "all";
 
 /**
  * Pure scope filter over the group keys (cwd of each project).
- * "project" keeps only the active session's project group; "all" or an
- * unknown active cwd falls back to every group.
+ * The chat sidebar is PERMANENTLY project-scoped (mid-flight spec update:
+ * the "All projects" toggle is gone — the Projects page is the cross-project
+ * surface): sessions render ONLY for the active session's cwd. A missing
+ * activeCwd is the pre-connect transient — nothing to scope by yet, so every
+ * key passes until the payload lands.
  */
-export function scopedGroupKeys(keys: string[], opts: { scope: SidebarScope; activeCwd?: string }): string[] {
-	if (opts.scope !== "project" || opts.activeCwd === undefined) return keys;
+export function scopedGroupKeys(keys: string[], opts: { activeCwd?: string }): string[] {
+	if (opts.activeCwd === undefined) return keys;
 	return keys.filter((key) => key === opts.activeCwd);
+}
+
+/**
+ * The connected chat sidebar always renders a FLAT session list — the head
+ * chip row already identifies the project, so group headers/chevrons would
+ * be pure duplication (user: chat UI already knows the project). Only the
+ * pre-connect transient lacks a scoping cwd.
+ */
+export function isFlatScope(activeCwd: string | undefined): boolean {
+	return activeCwd !== undefined;
 }
 
 export class SidebarView {
@@ -56,9 +68,7 @@ export class SidebarView {
 	private readonly openSessions = new Map<string, { sessionPath?: string; cwd: string; primary?: boolean }>();
 	private activeId: string | undefined;
 	private collapsed = false;
-	/** Session-list scope: only the active project ("project") or every group ("all"). */
-	private scope: SidebarScope;
-	/** Expanded project groups; collapsed by default. */
+	/** Expanded project groups (revealSession target); flat scope ignores them. */
 	private readonly expandedGroups = new Set<string>();
 	private timer: ReturnType<typeof setInterval> | undefined;
 	private unsubscribers: Array<() => void> = [];
@@ -67,7 +77,6 @@ export class SidebarView {
 	constructor(handlers: SidebarHandlers) {
 		this.handlers = handlers;
 		this.collapsed = window.localStorage.getItem(COLLAPSED_KEY) === "1";
-		this.scope = window.localStorage.getItem(SCOPE_KEY) === "all" ? "all" : "project";
 		try {
 			for (const cwd of JSON.parse(window.localStorage.getItem(EXPANDED_GROUPS_KEY) ?? "[]") as string[]) {
 				this.expandedGroups.add(cwd);
@@ -77,7 +86,7 @@ export class SidebarView {
 		}
 		this.element = h("aside", { class: `sidebar${this.collapsed ? " collapsed" : ""}` });
 		this.element.appendChild(this.buildChrome());
-		// Scope row: active-project chip + all-projects toggle (issue-batch).
+		// Head row: fixed project identity (no toggle — permanently scoped).
 		this.scopeHost = h("div", { class: "sidebar-scope" });
 		this.element.appendChild(this.scopeHost);
 		// Order per the layout spec: collapse button row, then scope chips,
@@ -194,49 +203,33 @@ export class SidebarView {
 		return undefined;
 	}
 
-	/** "project" | "all" — persisted; entering project scope expands the active group. */
-	setScope(scope: SidebarScope): void {
-		this.scope = scope;
-		window.localStorage.setItem(SCOPE_KEY, scope);
-		if (scope === "project") {
-			const cwd = this.activeCwd();
-			if (cwd && !this.expandedGroups.has(cwd)) {
-				this.expandedGroups.add(cwd);
-				window.localStorage.setItem(EXPANDED_GROUPS_KEY, JSON.stringify([...this.expandedGroups]));
-			}
-		}
-		this.render();
-	}
-
-	/** Scope row: [active project chip] [All projects ⇄ Project] toggle. */
+	/**
+	 * Head row: the chat sidebar is permanently project-scoped, so this is a
+	 * fixed identity chip (basename plus session count), not a control. The
+	 * pre-connect transient shows a muted placeholder until the payload lands.
+	 */
 	private renderScope(): void {
 		this.scopeHost.replaceChildren();
 		if (this.collapsed) return;
 		const cwd = this.activeCwd();
-		if (this.scope === "project" && cwd) {
+		if (cwd !== undefined) {
 			const sessionsInProject = this.sessionsList.filter((session) => session.cwd === cwd).length;
 			const label = cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
-			const chip = h(
-				"span",
-				{ class: "sidebar-scope-chip", title: cwd },
-				`📁 ${label}`,
-				h("span", { class: "sidebar-group-count" }, String(sessionsInProject)),
+			this.scopeHost.appendChild(
+				h(
+					"span",
+					{ class: "sidebar-scope-chip", title: cwd },
+					`📁 ${label}`,
+					h(
+						"span",
+						{ class: "sidebar-group-count" },
+						`${sessionsInProject} ${sessionsInProject === 1 ? "session" : "sessions"}`,
+					),
+				),
 			);
-			this.scopeHost.appendChild(chip);
 		} else {
-			this.scopeHost.appendChild(h("span", { class: "sidebar-scope-chip is-muted" }, "All projects"));
+			this.scopeHost.appendChild(h("span", { class: "sidebar-scope-chip is-muted" }, "connecting…"));
 		}
-		const toggleLabel = this.scope === "project" ? "All ⇩" : "⇦ Project";
-		const toggle = h(
-			"button",
-			{
-				class: "sidebar-scope-toggle",
-				title: this.scope === "project" ? "Show every project's sessions" : "Show only the active project",
-			},
-			toggleLabel,
-		);
-		toggle.addEventListener("click", () => this.setScope(this.scope === "project" ? "all" : "project"));
-		this.scopeHost.appendChild(toggle);
 	}
 
 	private buildChrome(): HTMLElement {
@@ -319,11 +312,22 @@ export class SidebarView {
 		const orderedGroups = [...groups.entries()].sort((a, b) => newestRowIn(b[1]) - newestRowIn(a[1]));
 		const scopedKeys = scopedGroupKeys(
 			orderedGroups.map(([cwd]) => cwd),
-			{ scope: this.scope, activeCwd: this.activeCwd() },
+			{ activeCwd: this.activeCwd() },
 		);
+		const flat = isFlatScope(this.activeCwd());
 		for (const [cwd, rows] of orderedGroups) {
 			if (!scopedKeys.includes(cwd)) continue;
 			rows.sort((a, b) => b.modified - a.modified);
+			if (flat) {
+				// Project scope: flat list — no group header. The scope chip row
+				// above already carries the project name and count.
+				const group = h("div", { class: "sidebar-group sidebar-group-flat" });
+				for (const row of rows) {
+					group.appendChild(this.buildRow(row));
+				}
+				this.groupsHost.appendChild(group);
+				continue;
+			}
 			const expanded = this.expandedGroups.has(cwd);
 			const group = h("div", { class: `sidebar-group${expanded && rows.length > 0 ? " expanded" : ""}` });
 
@@ -361,9 +365,7 @@ export class SidebarView {
 
 		if (this.newListHost.childElementCount === 0) {
 			const newButton = h("button", { class: "sidebar-new-btn" }, "+ New session");
-			newButton.addEventListener("click", () =>
-				this.handlers.onNew(this.scope === "project" ? this.activeCwd() : undefined),
-			);
+			newButton.addEventListener("click", () => this.handlers.onNew(this.activeCwd()));
 			this.newListHost.appendChild(newButton);
 		}
 	}
