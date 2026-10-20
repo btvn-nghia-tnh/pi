@@ -39,6 +39,7 @@ import type {
 	RpcSlashCommand,
 	RpcTrustState,
 } from "../rpc/rpc-types.ts";
+import { McpConfigWriteError, writeMcpServerEnabled } from "./mcp-config-write.ts";
 import { OfficeParseError, parseDocx, parseXlsx, type SpreadsheetLimits } from "./office-parsers.ts";
 import { getUsageSummary } from "./usage-summary.ts";
 import { shareSessionHeadless } from "./web-share.ts";
@@ -641,6 +642,26 @@ export function createWebCommandHandler(): WebCommandHandler {
 					success: true,
 					data: summary,
 				};
+			}
+
+			case "mcp_config_write": {
+				const cwd = session.sessionManager.getCwd();
+				try {
+					const result = await writeMcpServerEnabled(command.server, command.enabled, {
+						cwd,
+					});
+					return {
+						id,
+						type: "response",
+						command: "mcp_config_write",
+						success: true,
+						data: result,
+					};
+				} catch (error) {
+					const message =
+						error instanceof McpConfigWriteError || error instanceof Error ? error.message : String(error);
+					return rpcError(id, "mcp_config_write", message);
+				}
 			}
 
 			case "delete_session": {
