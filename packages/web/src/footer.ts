@@ -2,6 +2,7 @@
  * Footer, status rows, widgets, toasts, working indicator.
  */
 
+import { chipEl } from "./components/kit.ts";
 import type { PiConnection } from "./connection.ts";
 import { h } from "./dom.ts";
 import { buildFooterStats, formatCwdForFooter } from "./footer-format.ts";
@@ -250,6 +251,19 @@ export class WidgetAreaView {
 	}
 }
 
+/** Pure retry banner text: countdown + 80-char error truncation. */
+export function retryBannerText(
+	retry: { attempt: number; maxAttempts: number; until: number; errorMessage?: string },
+	now: number,
+): string {
+	const seconds = Math.max(0, Math.ceil((retry.until - now) / 1000));
+	const message =
+		(retry.errorMessage ?? "").length > 80
+			? `${(retry.errorMessage ?? "").slice(0, 80)}…`
+			: (retry.errorMessage ?? "");
+	return `Retrying (${retry.attempt}/${retry.maxAttempts}) in ${seconds}s${message ? ` — ${message}` : ""}`;
+}
+
 export class StatusRowsView {
 	readonly element: HTMLElement;
 	private readonly store: Store;
@@ -287,24 +301,22 @@ export class StatusRowsView {
 			this.element.appendChild(
 				h(
 					"div",
-					{ class: "status-row" },
-					h("span", { class: "spinner" }, "⠿"),
-					h("span", {}, "Compacting context…"),
+					{ class: "c-banner c-banner--info" },
+					h("span", { class: "c-banner-text" }, "Compacting context…"),
 				),
 			);
 		}
 
 		if (state.retry) {
-			const seconds = Math.max(0, Math.ceil((state.retry.until - Date.now()) / 1000));
 			const row = h(
 				"div",
-				{ class: "status-row retry-row" },
+				{ class: "c-banner c-banner--warn" },
+				h("span", { class: "c-banner-text" }, retryBannerText(state.retry, Date.now())),
 				h(
-					"span",
-					{},
-					`Retrying (${state.retry.attempt}/${state.retry.maxAttempts}) in ${seconds}s — ${truncate(state.retry.errorMessage, 120)}`,
+					"button",
+					{ class: "c-banner-action", onclick: () => this.connection.send({ type: "abort_retry" }) },
+					"Cancel",
 				),
-				h("button", { onclick: () => this.connection.send({ type: "abort_retry" }) }, "Abort"),
 			);
 			this.element.appendChild(row);
 		}
@@ -349,15 +361,11 @@ export class QueueView {
 	private queueRow(kind: "steering" | "followUp", index: number, text: string): HTMLElement {
 		const row = h(
 			"div",
-			{ class: "queue-item" },
-			h("span", { class: "queue-kind" }, kind),
-			h("span", { class: "queue-text" }, text),
-			h("button", { title: "Remove", onclick: () => this.onRemove(kind, index) }, "×"),
+			{ class: "c-banner c-banner--queue" },
+			chipEl(kind),
+			h("span", { class: "c-banner-text" }, text),
+			h("button", { class: "c-banner-action", title: "Remove", onclick: () => this.onRemove(kind, index) }, "×"),
 		);
 		return row;
 	}
-}
-
-function truncate(text: string, max: number): string {
-	return text.length > max ? `${text.slice(0, max)}…` : text;
 }
