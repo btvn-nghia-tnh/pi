@@ -231,6 +231,9 @@ export class WidgetAreaView {
 			// Overlay widgets (display: "overlay") render as modals in the
 			// WidgetOverlayView — do not duplicate them as empty docked panels.
 			if (widget.data?.display === "overlay") continue;
+			// Structured widgets live in the right session panel (spec §3.2.6);
+			// the docked area renders lines-only widgets (Task 12, R12).
+			if (widget.data) continue;
 			// Defense in depth against ghost entries: a widget with no
 			// structured payload and no fallback lines renders as an empty
 			// box. Skip it entirely.

@@ -139,6 +139,16 @@ export class EditorController {
 		this.textarea.focus();
 	}
 
+	/** Toolbar Send: identical semantics to pressing Enter (steers when streaming). */
+	submitFromToolbar(): void {
+		this.submitCurrent(this.options.isStreaming() ? "steer" : "prompt");
+	}
+
+	/** Toolbar "+ queue": submit the draft as steering (turn running) or follow-up. */
+	submitQueued(): void {
+		this.submitCurrent(this.options.isStreaming() ? "steer" : "followUp");
+	}
+
 	// ------------------------------------------------------------------
 
 	private wireEvents(): void {

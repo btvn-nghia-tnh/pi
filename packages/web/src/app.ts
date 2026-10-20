@@ -3,6 +3,10 @@
  * tree browser, share/import/export, reconnect overlay, transcript search.
  */
 
+import { EditorToolbar } from "./components/editor-toolbar.ts";
+import { openAnchoredMenu } from "./components/kit.ts";
+import { SessionPanel } from "./components/session-panel.ts";
+import { contextMenu, StatusBarView } from "./components/status-bar.ts";
 import { connect, extensionUiResponse, type PiConnection } from "./connection.ts";
 import {
 	applyThemeVars,
@@ -21,16 +25,19 @@ import {
 import { h } from "./dom.ts";
 import { EditorController, type EditorSubmitEvent } from "./editor/editor.ts";
 import { decorateFileRefs } from "./file-refs.ts";
-import { FooterView, QueueView, StatusRowsView, ToastsView, WidgetAreaView } from "./footer.ts";
+import { QueueView, StatusRowsView, ToastsView, WidgetAreaView } from "./footer.ts";
 import { appendPromptHistory, loadPromptHistory, savePromptHistory } from "./history.ts";
 import { registerGlobalKeyboard, type ShortcutAction } from "./keyboard.ts";
 import { renderMarkdown, sanitizeMarkdownHtml } from "./markdown.ts";
+import { type ChatHosts, createChatPage } from "./pages/chat.ts";
 import { PreviewStore } from "./preview-store.ts";
 import { decorateCodeBlockCopies } from "./render/messages.ts";
 import { PreviewView } from "./render/preview.ts";
 import { SidebarView } from "./render/sidebar.ts";
 import { TranscriptView } from "./render/transcript.ts";
 import { WidgetOverlayView } from "./render/widget-overlay.ts";
+import { type PageId, type Route, Router } from "./router.ts";
+import { AppShell, type ShellPage } from "./shell.ts";
 import { Store } from "./state.ts";
 import type {
 	AgentEventMessage,
@@ -57,7 +64,9 @@ const FAVICON_RUNNING = `data:image/svg+xml,${encodeURIComponent(
 interface SessionViews {
 	header: HTMLElement;
 	transcript: TranscriptView;
-	footer: FooterView;
+	toolbar: EditorToolbar;
+	statusBar: StatusBarView;
+	panel: SessionPanel;
 	widgetsAbove: WidgetAreaView;
 	widgetsBelow: WidgetAreaView;
 	overlay: WidgetOverlayView;
@@ -85,14 +94,21 @@ export class App {
 	private anySessionRunning = false;
 	/** Editor drafts per session, preserved across switches. */
 	private readonly editorDrafts = new Map<string, string>();
-	/** Mount hosts for the session views (persistent across switches). */
-	private transcriptHost!: HTMLElement;
-	private footerHost!: HTMLElement;
-	private views: SessionViews | undefined;
-	private sidebar: SidebarView | undefined;
+	/** Console shell (rail + page host) and its hash router. */
+	private shell: AppShell | undefined;
+	private router: Router | undefined;
+	/** Registered pages; unbuilt routes get placeholder cards (Task 13). */
+	private readonly pages = new Map<PageId, ShellPage>();
+	private mountedPage: ShellPage | undefined;
+	/** Chat workbench hosts — rebuilt session views bind into these. */
+	private chatHosts: ChatHosts | undefined;
+	/** Active session's editor toolbar (model-picker anchor for Ctrl+K). */
+	private activeToolbar: EditorToolbar | undefined;
 	/** App-level file preview state (survives session switches). */
 	private readonly previewStore = new PreviewStore();
 	private previewView: PreviewView | undefined;
+	private views: SessionViews | undefined;
+	private sidebar: SidebarView | undefined;
 	private connection: PiConnection | undefined;
 	private dialogs!: DialogStack;
 	private editor!: EditorController;
@@ -119,48 +135,27 @@ export class App {
 			document.body.appendChild(this.element);
 		}
 
-		// Layout (one column of rows):
-		//   [ [ sidebar | transcript + editor ] footer ]
-		// The shell is a row (sidebar beside main); the main column keeps the
-		// original stacking (transcript grows, editor dock under it) and the
-		// footer spans the full width below the shell.
-		const shell = h("div", { class: "app-shell" });
-		const main = h("div", { class: "app-main" });
-		const transcriptWrap = h("div", { class: "transcript-wrap" });
-		this.transcriptHost = h("div", { class: "transcript-host" });
-		transcriptWrap.appendChild(this.transcriptHost);
+		// Console shell (spec §3.1): icon rail + page host; hash routes swap
+		// the page below the rail. App keeps owning sessions/connection.
+		this.shell = new AppShell({
+			onNavigate: (page) =>
+				this.router?.navigate(
+					page === "chat" && this.activeSessionId !== undefined
+						? { page, sessionId: this.activeSessionId }
+						: { page },
+				),
+		});
+		this.element.appendChild(this.shell.element);
 
-		const editorDock = h("div", { class: "editor-dock" });
-		const editorInner = h("div", { class: "editor-inner" });
-		const statusRowsHost = h("div", {});
-		const queueHost = h("div", {});
-		const widgetsHost = h("div", {});
-		const widgetsBelowHost = h("div", {});
-		editorInner.appendChild(statusRowsHost);
-		editorInner.appendChild(queueHost);
-		editorInner.appendChild(widgetsHost);
-		this.askHost = h("div", { class: "inline-asks" });
-		editorInner.appendChild(this.askHost);
-		editorInner.appendChild(h("div", {}, this.buildEditorHost()));
-		editorInner.appendChild(widgetsBelowHost);
-		editorDock.appendChild(editorInner);
-
-		this.footerHost = h("div", {});
-		main.appendChild(transcriptWrap);
-		main.appendChild(editorDock);
-		shell.appendChild(main);
-
-		// File preview panel (right column); content-driven, hidden when closed.
+		// File preview panel: content-driven, hidden when closed; the chat
+		// page hosts it as a flex sibling of the main column.
 		this.previewView = new PreviewView(this.previewStore, {
 			onActivate: (id) => this.previewStore.activate(id),
 			onCloseTab: (id) => this.previewStore.closeTab(id),
 			onLoadMore: () => void this.loadMorePreview(),
 			onRetry: () => this.retryPreview(),
 		});
-		shell.appendChild(this.previewView.element);
 		this.previewView.mount();
-		this.element.appendChild(shell);
-		this.element.appendChild(this.footerHost);
 
 		// Global (session-independent) chrome. Toasts render notifications pushed
 		// to the active session's store, so the view is rebuilt with the other
@@ -171,7 +166,8 @@ export class App {
 		document.body.appendChild(this.overlayHost);
 		this.dialogs = new DialogStack(document.body);
 
-		// The multi-session sidebar (session list, groups, running spinners).
+		// The multi-session sidebar (session list, groups, running spinners) —
+		// hosted inside the chat page's left column.
 		this.sidebar = new SidebarView({
 			getRunning: (sessionId) => {
 				const store = this.sessionStores.get(sessionId);
@@ -209,10 +205,57 @@ export class App {
 				void this.connection?.request({ type: "close_session", sessionId }).catch(() => {});
 			},
 		});
-		shell.prepend(this.sidebar.element);
+
+		// Chat workbench page — mounts under the shell; its hosts receive the
+		// per-session views rebuilt by rebuildSessionViews().
+		const chatPage = createChatPage({
+			sidebar: () => this.sidebar,
+			previewElement: () => this.previewView?.element,
+			openModelPicker: () => this.openModelPicker(),
+		});
+		this.chatHosts = chatPage.hosts;
+		this.askHost = chatPage.hosts.askHost;
+		this.pages.set("chat", chatPage);
 		this.sidebar.mount();
 
+		// The editor controller is session-agnostic (drafts switch per store);
+		// attach it eagerly so the dock renders before the first connect.
+		this.buildEditorHost();
+		if (this.editor && this.chatHosts) {
+			this.chatHosts.editorHost.replaceChildren(this.editor.element);
+		}
+
+		// Default landing: #/chat. Hash routes drive everything after this.
+		if (!window.location.hash) {
+			window.history.replaceState(null, "", "#/chat");
+		}
+		this.router = new Router((route) => this.onRoute(route));
+		this.router.start();
+
 		this.wireConnection();
+	}
+
+	/** Resolve a hash route to its page; unbuilt pages get placeholder cards. */
+	private onRoute(route: Route): void {
+		const page = this.ensurePage(route.page);
+		this.shell?.setActive(route.page);
+		if (this.mountedPage !== page) {
+			this.shell?.setPage(page);
+			this.mountedPage = page;
+		}
+		// Deep link: #/chat/<sessionId> activates that session's store.
+		if (route.page === "chat" && route.sessionId && this.sessionStores.has(route.sessionId)) {
+			this.setActiveSession(route.sessionId);
+		}
+	}
+
+	/** Pages land in Task 13; until then their routes show placeholder cards. */
+	private ensurePage(page: PageId): ShellPage {
+		const existing = this.pages.get(page);
+		if (existing) return existing;
+		const placeholder = createPlaceholderPage(page);
+		this.pages.set(page, placeholder);
+		return placeholder;
 	}
 
 	/** Session to focus once its pane exists (open/new in flight). */
@@ -227,21 +270,18 @@ export class App {
 		this.views?.unmount();
 		const store = this.store;
 		const sessionId = this.activeSessionId;
-		const editorInner = this.element.querySelector(".editor-inner");
-		if (!editorInner) return;
-		const statusRowsHost = editorInner.firstElementChild as HTMLElement | null;
-		const queueHost = statusRowsHost?.nextElementSibling as HTMLElement | null;
-		const widgetsHost = queueHost?.nextElementSibling as HTMLElement | null;
-		const widgetsBelowHost = editorInner.lastElementChild as HTMLElement | null;
+		const connection = this.connection;
+		const hosts = this.chatHosts;
+		if (!hosts || !connection) return;
 
 		const header = this.buildHeader();
 		const decorate = (element: HTMLElement): void => {
 			decorateCodeBlockCopies(element);
-			if (!this.connection) return;
+			if (!connection) return;
 			decorateFileRefs(element, {
 				sessionId,
 				statPaths: async (paths) => {
-					const data = await this.connection!.request<StatPathsData>({ type: "stat_paths", paths, sessionId });
+					const data = await connection.request<StatPathsData>({ type: "stat_paths", paths, sessionId });
 					return data.results;
 				},
 			});
@@ -251,60 +291,85 @@ export class App {
 			showImages: true,
 			decorate,
 			onOpenFile: (path) => void this.openPreview(path, sessionId),
+			onStopBash: () => this.sendAbortBash(),
 		});
-		const footer = new FooterView(store);
 		const widgetsAbove = new WidgetAreaView(store, "aboveEditor");
 		const widgetsBelow = new WidgetAreaView(store, "belowEditor");
-		const statusRows = new StatusRowsView(store, this.connection!);
+		const statusRows = new StatusRowsView(store, connection);
+		const queue = new QueueView(store, (kind, index) => {
+			void connection.request<{ steering: string[]; followUp: string[] }>({ type: "clear_queue" }).then((result) => {
+				const keep = [...(result.steering ?? []), ...(result.followUp ?? [])];
+				if (kind === "steering" && result.steering) {
+					const removed = result.steering[index];
+					const next = keep.filter((message) => message !== removed);
+					for (const message of next) {
+						connection.send({ type: "prompt", message, streamingBehavior: "steer" });
+					}
+				} else if (result.followUp) {
+					const removed = result.followUp[index];
+					const next = keep.filter((message) => message !== removed);
+					for (const message of next) {
+						connection.send({ type: "prompt", message, streamingBehavior: "followUp" });
+					}
+				}
+			});
+		});
 		const overlay = new WidgetOverlayView(
 			store,
 			(message) => {
-				this.connection?.send({ type: "prompt", message });
+				connection?.send({ type: "prompt", message });
 			},
 			(key, payload) => {
-				void this.connection?.request({ type: "widget_response", key, payload }).catch(() => {});
+				void connection?.request({ type: "widget_response", key, payload }).catch(() => {});
 			},
-			this.askHost,
+			hosts.askHost,
 		);
 
 		// Overlay widgets (questionnaires, MCP panels) render as modals on
 		// top of the app; their element lives on the body, remounted per switch.
 		this.overlayHost.replaceChildren(overlay.element);
-		this.transcriptHost.replaceChildren(header, transcript.element);
-		this.footerHost.replaceChildren(footer.element);
-		if (statusRowsHost) statusRowsHost.replaceChildren(statusRows.element);
-		if (widgetsHost) widgetsHost.replaceChildren(widgetsAbove.element);
-		if (widgetsBelowHost) widgetsBelowHost.replaceChildren(widgetsBelow.element);
+		hosts.transcriptHost.replaceChildren(header, transcript.element);
+		hosts.statusRowsHost.replaceChildren(statusRows.element);
+		hosts.queueHost.replaceChildren(queue.element);
+		hosts.widgetsAboveHost.replaceChildren(widgetsAbove.element);
+		hosts.widgetsBelowHost.replaceChildren(widgetsBelow.element);
+		if (this.editor && this.editor.element.parentElement !== hosts.editorHost) {
+			hosts.editorHost.replaceChildren(this.editor.element);
+		}
 
-		transcript.mount(this.element.querySelector(".transcript-wrap") ?? this.transcriptHost);
-		footer.mount();
+		// Page-scoped trio — bound to this session's store, rebuilt per switch.
+		const toolbar = new EditorToolbar({
+			connection,
+			store,
+			onPrimaryAction: (kind) => this.onEditorPrimary(kind),
+			onQueuePrompt: () => this.editor.submitQueued(),
+		});
+		this.activeToolbar = toolbar;
+		hosts.toolbarHost.replaceChildren(toolbar.element);
+
+		const statusBar = new StatusBarView(store, {
+			onOpenModels: (anchor) => toolbar.openModelPicker(anchor),
+			onOpenContext: (anchor) => this.openContextMenu(anchor),
+		});
+		hosts.statusBarHost.replaceChildren(statusBar.element);
+
+		const panel = new SessionPanel({
+			store,
+			connection,
+			onOpenModels: (anchor) => toolbar.openModelPicker(anchor),
+			onOpenUsage: () => this.router?.navigate({ page: "usage" }),
+		});
+		hosts.panelHost.replaceChildren(panel.element);
+
+		transcript.mount(hosts.transcriptWrap);
+		statusRows.mount();
+		queue.mount();
 		widgetsAbove.mount();
 		widgetsBelow.mount();
 		overlay.mount();
-		if (queueHost) {
-			const queue = new QueueView(store, (kind, index) => {
-				void this.connection!.request<{ steering: string[]; followUp: string[] }>({ type: "clear_queue" }).then(
-					(result) => {
-						const keep = [...(result.steering ?? []), ...(result.followUp ?? [])];
-						if (kind === "steering" && result.steering) {
-							const removed = result.steering[index];
-							const next = keep.filter((message) => message !== removed);
-							for (const message of next) {
-								this.connection!.send({ type: "prompt", message, streamingBehavior: "steer" });
-							}
-						} else if (result.followUp) {
-							const removed = result.followUp[index];
-							const next = keep.filter((message) => message !== removed);
-							for (const message of next) {
-								this.connection!.send({ type: "prompt", message, streamingBehavior: "followUp" });
-							}
-						}
-					},
-				);
-			});
-			queue.mount();
-			queueHost.replaceChildren(queue.element);
-		}
+		toolbar.mount();
+		statusBar.mount();
+		panel.mount();
 
 		const toasts = new ToastsView(store);
 		this.toastsHost.replaceChildren(toasts.element);
@@ -313,19 +378,26 @@ export class App {
 		this.views = {
 			header,
 			transcript,
-			footer,
+			toolbar,
+			statusBar,
+			panel,
 			widgetsAbove,
 			widgetsBelow,
 			overlay,
 			statusRows,
-			queue: queueHost?.firstElementChild as unknown as QueueView,
+			queue,
 			unmount: () => {
 				transcript.unmount();
-				footer.unmount();
+				statusRows.unmount();
+				queue.unmount();
 				widgetsAbove.unmount();
 				widgetsBelow.unmount();
 				overlay.unmount();
+				toolbar.unmount();
+				statusBar.unmount();
+				panel.unmount();
 				toasts.unmount();
+				this.activeToolbar = undefined;
 			},
 		};
 	}
@@ -396,6 +468,50 @@ export class App {
 	// ------------------------------------------------------------------
 	// Editor
 	// ------------------------------------------------------------------
+
+	/** Sends { type: "abort_bash" } — the session's current bash process. */
+	private sendAbortBash(): void {
+		this.connection?.send({ type: "abort_bash" });
+	}
+
+	/** Send↔Stop primary action (spec §5). Stop wins over retry countdowns. */
+	private onEditorPrimary(kind: "send" | "stop"): void {
+		const connection = this.connection;
+		if (!connection) return;
+		if (kind === "stop") {
+			connection.send({ type: this.store.getState().retry ? "abort_retry" : "abort" });
+			return;
+		}
+		this.editor.submitFromToolbar();
+	}
+
+	/** Ctrl+K / ⌘K: open the model picker anchored at the toolbar's model chip. */
+	private openModelPicker(): void {
+		const toolbar = this.activeToolbar;
+		if (!toolbar) return;
+		const first = toolbar.element.firstElementChild;
+		const anchor = first instanceof HTMLElement ? first : toolbar.element;
+		toolbar.openModelPicker(anchor);
+	}
+
+	/** Context chip popover: compact now / auto-compaction toggle (spec §3.2.5, R3). */
+	private openContextMenu(anchor: HTMLElement): void {
+		const connection = this.connection;
+		if (!connection) return;
+		const session = this.store.getState().sessionState;
+		openAnchoredMenu(
+			anchor,
+			contextMenu(
+				{
+					onCompactNow: () => connection.send({ type: "compact" }),
+					onToggleAuto: (next) => {
+						void connection.request({ type: "set_auto_compaction", enabled: next }).catch(() => {});
+					},
+				},
+				{ auto: session?.autoCompactionEnabled ?? false },
+			),
+		);
+	}
 
 	private buildEditorHost(): HTMLElement {
 		this.editor = new EditorController({
@@ -1218,23 +1334,29 @@ export class App {
 		this.editor.setText(this.editorDrafts.get(id) ?? "");
 		this.editor.focus();
 		this.sidebar?.setActive(id);
+		// Keep the deep link in sync (replace: session clicks are not history).
+		this.router?.navigate({ page: "chat", sessionId: id }, true);
+	}
+
+	/** Sessions with a turn (or continuation) in flight; feeds badge + title. */
+	private runningSessionCount(): number {
+		let count = 0;
+		for (const store of this.sessionStores.values()) {
+			if (store.isTurnRunning() || (store.getState().sessionState?.isStreaming ?? false)) count++;
+		}
+		if (this.sessionStores.size === 0 && this.fallbackStore.isTurnRunning()) count++;
+		return count;
 	}
 
 	/**
-	 * Keep the browser tab in sync with session activity: title pulse and a
-	 * favicon dot while any session runs, plus a desktop notification on
-	 * completion when the tab is hidden and the user already granted
-	 * permission (no permission prompts here).
+	 * Keep the browser tab in sync with session activity: title pulse, favicon
+	 * dot, shell rail badge, and a desktop notification on completion when the
+	 * tab is hidden and the user already granted permission.
 	 */
 	private updateTabStatus(): void {
-		let running = false;
-		for (const store of this.sessionStores.values()) {
-			if (store.isTurnRunning() || (store.getState().sessionState?.isStreaming ?? false)) {
-				running = true;
-				break;
-			}
-		}
-		if (this.sessionStores.size === 0 && this.fallbackStore.isTurnRunning()) running = true;
+		const runningCount = this.runningSessionCount();
+		this.shell?.setRunningBadge(runningCount);
+		const running = runningCount > 0;
 		if (running === this.anySessionRunning) return;
 		const wasRunning = this.anySessionRunning;
 		this.anySessionRunning = running;
@@ -1687,4 +1809,33 @@ export class App {
 			}
 		});
 	}
+}
+
+/** Placeholder card for pages that land in the next slice (Task 13 stubs). */
+function createPlaceholderPage(page: PageId): ShellPage {
+	const known: Partial<Record<PageId, string>> = {
+		home: "Home",
+		projects: "Projects",
+		mcp: "MCP",
+		usage: "Usage",
+		settings: "Settings",
+	};
+	const title = known[page] ?? page;
+	const element = h(
+		"section",
+		{ class: "c-page" },
+		h("div", { class: "c-page-header" }, h("span", { class: "c-page-title" }, title)),
+		h(
+			"div",
+			{ class: "c-placeholder" },
+			h(
+				"div",
+				{ class: "c-card" },
+				h("div", { class: "c-card-title" }, title),
+				h("p", {}, `The ${title} page lands in the next slice of the console redesign.`),
+				h("p", { class: "dim" }, "Chat is fully usable today."),
+			),
+		),
+	);
+	return { id: page, title, element, mount() {}, unmount() {} };
 }
