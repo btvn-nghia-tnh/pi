@@ -42,6 +42,7 @@ import type {
 import { addMcpServer, McpConfigAddError } from "./mcp-config-add.ts";
 import { listMcpServers } from "./mcp-config-list.ts";
 import { McpConfigWriteError, writeMcpServerEnabled } from "./mcp-config-write.ts";
+import { McpTestError, testMcpServer } from "./mcp-test.ts";
 import { OfficeParseError, parseDocx, parseXlsx, type SpreadsheetLimits } from "./office-parsers.ts";
 import { listSubagentRuns } from "./subagent-status.ts";
 import { getUsageSummary } from "./usage-summary.ts";
@@ -696,6 +697,23 @@ export function createWebCommandHandler(): WebCommandHandler {
 					success: true,
 					data,
 				};
+			}
+
+			case "mcp_test": {
+				const cwd = command.cwd ?? session.sessionManager.getCwd();
+				try {
+					const data = await testMcpServer({ server: command.server, scope: command.scope, cwd });
+					return {
+						id,
+						type: "response",
+						command: "mcp_test",
+						success: true,
+						data,
+					};
+				} catch (error) {
+					const message = error instanceof McpTestError || error instanceof Error ? error.message : String(error);
+					return rpcError(id, "mcp_test", message);
+				}
 			}
 
 			case "subagent_status": {

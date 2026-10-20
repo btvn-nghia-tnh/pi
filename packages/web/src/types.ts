@@ -101,6 +101,7 @@ export type ClientCommand =
 			};
 	  })
 	| (RpcCommandBase & { type: "mcp_config_list"; cwds: string[] })
+	| (RpcCommandBase & { type: "mcp_test"; server: string; scope: "project" | "global"; cwd?: string })
 	| (RpcCommandBase & { type: "subagent_status" })
 	| (RpcCommandBase & {
 			type: "mcp_test";

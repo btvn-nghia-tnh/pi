@@ -72,6 +72,7 @@ export type RpcCommand =
 	// MCP
 	| { id?: string; type: "mcp_config_write"; server: string; enabled: boolean }
 	| { id?: string; type: "mcp_config_list"; cwds: string[] }
+	| { id?: string; type: "mcp_test"; server: string; scope: "project" | "global"; cwd?: string }
 	| { id?: string; type: "subagent_status" }
 	| {
 			id?: string;
@@ -298,6 +299,7 @@ export type RpcResponse =
 	  }
 	| { id?: string; type: "response"; command: "mcp_config_add"; success: true; data: { path: string } }
 	| { id?: string; type: "response"; command: "mcp_config_list"; success: true; data: RpcMcpConfigListResult }
+	| { id?: string; type: "response"; command: "mcp_test"; success: true; data: RpcMcpTestResult }
 	| { id?: string; type: "response"; command: "subagent_status"; success: true; data: RpcSubagentStatusResult }
 	| { id?: string; type: "response"; command: "export_html"; success: true; data: { path: string } }
 	| { id?: string; type: "response"; command: "switch_session"; success: true; data: { cancelled: boolean } }
@@ -627,6 +629,17 @@ export interface RpcMcpConfigListEntry {
 /** Result of mcp_config_list. */
 export interface RpcMcpConfigListResult {
 	entries: RpcMcpConfigListEntry[];
+}
+
+/** Result of the mcp_test connection probe. */
+export interface RpcMcpTestResult {
+	ok: boolean;
+	reachable?: boolean;
+	authRequired?: boolean;
+	httpStatus?: number;
+	toolCount?: number;
+	detail: string;
+	latencyMs: number;
 }
 
 /** One pi-subagents run discovered on disk (subagent_status). */
