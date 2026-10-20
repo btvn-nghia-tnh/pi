@@ -13,7 +13,7 @@
  * styling pass alongside the other placeholder-page bodies.
  */
 
-import { chipEl, iconEl, pillEl, toggleEl } from "../components/kit.ts";
+import { chipEl, iconEl, openAnchoredMenu, pillEl, toggleEl } from "../components/kit.ts";
 import type { PiConnection } from "../connection.ts";
 import { clearElement, h } from "../dom.ts";
 import type { McpServerWidgetEntry, McpWidgetData } from "../render/widget-data.ts";
@@ -187,6 +187,52 @@ export function controlOutcome(operation: McpOperation, delivered: boolean): Con
 }
 
 // ---------------------------------------------------------------------------
+// Add-server form (user issue batch 2): pure request builder + dialog
+// ---------------------------------------------------------------------------
+
+export type AddServerTransport = "stdio" | "http";
+
+/** Everything the dialog collects; "env skipped v1" by design. */
+export interface AddServerForm {
+	name: string;
+	transport: AddServerTransport;
+	scope: "project" | "global";
+	command: string;
+	argsText: string;
+	url: string;
+}
+
+export interface AddServerRequestPayload {
+	scope: "project" | "global";
+	server: string;
+	definition: { command?: string; args?: string[]; url?: string };
+}
+
+export type AddServerRequest = AddServerRequestPayload | { error: string };
+
+/**
+ * Validate the dialog form into an mcp_config_add request.
+ * Mirrors backend validation: name required; stdio → command required;
+ * http → url required; args comma-split, trimmed, empties dropped.
+ */
+export function addServerRequest(form: AddServerForm): AddServerRequest {
+	const server = form.name.trim();
+	if (!server) return { error: "server name is required" };
+	if (form.transport === "stdio") {
+		const command = form.command.trim();
+		if (!command) return { error: "command is required for stdio servers" };
+		const args = form.argsText
+			.split(",")
+			.map((arg) => arg.trim())
+			.filter((arg) => arg.length > 0);
+		return { scope: form.scope, server, definition: args.length > 0 ? { command, args } : { command } };
+	}
+	const url = form.url.trim();
+	if (!url) return { error: "url is required for http servers" };
+	return { scope: form.scope, server, definition: { url } };
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -265,6 +311,120 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 			return;
 		}
 		deps.openPreview(`${cwd}${CONFIG_OVERRIDE_RELPATH}`);
+	}
+
+	function openAddServerDialog(anchor: HTMLElement): void {
+		let transport: AddServerTransport = "stdio";
+		let scope: "project" | "global" = "project";
+
+		openAnchoredMenu(anchor, (close) => {
+			const nameInput = h("input", {
+				class: "c-popover-search",
+				placeholder: "server name — e.g. github",
+			}) as HTMLInputElement;
+			const transportSelect = h(
+				"select",
+				{ class: "c-popover-search" },
+				h("option", { value: "stdio" }, "stdio (local command)"),
+				h("option", { value: "http" }, "http (remote URL)"),
+			) as HTMLSelectElement;
+			transportSelect.addEventListener("change", () => {
+				transport = transportSelect.value === "http" ? "http" : "stdio";
+				syncTransportRows();
+			});
+
+			const commandInput = h("input", {
+				class: "c-popover-search",
+				placeholder: "command — e.g. npx -y some-mcp-server",
+			}) as HTMLInputElement;
+			const argsInput = h("input", {
+				class: "c-popover-search",
+				placeholder: "args (comma-separated, optional)",
+			}) as HTMLInputElement;
+			const urlInput = h("input", {
+				class: "c-popover-search",
+				placeholder: "https://host/mcp",
+			}) as HTMLInputElement;
+
+			const projectChip = chipEl("This project", { tone: "accent" });
+			const globalChip = chipEl("Global", { tone: "neutral" });
+			const syncScopeChips = (): void => {
+				projectChip.className = `c-chip ${scope === "project" ? "c-chip--accent" : "c-chip--neutral"}`;
+				globalChip.className = `c-chip ${scope === "global" ? "c-chip--accent" : "c-chip--neutral"}`;
+			};
+			projectChip.addEventListener("click", () => {
+				scope = "project";
+				syncScopeChips();
+			});
+			globalChip.addEventListener("click", () => {
+				scope = "global";
+				syncScopeChips();
+			});
+
+			const stdioRows = h("div", {}, label("command"), commandInput, label("args"), argsInput);
+			const httpRows = h("div", {}, label("url"), urlInput);
+			const syncTransportRows = (): void => {
+				stdioRows.style.display = transport === "stdio" ? "" : "none";
+				httpRows.style.display = transport === "http" ? "" : "none";
+			};
+			syncTransportRows();
+
+			function label(text: string): HTMLElement {
+				return h("div", { class: "c-usage-sub", style: "margin-top:8px" }, text);
+			}
+
+			async function submit(): Promise<void> {
+				const request = addServerRequest({
+					name: nameInput.value,
+					transport,
+					scope,
+					command: commandInput.value,
+					argsText: argsInput.value,
+					url: urlInput.value,
+				});
+				if ("error" in request) {
+					deps.pushToast(request.error, "error");
+					return;
+				}
+				const connection = deps.connection();
+				if (!connection) {
+					deps.pushToast("not connected — try again once the session is up", "error");
+					return;
+				}
+				try {
+					const data = await connection.request<{ path: string }>({ type: "mcp_config_add", ...request });
+					deps.pushToast(`added to ${data.path} — applies on next session start`, "info");
+					close();
+				} catch (error: unknown) {
+					deps.pushToast(`add failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+				}
+			}
+
+			return h(
+				"div",
+				{ class: "cp-add-server-form", style: "display:flex;flex-direction:column;gap:6px;min-width:300px" },
+				h("div", { class: "c-card-title" }, "Add MCP server"),
+				label("name"),
+				nameInput,
+				label("transport"),
+				transportSelect,
+				label("scope"),
+				h("div", { style: "display:flex;gap:8px" }, projectChip, globalChip),
+				stdioRows,
+				httpRows,
+				h(
+					"span",
+					{ class: "c-usage-sub" },
+					"Written to <cwd>/.pi/mcp.json (project) or the pi global config — applies on next session start.",
+				),
+				h(
+					"div",
+					{ style: "display:flex;gap:8px;justify-content:flex-end;margin-top:8px" },
+					h("button", { class: "c-btn", onclick: () => close() }, "Cancel"),
+					h("button", { class: "c-btn c-btn--primary", onclick: () => void submit() }, "Add server"),
+				),
+			);
+		});
 	}
 
 	function tileEl(tile: McpTileData): HTMLElement {
@@ -357,6 +517,16 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 			"div",
 			{ class: "c-page-header" },
 			h("span", { class: "c-page-title" }, "MCP"),
+			h(
+				"button",
+				{
+					class: "c-btn c-btn--primary",
+					title: "Add a new MCP server definition (project or global)",
+					onclick: (event) => openAddServerDialog(event.currentTarget as HTMLElement),
+				},
+				iconEl("plus"),
+				"Add server",
+			),
 			h(
 				"button",
 				{ class: "c-btn", title: "Reveal the project Pi MCP override config", onclick: revealConfig },

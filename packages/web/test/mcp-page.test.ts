@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { controlOutcome, mcpCard, mcpTiles, toolRows } from "../src/pages/mcp.ts";
+import { addServerRequest, controlOutcome, mcpCard, mcpTiles, toolRows } from "../src/pages/mcp.ts";
 import type { McpServerWidgetEntry } from "../src/render/widget-data.ts";
 
 const servers: McpServerWidgetEntry[] = [
@@ -177,4 +177,68 @@ test("toolRows: future tool-list data maps to read-only rows", () => {
 		{ name: "octo_list_issues", description: "list issues with filters", active: true },
 		{ name: "web_search", description: "search the web", active: false },
 	]);
+});
+
+// ---------------------------------------------------------------------------
+// addServerRequest (mcp_config_add form validation)
+// ---------------------------------------------------------------------------
+
+const baseForm = {
+	name: "my-tools",
+	transport: "stdio" as const,
+	scope: "project" as const,
+	command: "npx -y my-mcp-server",
+	argsText: "",
+	url: "",
+};
+
+test("addServerRequest: empty name errors", () => {
+	assert.deepEqual(addServerRequest({ ...baseForm, name: "   " }), { error: "server name is required" });
+});
+
+test("addServerRequest: stdio without command errors", () => {
+	assert.deepEqual(addServerRequest({ ...baseForm, command: "  " }), {
+		error: "command is required for stdio servers",
+	});
+});
+
+test("addServerRequest: http without url errors", () => {
+	assert.deepEqual(addServerRequest({ ...baseForm, transport: "http", url: " " }), {
+		error: "url is required for http servers",
+	});
+});
+
+test("addServerRequest: stdio happy path with comma-split args", () => {
+	const request = addServerRequest({
+		...baseForm,
+		argsText: " --scope repo ,  ,extra ,  spaced ",
+		scope: "global",
+	});
+	assert.deepEqual(request, {
+		scope: "global",
+		server: "my-tools",
+		definition: { command: "npx -y my-mcp-server", args: ["--scope repo", "extra", "spaced"] },
+	});
+});
+
+test("addServerRequest: stdio with no args omits the args key", () => {
+	assert.deepEqual(addServerRequest({ ...baseForm, argsText: " , , " }), {
+		scope: "project",
+		server: "my-tools",
+		definition: { command: "npx -y my-mcp-server" },
+	});
+});
+
+test("addServerRequest: http happy path, name trimmed, env/headers not sent", () => {
+	const request = addServerRequest({
+		...baseForm,
+		name: "  search \n",
+		transport: "http",
+		url: "  https://mcp.example.test/api ",
+	});
+	assert.deepEqual(request, {
+		scope: "project",
+		server: "search",
+		definition: { url: "https://mcp.example.test/api" },
+	});
 });
