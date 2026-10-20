@@ -4,6 +4,8 @@
  */
 
 import { ansiToHtml, stripAnsi } from "../ansi.ts";
+import { iconEl, pillEl } from "../components/kit.ts";
+import { toolStatusDescriptor } from "../components/tool-status.ts";
 import { renderEditDiff } from "../diff.ts";
 import { h } from "../dom.ts";
 import type { ToolCardState } from "../state.ts";
@@ -204,8 +206,21 @@ function renderResultOutput(card: ToolCardState): HTMLElement {
 	return container;
 }
 
+/** Options for {@link renderToolCard}. */
+export interface RenderToolCardOptions {
+	showImages: boolean;
+	/** Sends `{ type: "abort_bash" }` (session-scoped, no payload). Rendered only while a bash card runs; wired in app.ts. */
+	onStopBash?: () => void;
+}
+
+/** Map the descriptor tone onto a pillEl tone (pillEl has no "muted"). */
+function pillTone(tone: "ok" | "warn" | "danger" | "muted"): "ok" | "warn" | "danger" | "neutral" {
+	if (tone === "muted") return "neutral";
+	return tone;
+}
+
 /** Render a complete tool card. */
-export function renderToolCard(card: ToolCardState, _options: { showImages: boolean }): HTMLElement {
+export function renderToolCard(card: ToolCardState, options: RenderToolCardOptions): HTMLElement {
 	const element = h("div", { class: `tool-card${card.isError ? " is-error" : card.result ? " is-done" : ""}` });
 	element.dataset.toolCallId = card.toolCallId;
 
@@ -219,6 +234,7 @@ export function renderToolCard(card: ToolCardState, _options: { showImages: bool
 			headerChildren.push(h("span", { class: "tool-summary" }, segment.text));
 		}
 	}
+	headerChildren.push(...toolStatusHeaderParts(card, options, element));
 	headerChildren.push(h("span", { class: "tool-hint" }, card.expanded ? "▾" : "▸"));
 	const header = h("div", { class: "tool-header" }, ...headerChildren);
 	header.addEventListener("click", (event) => {
@@ -259,6 +275,54 @@ export function renderToolCard(card: ToolCardState, _options: { showImages: bool
 	}
 
 	return element;
+}
+
+/**
+ * Status pill (left: state, right side of header) + per-bash stop chip + a
+ * 1s DOM-only tick that keeps "running Ns" current between store renders.
+ * The tick self-cleans when the element detaches (renderToolCard elements are
+ * rebuilt each store render) and stops itself once the card stops running.
+ */
+function toolStatusHeaderParts(
+	card: ToolCardState,
+	options: RenderToolCardOptions,
+	element: HTMLElement,
+): HTMLElement[] {
+	const status = toolStatusDescriptor(card, Date.now());
+	const pill = pillEl(status.label, pillTone(status.tone));
+	if (status.running) {
+		const label = pill.lastChild;
+		if (label) {
+			const timer = setInterval(() => {
+				if (!document.contains(element)) {
+					clearInterval(timer);
+					return;
+				}
+				const next = toolStatusDescriptor(card, Date.now());
+				label.textContent = next.label;
+				if (!next.running) clearInterval(timer);
+			}, 1000);
+		}
+	}
+	const extra: HTMLElement[] = [pill];
+	if (status.canStop && options.onStopBash) {
+		extra.push(
+			h(
+				"button",
+				{
+					class: "c-tool-stop",
+					title: "Stop this bash process",
+					onclick: (event) => {
+						event.stopPropagation();
+						options.onStopBash?.();
+					},
+				},
+				iconEl("stop"),
+				"stop",
+			),
+		);
+	}
+	return extra;
 }
 
 /** Plain text extraction for copy features. */

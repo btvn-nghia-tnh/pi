@@ -24,6 +24,12 @@ export interface ToolCardState {
 	result?: unknown;
 	isError: boolean;
 	expanded: boolean;
+	/** True between tool_execution_start and end (or agent_settled). */
+	running?: boolean;
+	/** Wall-clock ms at tool_execution_start; undefined for rehydrated cards. */
+	startedAt?: number;
+	/** Wall-clock ms at tool_execution_end; undefined for rehydrated cards. */
+	endedAt?: number;
 }
 
 export interface RetryState {
@@ -340,6 +346,11 @@ export class Store {
 					if (state.sessionState) state.sessionState = { ...state.sessionState, isStreaming: false };
 					for (const item of state.items) {
 						if (item.streaming) item.streaming = false;
+						// Aborted turns may leave cards without an end event;
+						// the pill must not tick forever.
+						for (const card of item.toolCards.values()) {
+							if (card.running) card.running = false;
+						}
 					}
 					state.retry = undefined;
 				});
@@ -541,6 +552,8 @@ export class Store {
 					if (card) {
 						card.result = result;
 						card.isError = (result as { isError?: boolean }).isError === true;
+						card.running = false;
+						card.endedAt = Date.now();
 					}
 				}
 			}
@@ -561,6 +574,9 @@ export class Store {
 				result: undefined,
 				isError: false,
 				expanded: state.toolsExpanded,
+				running: true,
+				startedAt: Date.now(),
+				endedAt: undefined,
 			};
 			if (streaming) {
 				streaming.toolCards.set(toolCallId, card);
@@ -590,6 +606,8 @@ export class Store {
 				card.result = event.result;
 				card.isError = event.isError === true;
 				card.partialResult = undefined;
+				card.running = false;
+				card.endedAt = Date.now();
 				const usage = (event.result as { usage?: UsageInfo } | undefined)?.usage;
 				if (usage) {
 					state.footerUsage = addUsage(state.footerUsage, usage);

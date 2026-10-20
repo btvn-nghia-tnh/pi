@@ -21,6 +21,8 @@ export interface TranscriptOptions {
 	decorate?: (element: HTMLElement) => void;
 	/** Click handler for `.file-ref` elements (delegated on the transcript root). */
 	onOpenFile?: (path: string) => void;
+	/** Sends `{ type: "abort_bash" }` for running bash tool cards; wired in app.ts. */
+	onStopBash?: () => void;
 }
 
 export class TranscriptView {
@@ -187,7 +189,13 @@ export class TranscriptView {
 				}
 				for (const id of orderedIds) {
 					const card = item.toolCards.get(id);
-					if (card) container.appendChild(renderToolCard(card, { showImages: this.options.showImages }));
+					if (card)
+						container.appendChild(
+							renderToolCard(card, {
+								showImages: this.options.showImages,
+								onStopBash: this.options.onStopBash,
+							}),
+						);
 				}
 				break;
 			}

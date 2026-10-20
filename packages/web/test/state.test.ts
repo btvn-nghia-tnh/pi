@@ -130,6 +130,58 @@ test("tool events attach to tool cards", () => {
 	assert.equal(card!.isError, false);
 });
 
+test("tool cards track the running lifecycle with start/end timestamps", () => {
+	const store = new Store();
+	store.applyConnected({ type: "connected", version: "1", messages: [] });
+	store.applyAgentEvent({ type: "message_start", message: { role: "assistant", content: [], timestamp: 1 } });
+	store.applyAgentEvent({
+		type: "tool_execution_start",
+		toolCallId: "call_r",
+		toolName: "bash",
+		args: { command: "sleep 5" },
+	});
+
+	let state = store.getState();
+	let card = state.items[0]!.toolCards.get("call_r");
+	assert.ok(card);
+	assert.equal(card!.running, true);
+	assert.equal(typeof card!.startedAt, "number");
+	assert.ok(card!.startedAt! <= Date.now());
+	assert.equal(card!.endedAt, undefined);
+
+	store.applyAgentEvent({
+		type: "tool_execution_end",
+		toolCallId: "call_r",
+		result: { content: [{ type: "text", text: "" }] },
+		isError: false,
+	});
+	state = store.getState();
+	card = state.items[0]!.toolCards.get("call_r");
+	assert.equal(card!.running, false);
+	assert.equal(typeof card!.endedAt, "number");
+	assert.ok(card!.endedAt! >= card!.startedAt!);
+});
+
+test("agent_settled flips stale running tool cards to not running", () => {
+	const store = new Store();
+	store.applyConnected({ type: "connected", version: "1", messages: [] });
+	store.applyAgentEvent({ type: "message_start", message: { role: "assistant", content: [], timestamp: 1 } });
+	store.applyAgentEvent({
+		type: "tool_execution_start",
+		toolCallId: "call_z",
+		toolName: "bash",
+		args: { command: "forever" },
+	});
+
+	let card = store.getState().items[0]!.toolCards.get("call_z");
+	assert.ok(card);
+	assert.equal(card!.running, true);
+
+	store.applyAgentEvent({ type: "agent_settled" });
+	card = store.getState().items[0]!.toolCards.get("call_z");
+	assert.equal(card!.running, false);
+});
+
 test("queue_update sets the queue", () => {
 	const store = new Store();
 	store.applyAgentEvent({ type: "queue_update", steering: ["a"], followUp: ["b"] });

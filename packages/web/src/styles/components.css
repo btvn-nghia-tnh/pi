@@ -120,3 +120,11 @@ button .c-icon { width: 14px; height: 14px; }
 .c-editor-toolbar .c-editor-primary.is-stop { background: var(--c-danger); color: #1b0d0d; }
 .c-editor-toolbar .c-editor-primary:hover { filter: brightness(1.08); }
 .c-btn--green { border-color: var(--c-border); color: var(--c-text-2); }
+
+.c-tool-stop {
+	display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+	border: 1px solid var(--c-danger); background: var(--c-danger-dim); color: var(--c-danger);
+	border-radius: 7px; padding: 3px 9px; font: 700 10.5px var(--font-ui);
+}
+.c-tool-stop:hover { background: var(--c-danger); color: #1b0d0d; }
+.c-tool-stop .c-icon { width: 10px; height: 10px; }
