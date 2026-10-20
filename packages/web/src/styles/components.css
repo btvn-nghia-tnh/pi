@@ -1,0 +1,17 @@
+/* Reusable component styles (chips, pills, buttons, progress, sparkline). */
+.c-btn {
+	border: 1px solid var(--c-border);
+	background: transparent;
+	color: var(--c-text-2);
+	border-radius: 7px;
+	padding: 5px 12px;
+	font: 600 11.5px var(--font-ui);
+	cursor: pointer;
+	transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.c-btn:hover { background: var(--c-raised); color: var(--c-text); }
+.c-btn--primary { background: var(--c-accent); border-color: var(--c-accent); color: #08161a; }
+.c-btn--primary:hover { filter: brightness(1.08); }
+.c-btn--danger { background: var(--c-danger); border-color: var(--c-danger); color: #1b0d0d; }
+.c-btn--danger:hover { filter: brightness(1.08); }
+.c-btn--ghost { border-color: transparent; color: var(--c-dim); }

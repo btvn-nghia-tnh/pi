@@ -24,6 +24,9 @@ await build({
 });
 
 cpSync(join(srcDir, "styles", "main.css"), join(distDir, "pi-web.css"));
+for (const sheet of ["tokens.css", "components.css", "pages.css"]) {
+	cpSync(join(srcDir, "styles", sheet), join(distDir, sheet));
+}
 cpSync(join(packageDir, "index.html"), join(distDir, "index.html"));
 
 mkdirSync(vendorDir, { recursive: true });
