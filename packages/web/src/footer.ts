@@ -1,129 +1,14 @@
 /**
- * Footer, status rows, widgets, toasts, working indicator.
+ * Control-stack views: banners (retry/compaction/queue), docked widget areas,
+ * toasts. The legacy footer was retired (phase 1); live usage now renders in
+ * ChatPage's status bar (status-bar.ts).
  */
 
 import { chipEl } from "./components/kit.ts";
 import type { PiConnection } from "./connection.ts";
 import { h } from "./dom.ts";
-import { buildFooterStats, formatCwdForFooter } from "./footer-format.ts";
 import { renderWidget } from "./render/widget-data.ts";
 import type { Store } from "./state.ts";
-
-const DEFAULT_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-
-export class FooterView {
-	readonly element: HTMLElement;
-	private readonly store: Store;
-	private unsubscribe: (() => void) | undefined;
-	private spinnerFrame = 0;
-	private spinnerTimer: ReturnType<typeof setInterval> | undefined;
-
-	constructor(store: Store) {
-		this.store = store;
-		this.element = h(
-			"div",
-			{ class: "app-footer" },
-			h("div", { class: "footer-left" }),
-			h("div", { class: "footer-stats" }),
-			h("div", { class: "footer-right" }),
-		);
-	}
-
-	mount(): void {
-		this.unsubscribe = this.store.subscribe(() => this.render());
-		this.render();
-		this.spinnerTimer = setInterval(() => {
-			this.spinnerFrame++;
-			this.renderSpinner();
-		}, 120);
-	}
-
-	unmount(): void {
-		this.unsubscribe?.();
-		if (this.spinnerTimer) clearInterval(this.spinnerTimer);
-	}
-
-	private renderSpinner(): void {
-		const spinner = this.element.querySelector(".spinner");
-		if (spinner) {
-			const state = this.store.getState();
-			const frames = state.workingIndicator?.frames ?? DEFAULT_SPINNER_FRAMES;
-			if (frames.length > 0) {
-				spinner.textContent = frames[this.spinnerFrame % frames.length]!;
-			}
-		}
-	}
-
-	private render(): void {
-		const state = this.store.getState();
-		const sessionState = state.sessionState;
-		if (!sessionState) return;
-
-		const left = this.element.querySelector(".footer-left")!;
-		const stats = this.element.querySelector(".footer-stats")!;
-		const right = this.element.querySelector(".footer-right")!;
-
-		let leftText = formatCwdForFooter(state.contextInfo?.cwd ?? "", guessHome());
-		if (state.contextInfo?.gitBranch) {
-			leftText += ` (${state.contextInfo.gitBranch})`;
-		}
-		if (sessionState.sessionName) {
-			leftText += ` • ${sessionState.sessionName}`;
-		}
-		left.textContent = leftText;
-
-		const contextWindow = sessionState.model?.contextWindow ?? 0;
-		const contextUsage = state.contextUsage ?? {
-			tokens: null,
-			contextWindow,
-			percent: null,
-		};
-		const result = buildFooterStats({
-			totals: state.footerUsage,
-			latestCacheHitRate: computeHitRate(state.latestUsage),
-			contextUsage,
-			autoCompactionEnabled: sessionState.autoCompactionEnabled,
-			usingSubscription: state.contextInfo?.isUsingSubscription === true,
-		});
-
-		const statsParts: HTMLElement[] = [];
-		if (sessionState.isStreaming || sessionState.isCompacting) {
-			statsParts.push(h("span", { class: "spinner" }, DEFAULT_SPINNER_FRAMES[0]!));
-		}
-		if (state.compaction) {
-			statsParts.push(h("span", {}, "compacting…"));
-		}
-		statsParts.push(h("span", { class: `ctx-${result.contextClass}` }, result.statsLeft));
-		if (state.contextInfo?.experimental) {
-			statsParts.push(h("span", { class: "ctx-warning" }, "• xp"));
-		}
-		for (const [key, text] of state.extensionStatuses) {
-			statsParts.push(h("span", { class: "ext-status", title: key }, text));
-		}
-		while (stats.firstChild) stats.removeChild(stats.firstChild);
-		for (const part of statsParts) stats.appendChild(part);
-
-		const model = sessionState.model;
-		let rightText = model?.id ?? "no-model";
-		if (model?.reasoning) {
-			rightText += ` • ${sessionState.thinkingLevel}`;
-		}
-		right.textContent = rightText;
-	}
-}
-
-function guessHome(): string | undefined {
-	return undefined;
-}
-
-function computeHitRate(
-	usage: { input: number; cacheRead: number; cacheWrite: number } | undefined,
-): number | undefined {
-	if (!usage) return undefined;
-	const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite;
-	if (promptTokens <= 0) return undefined;
-	return (usage.cacheRead / promptTokens) * 100;
-}
 
 export class ToastsView {
 	readonly element: HTMLElement;

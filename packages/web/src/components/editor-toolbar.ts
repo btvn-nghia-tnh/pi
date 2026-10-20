@@ -6,6 +6,7 @@ import type { PiConnection } from "../connection.ts";
 import { clearElement, h } from "../dom.ts";
 import type { Store } from "../state.ts";
 import { chipEl, iconEl, openAnchoredMenu } from "./kit.ts";
+import { modelShortName } from "./session-panel.ts";
 
 export interface ModelInfo {
 	provider: string;
@@ -71,7 +72,7 @@ export class EditorToolbar {
 		const state = this.opts.store.getState();
 		const session = state.sessionState;
 		const model = session?.model;
-		const modelName = model ? model.name || (model.id.split("/").pop() ?? model.id) : "no-model";
+		const modelName = modelShortName(model);
 		const think = session?.thinkingLevel ?? "think";
 		const busy = Boolean(session?.isStreaming || state.compaction || state.retry);
 

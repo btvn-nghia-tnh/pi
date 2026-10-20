@@ -9,6 +9,7 @@ import { formatCwdForFooter } from "../footer-format.ts";
 import type { AppState, Store } from "../state.ts";
 import { cacheHitPct, contextLabel, totalsLine } from "../usage-text.ts";
 import { chipEl, type ProgressHandle, progressEl, toggleEl } from "./kit.ts";
+import { modelShortName } from "./session-panel.ts";
 
 /** Alias for the store state shape (Task 12 imports this name). */
 export type StoreState = AppState;
@@ -50,8 +51,7 @@ export function statusBarProjector(state: StoreState): StatusBarParts {
 		statuses: [],
 	};
 	if (sessionState?.model) {
-		const model = sessionState.model;
-		const shortId = model.name || (model.id.split("/").pop() ?? model.id);
+		const shortId = modelShortName(sessionState.model);
 		parts.modelText = sessionState.thinkingLevel ? `${shortId} · ${sessionState.thinkingLevel}` : shortId;
 	}
 	const hit = state.latestUsage ? cacheHitPct(state.latestUsage) : null;

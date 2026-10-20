@@ -21,7 +21,7 @@ export interface SanitizedStatus {
 
 export function sanitizeStatusText(input: string): SanitizedStatus {
 	// stripAnsi removes CSI/OSC sequences; also drop C0 control chars (BEL, etc.)
-	const text = stripAnsi(input ?? "")
+	const text = stripAnsi(input)
 		.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "")
 		.trim();
 	let tone: StatusTone = "neutral";

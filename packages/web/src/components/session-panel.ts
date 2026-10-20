@@ -41,8 +41,8 @@ export function panelCards(state: StoreState): PanelCard[] {
 	return cards;
 }
 
-/** R11: model display convention shared with the status bar. */
-function modelShortName(model: { id: string; name?: string } | undefined): string {
+/** R11: model display convention shared with the status bar and editor toolbar. */
+export function modelShortName(model: { id: string; name?: string } | undefined): string {
 	if (!model) return "no-model";
 	return model.name || (model.id.split("/").pop() ?? model.id);
 }

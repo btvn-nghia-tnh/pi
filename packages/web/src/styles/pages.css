@@ -287,6 +287,9 @@
 .chat-console .tool-card {
 	background: var(--c-surface);
 	border: 1px solid var(--c-border);
+	/* 3px state rail (is-error/is-done colors from the legacy theme);
+	   the shorthand above would flatten it to 1px (T14 review F1). */
+	border-left-width: 3px;
 	border-radius: 10px;
 	margin: 8px 0 12px;
 }
