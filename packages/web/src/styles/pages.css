@@ -1,1 +1,75 @@
 /* Page-level layout: rail, page headers, chat workbench columns. Populated by later tasks. */
+
+/* Session panel (right column cards) — spec §3.2.6 */
+.c-right-panel {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+.c-card {
+	background: var(--c-surface);
+	border: 1px solid var(--c-border);
+	border-radius: var(--radius-card);
+	padding: 12px 14px;
+	margin-bottom: 12px;
+	min-width: 0;
+}
+.c-card-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font: 650 12px var(--font-ui);
+	color: var(--c-dim);
+	letter-spacing: 0.6px;
+	margin-bottom: 10px;
+	text-transform: none;
+}
+.c-card-title.c-card-link {
+	background: none;
+	border: 0;
+	padding: 0;
+	cursor: pointer;
+	justify-content: space-between;
+	width: 100%;
+	text-align: left;
+}
+.c-card-title.c-card-link:hover { color: var(--c-text-2); }
+.c-card-title-arrow { color: var(--c-faint); }
+.c-card-title.c-card-link:hover .c-card-title-arrow { color: var(--c-accent); }
+
+.c-kv-rows { display: flex; flex-direction: column; }
+.c-kv-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 5px 0;
+	border-bottom: 1px solid var(--c-hairline);
+	font: 400 11.5px var(--font-ui);
+	color: var(--c-dim);
+	min-width: 0;
+}
+.c-kv-row:last-child { border-bottom: 0; }
+.c-kv-key { white-space: nowrap; }
+.c-kv-val {
+	color: var(--c-text-2);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	display: inline-flex;
+	align-items: center;
+}
+.c-kv-val.mono { font-family: var(--font-mono); font-size: 11px; }
+
+/* Structured widget cards embedded as own slots (todo/mcp/etc. render self-styled). */
+.c-widget-slot { margin-bottom: 12px; }
+.c-widget-slot > * { min-width: 0; }
+
+/* Usage — today */
+.c-usage-hero { font: 700 20px var(--font-mono); color: var(--c-text); margin-bottom: 2px; }
+.c-usage-sub { font: 400 10.5px var(--font-mono); color: var(--c-dim); margin-bottom: 10px; }
+.c-usage-ctx { margin-bottom: 4px; }
+.c-usage-ctx-label { font: 400 10px var(--font-mono); color: var(--c-faint); }
+
+/* Extension statuses */
+.c-ext-chips { display: flex; flex-wrap: wrap; gap: 6px; }
