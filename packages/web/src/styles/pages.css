@@ -129,7 +129,7 @@
 	height: 15px;
 	border-radius: 8px;
 	background: var(--c-ok);
-	color: #06130a;
+	color: var(--c-ok-text);
 	font: 700 9px var(--font-ui);
 	display: none;
 	place-items: center;
@@ -518,7 +518,7 @@
 		height: 14px;
 		border-radius: 7px;
 		background: var(--c-ok);
-		color: #06130a;
+		color: var(--c-ok-text);
 		font: 700 9px var(--font-ui);
 		display: none;
 		place-items: center;

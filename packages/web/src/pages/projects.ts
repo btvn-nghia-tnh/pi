@@ -33,6 +33,8 @@ export interface ProjectsPageDeps {
 	openPreview(path: string): void;
 	onRowAction(action: SessionAction, session: RpcSessionSummary): void;
 	onBatchAction(action: SessionAction, sessions: Array<RpcSessionSummary>): void;
+	/** Per-file session costs (get_usage_summary); optional so degraded viewports can pass none. */
+	usageByFile?(): Promise<Map<string, number>>;
 }
 
 export interface ProjectsPageOpts {
@@ -94,7 +96,7 @@ export function projectGroups(
 export interface SessionTableRow {
 	name: string;
 	messages: string;
-	/** "—" until integration passes real per-session usage costs. */
+	/** Formatted cost from the usage map; "—" when usage is unavailable. */
 	cost: string;
 	modifiedText: string;
 }
@@ -150,6 +152,8 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 	let searchQuery = "";
 	const selection = new Set<string>();
 	let groups: Array<ProjectGroup> = [];
+	/** File → cost map from get_usage_summary; undefined while unknown. */
+	let usageMap: Map<string, number> | undefined;
 
 	// ---- static chrome ------------------------------------------------
 	const leftColumn = h("div", {
@@ -332,6 +336,16 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 		void renderContextFiles(group.cwd);
 	}
 
+	/** Spent tile: sum usage costs for the group's files; "—" while usage unknown. */
+	function spentFor(group: ProjectGroup): string {
+		if (!usageMap) return "—";
+		let total = 0;
+		for (const session of group.sessions) {
+			total += usageMap.get(session.file) ?? 0;
+		}
+		return formatCost(total);
+	}
+
 	function renderProjectHeader(group: ProjectGroup): void {
 		rightColumn.append(
 			h(
@@ -346,14 +360,14 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 				{ style: "display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:14px;margin-bottom:14px" },
 				tile("Sessions", String(group.sessions.length)),
 				tile("Messages", String(group.totalMessages)),
-				tile("Spent", "—"),
+				tile("Spent", spentFor(group)),
 				tile("Last activity", relativeTime(group.lastModified, Date.now(), { maxDays: 14 })),
 			),
 		);
 	}
 
 	function renderTable(group: ProjectGroup): void {
-		const rows = sessionTableRows(group.sessions, Date.now());
+		const rows = sessionTableRows(group.sessions, Date.now(), usageMap);
 		const sessionsSorted = [...group.sessions].sort((a, b) => (a.modified < b.modified ? 1 : -1));
 		const cardBody = h("div", { style: "padding:12px 14px" });
 		rightColumn.append(
@@ -442,9 +456,21 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 			);
 			const actions: Array<SessionAction> = ["rename", "fork", "export", "share", "delete"];
 			for (const action of actions) {
-				bar.appendChild(
-					actionButton(action, `Apply ${action} to selection`, () => deps.onBatchAction(action, selectedSessions)),
+				// Rename is one-session-per-call in the protocol; grey it out on
+				// multi-select instead of silently renaming only the first row.
+				const disabled = action === "rename" && selectedSessions.length > 1;
+				const button = actionButton(
+					action,
+					disabled ? "Rename works on a single session — select one row" : `Apply ${action} to selection`,
+					() => deps.onBatchAction(action, selectedSessions),
 				);
+				const asButton = button as HTMLButtonElement;
+				if (disabled) {
+					asButton.disabled = true;
+					asButton.style.opacity = "0.45";
+					asButton.style.cursor = "not-allowed";
+				}
+				bar.appendChild(button);
 			}
 			cardBody.appendChild(bar);
 		}
@@ -508,6 +534,11 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 	async function fetchAndRender(): Promise<void> {
 		const token = ++fetchToken;
 		let sessions: Array<RpcSessionSummary> = [];
+		// Cost map loads alongside sessions; a usage failure degrades to "—" costs.
+		const usagePromise = deps.usageByFile?.().then(
+			(map) => map,
+			() => undefined,
+		);
 		try {
 			sessions = await deps.fetchSessions();
 		} catch {
@@ -523,6 +554,8 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 			);
 			return;
 		}
+		if (token !== fetchToken) return;
+		usageMap = usagePromise !== undefined ? await usagePromise : undefined;
 		if (token !== fetchToken) return;
 		groups = projectGroups(sessions, deps.openSessions());
 		renderProjectList();

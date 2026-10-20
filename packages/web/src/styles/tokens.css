@@ -15,6 +15,8 @@
 	--c-accent-dim: rgba(45, 212, 191, 0.12);
 	--c-ok: #3fb950;
 	--c-ok-dim: rgba(63, 185, 80, 0.14);
+	/** Text on --c-ok surfaces (badges). */
+	--c-ok-text: #06130a;
 	--c-warn: #d29922;
 	--c-warn-dim: rgba(210, 153, 34, 0.12);
 	--c-danger: #f85149;

@@ -81,6 +81,11 @@ export interface UsageSummary {
 // Fetch wrapper
 // ---------------------------------------------------------------------------
 
+/** Per-file costs keyed by the session file path (projects COST column + Spent tile). */
+export function usageCostByFile(s: UsageSummary): Map<string, number> {
+	return new Map(s.sessions.map((row) => [row.file, row.cost] as const));
+}
+
 /** Request a usage summary. rangeDays: 0 = all time, otherwise 1/7/30. */
 export function fetchUsageSummary(connection: PiConnection, rangeDays: number): Promise<UsageSummary> {
 	return connection.request<UsageSummary>({ type: "get_usage_summary", rangeDays });

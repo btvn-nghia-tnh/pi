@@ -55,7 +55,7 @@ import type {
 	SessionReplacedMessage,
 	StatPathsData,
 } from "./types.ts";
-import { fetchUsageSummary } from "./usage-client.ts";
+import { fetchUsageSummary, usageCostByFile } from "./usage-client.ts";
 
 /** Browser-tab favicon for idle (matches index.html) and running states. */
 const FAVICON_IDLE =
@@ -282,6 +282,11 @@ export class App {
 		const pushToast = (message: string, level: "info" | "warning" | "error"): void => {
 			this.store.pushNotification(message, level);
 		};
+		/** Per-file session costs for the projects page (all-time summary). */
+		const usageByFile = (): Promise<Map<string, number>> => {
+			if (!this.connection) return Promise.reject(new Error("not connected"));
+			return fetchUsageSummary(this.connection, 0).then((summary) => usageCostByFile(summary));
+		};
 		const fetchSummary = (
 			rangeDays: number,
 		): Promise<ReturnType<typeof fetchUsageSummary> extends Promise<infer T> ? T : never> => {
@@ -358,6 +363,7 @@ export class App {
 					action: "rename" | "fork" | "export" | "share" | "delete",
 					sessions: Array<RpcSessionSummary>,
 				) => this.onSessionAction(action, sessions),
+				usageByFile,
 			},
 			mcp: {
 				connection: () => this.connection,
@@ -494,6 +500,12 @@ export class App {
 		if (sessions.length === 0 || !this.connection) return;
 		const connection = this.connection;
 		if (action === "rename") {
+			// Protocol renames one session per call; batch rename would silently
+			// apply to sessions[0] only — refuse multi and keep the row action.
+			if (sessions.length > 1) {
+				this.store.pushNotification("Rename one session at a time — select a single row.", "warning");
+				return;
+			}
 			const name = window.prompt("Rename session", sessions[0].name ?? sessions[0].file);
 			if (!name) return;
 			void connection

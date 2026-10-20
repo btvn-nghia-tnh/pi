@@ -387,7 +387,24 @@ export function createSettingsPage(deps: SettingsPageDeps, opts: SettingsPageOpt
 	const sectionAppearance = (): void => {
 		const token = ++renderToken;
 		const themesCard = cardHost("Theme");
-		content.replaceChildren(themesCard.card);
+		const densityCard = cardHost("Density");
+		content.replaceChildren(themesCard.card, densityCard.card);
+		// Density (R21b): local-only preference; the app side persists
+		// ("pi-web-density") and toggles the .density-compact shell class.
+		const compact = window.localStorage.getItem("pi-web-density") === "1";
+		densityCard.body.appendChild(
+			rowLine(
+				"Compact density",
+				toggleEl(compact, (next) => deps.setDensity(next)),
+			),
+		);
+		densityCard.body.appendChild(
+			h(
+				"p",
+				{ class: "settings-hint" },
+				"Tightens cards, the rail and the editor dock. Applies immediately and persists per browser.",
+			),
+		);
 		void request<{ themes: RpcThemeInfo[]; current: string }>({ type: "get_themes" })?.then((data) => {
 			if (token !== renderToken) return;
 			clearElement(themesCard.body);

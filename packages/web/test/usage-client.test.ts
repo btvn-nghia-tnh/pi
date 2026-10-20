@@ -6,6 +6,7 @@ import {
 	sessionRows,
 	stackedBarSeries,
 	type UsageSummary,
+	usageCostByFile,
 	usageStatCards,
 } from "../src/usage-client.ts";
 
@@ -208,4 +209,17 @@ test("fetchUsageSummary requests the summary range over the connection", async (
 	// rangeDays 0 = all-time must serialize too; assert the emitted command shape.
 	await fetchUsageSummary(stub as never as Parameters<typeof fetchUsageSummary>[0], 0);
 	assert.deepEqual(received, { type: "get_usage_summary", rangeDays: 0 });
+});
+
+test("usageCostByFile maps session files to their cost", () => {
+	const map = usageCostByFile(summary);
+	assert.equal(map.size, 2);
+	assert.equal(map.get("a.jsonl"), 0.0475);
+	assert.equal(map.get("b.jsonl"), 14.18);
+	assert.equal(map.get("missing"), undefined);
+});
+
+test("usageCostByFile on an empty summary yields an empty map", () => {
+	const map = usageCostByFile(emptySummary);
+	assert.equal(map.size, 0);
 });

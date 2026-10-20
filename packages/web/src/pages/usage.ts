@@ -2,11 +2,8 @@
  * Usage dashboard page (spec §3.5, mockup 05-usage.svg): range chips +
  * model/project client-side selects, 4 stat cards, per-day stacked bar chart,
  * model breakdown with progress bars, sessions table. Data comes from the
- * `get_usage_summary` command via usage-client projections. This module is a
- * PARALLEL-LANE deliverable: it owns only its own files; app.ts registration
- * and stub swaps happen in the integration task. Styles are scoped under
- * `.cp-usage` (embedded style element) so the integrator can lift them into
- * pages.css wholesale.
+ * `get_usage_summary` command via usage-client projections. Styles live in
+ * pages.css under the `.cp-usage` prefix.
  */
 
 import { chipEl, iconEl, progressEl } from "../components/kit.ts";
