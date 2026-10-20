@@ -12,14 +12,10 @@ import {
 	applyThemeVars,
 	DialogStack,
 	openAuthEventDialog,
-	openChangelog,
 	openExtensionUiDialog,
-	openHotkeys,
-	openModelSelector,
 	openSessionInfo,
 	openSessionSelector,
 	openSettingsDialog,
-	openThinkingSelector,
 	openTrustDialog,
 } from "./dialogs.ts";
 import { h } from "./dom.ts";
@@ -30,12 +26,17 @@ import { appendPromptHistory, loadPromptHistory, savePromptHistory } from "./his
 import { registerGlobalKeyboard, type ShortcutAction } from "./keyboard.ts";
 import { renderMarkdown, sanitizeMarkdownHtml } from "./markdown.ts";
 import { type ChatHosts, createChatPage } from "./pages/chat.ts";
-import { createStubPage } from "./pages/stubs.ts";
+import { createHomePage } from "./pages/home.ts";
+import { createMcpPage } from "./pages/mcp.ts";
+import { createProjectsPage, type ProjectContextFiles } from "./pages/projects.ts";
+import { createSettingsPage } from "./pages/settings.ts";
+import { createUsagePage } from "./pages/usage.ts";
 import { PreviewStore } from "./preview-store.ts";
 import { decorateCodeBlockCopies } from "./render/messages.ts";
 import { PreviewView } from "./render/preview.ts";
 import { SidebarView } from "./render/sidebar.ts";
 import { TranscriptView } from "./render/transcript.ts";
+import type { McpWidgetData } from "./render/widget-data.ts";
 import { WidgetOverlayView } from "./render/widget-overlay.ts";
 import { type PageId, type Route, Router } from "./router.ts";
 import { AppShell, type ShellPage } from "./shell.ts";
@@ -46,6 +47,7 @@ import type {
 	ConnectedSession,
 	ExtensionUiRequestMessage,
 	ReadFileData,
+	RpcSessionSummary,
 	RpcTrustState,
 	ServerMessage,
 	SessionClosedMessage,
@@ -53,6 +55,7 @@ import type {
 	SessionReplacedMessage,
 	StatPathsData,
 } from "./types.ts";
+import { fetchUsageSummary } from "./usage-client.ts";
 
 /** Browser-tab favicon for idle (matches index.html) and running states. */
 const FAVICON_IDLE =
@@ -98,9 +101,15 @@ export class App {
 	/** Console shell (rail + page host) and its hash router. */
 	private shell: AppShell | undefined;
 	private router: Router | undefined;
-	/** Registered pages; non-chat routes resolve to stub pages until the next slice. */
+	/** Registered pages; built lazily per route (chat registers at boot). */
 	private readonly pages = new Map<PageId, ShellPage>();
 	private mountedPage: ShellPage | undefined;
+	/** Settings deep-link state: rebuild the page when the section hash changes. */
+	private lastSettingsSection: string | undefined;
+	/** Live widget-data feed subscribers (MCP page et al.), keyed to nothing. */
+	private readonly widgetSubscribers = new Set<(data: McpWidgetData | undefined) => void>();
+	/** Home hero prompt waiting for the session it created (sent once active). */
+	private pendingPrompt: string | undefined;
 	/** Chat workbench hosts — rebuilt session views bind into these. */
 	private chatHosts: ChatHosts | undefined;
 	/** Active session's editor toolbar (model-picker anchor for Ctrl+K). */
@@ -236,8 +245,337 @@ export class App {
 		this.wireConnection();
 	}
 
-	/** Resolve a hash route to its page; chat is registered at boot, others hit stubs. */
+	// ------------------------------------------------------------------
+	// Page deps (integration wiring for the five console pages)
+	// ------------------------------------------------------------------
+
+	/**
+	 * Deps shared by the five console pages (spec §3.3–3.8). Pages stay dumb:
+	 * every behavioral decision lives here, in the app, next to the sessions
+	 * and the connection it owns.
+	 */
+	private buildPageDeps() {
+		const navigate = (page: "chat" | "home" | "projects" | "mcp" | "usage" | "settings"): void => {
+			this.router?.navigate(
+				page === "chat" && this.activeSessionId !== undefined
+					? { page: "chat", sessionId: this.activeSessionId }
+					: { page },
+			);
+		};
+		const fetchSessions = (): Promise<RpcSessionSummary[]> =>
+			(
+				this.connection?.request<{ sessions: RpcSessionSummary[] }>({ type: "list_sessions", scope: "all" }) ??
+				Promise.reject(new Error("not connected"))
+			).then((data) => data.sessions ?? []);
+		const openSessions = (): Array<{ id: string; cwd: string; running: boolean }> => {
+			const rows: Array<{ id: string; cwd: string; running: boolean }> = [];
+			for (const [id, store] of this.sessionStores) {
+				rows.push({
+					id,
+					cwd: store.getState().contextInfo?.cwd ?? "",
+					running: store.isTurnRunning() || (store.getState().sessionState?.isStreaming ?? false),
+				});
+			}
+			return rows;
+		};
+		const pushToast = (message: string, level: "info" | "warning" | "error"): void => {
+			this.store.pushNotification(message, level);
+		};
+		const fetchSummary = (
+			rangeDays: number,
+		): Promise<ReturnType<typeof fetchUsageSummary> extends Promise<infer T> ? T : never> => {
+			if (!this.connection) return Promise.reject(new Error("not connected"));
+			return fetchUsageSummary(this.connection, rangeDays);
+		};
+		const projectCwd = (): string | undefined => {
+			const primaryId = this.connectedBase.primarySessionId;
+			const primaryStore = primaryId !== undefined ? this.sessionStores.get(primaryId) : undefined;
+			return (primaryStore ?? this.store).getState().contextInfo?.cwd;
+		};
+		const openPreview = (path: string): void => {
+			void this.openPreview(path, this.activeSessionId);
+		};
+		const openSession = (fileOrId: string): void => {
+			// Already-open slot ids activate directly; anything else is a disk file.
+			if (this.sessionStores.has(fileOrId)) {
+				this.setActiveSession(fileOrId);
+				navigate("chat");
+				return;
+			}
+			const connection = this.connection;
+			if (!connection) return;
+			void connection
+				.request<{ sessionId?: string }>({ type: "open_session", sessionPath: fileOrId })
+				.then((data) => {
+					if (typeof data?.sessionId === "string") {
+						this.pendingFocus = data.sessionId;
+						navigate("chat");
+					}
+				})
+				.catch((error: Error) => pushToast(`Could not open session: ${error.message}`, "error"));
+		};
+		const newSession = (cwd: string | undefined): void => {
+			const connection = this.connection;
+			if (!connection) return;
+			void connection
+				.request<{ sessionId?: string }>({ type: "new_session", cwd })
+				.then((data) => {
+					if (typeof data?.sessionId === "string") this.pendingFocus = data.sessionId;
+					navigate("chat");
+				})
+				.catch((error: Error) => pushToast(`Could not start session: ${error.message}`, "error"));
+		};
+		return {
+			home: {
+				connection: () => this.connection,
+				fetchSessions,
+				fetchSummary,
+				subscribeWidget: (cb: (data: McpWidgetData | undefined) => void) => this.subscribeWidget(cb),
+				openSessions,
+				currentVersion: () => this.store.getState().contextInfo?.version ?? this.store.getState().version,
+				primaryCwd: projectCwd,
+				onOpenSession: openSession,
+				onNewSession: newSession,
+				onNavigate: navigate,
+				runPrompt: (text: string) => this.runPrompt(text),
+				modelPickerAnchor: () => this.modelPickerAnchor(),
+				onOpenModels: (anchor: HTMLElement) => this.activeToolbar?.openModelPicker(anchor),
+			},
+			projects: {
+				connection: () => this.connection,
+				onNavigate: navigate,
+				fetchSessions,
+				openSessions,
+				projectContext: (cwd: string) => this.projectContext(cwd),
+				onOpenSession: openSession,
+				onNewSession: newSession,
+				openPreview,
+				/** Session-table actions (rename/fork/export/share/delete). */
+				onRowAction: (action: "rename" | "fork" | "export" | "share" | "delete", session: RpcSessionSummary) =>
+					this.onSessionAction(action, [session]),
+				onBatchAction: (
+					action: "rename" | "fork" | "export" | "share" | "delete",
+					sessions: Array<RpcSessionSummary>,
+				) => this.onSessionAction(action, sessions),
+			},
+			mcp: {
+				connection: () => this.connection,
+				subscribeWidget: (cb: (data: McpWidgetData | undefined) => void) => this.subscribeWidget(cb),
+				projectCwd,
+				onNavigate: navigate,
+				openPreview,
+				pushToast,
+			},
+			usage: {
+				connection: () => this.connection,
+				fetchSummary,
+				openSession,
+				onNavigate: navigate,
+			},
+			settings: {
+				connection: () => this.connection,
+				activeStore: () => (this.sessionStores.size > 0 ? this.store : undefined),
+				onNavigate: navigate,
+				pushToast,
+			},
+		};
+	}
+
+	/** Widget feed for MCP/Home: replay + active-store updates, switch-aware. */
+	private subscribeWidget(cb: (data: McpWidgetData | undefined) => void): () => void {
+		this.widgetSubscribers.add(cb);
+		cb(this.readMcpWidget());
+		return () => this.widgetSubscribers.delete(cb);
+	}
+
+	private readMcpWidget(): McpWidgetData | undefined {
+		const widget = this.store.getState().widgets.get("pi-mcp-status");
+		const data = widget?.data;
+		if (data === null || typeof data !== "object" || !("kind" in data)) return undefined;
+		return data as Record<string, unknown> as unknown as McpWidgetData;
+	}
+
+	private emitWidgetData(): void {
+		const data = this.readMcpWidget();
+		for (const cb of this.widgetSubscribers) cb(data);
+	}
+
+	/** Wire a store's widget changes into the subscriber set (active only). */
+	private bindStoreWidgetFeed(store: Store): void {
+		store.subscribe(() => {
+			if (store === this.store) this.emitWidgetData();
+		});
+	}
+
+	/** Context files for a project cwd. v1: only the ACTIVE session's cwd is queryable
+	 *  because get_context_info is routed to the active slot. Other projects get their
+	 *  hint state. Documented in integration-report. */
+	private async projectContext(cwd: string): Promise<ProjectContextFiles | undefined> {
+		const connection = this.connection;
+		if (!connection) return undefined;
+		if ((this.store.getState().contextInfo?.cwd ?? "") !== cwd) return undefined;
+		try {
+			const data = await connection.request<{
+				contextFiles: Array<{ path: string; source: string }>;
+			}>({ type: "get_context_info" });
+			return { contextFiles: data.contextFiles ?? [] };
+		} catch {
+			return undefined;
+		}
+	}
+
+	/** Toolbar anchor for /model-range lookups (Home chip + keyboard shortcut). */
+	private modelPickerAnchor(): HTMLElement | undefined {
+		const toolbar = this.activeToolbar;
+		if (!toolbar) return undefined;
+		const first = toolbar.element.firstElementChild;
+		return first instanceof HTMLElement ? first : undefined;
+	}
+
+	/** Home hero: ensure a session, then send through the normal prompt pipeline. */
+	private runPrompt(text: string): void {
+		if (!this.connection) {
+			this.store.pushNotification("Not connected yet", "warning");
+			return;
+		}
+		if (this.sessionStores.size === 0) {
+			// No slot yet: create one, hold the prompt until it is active.
+			this.pendingPrompt = text;
+			void this.connection
+				.request<{ sessionId?: string }>({ type: "new_session" })
+				.then((data) => {
+					if (typeof data?.sessionId === "string") this.pendingFocus = data.sessionId;
+				})
+				.catch(() => {
+					this.pendingPrompt = undefined;
+					this.store.pushNotification("Could not start a session", "error");
+				});
+			this.router?.navigate({ page: "chat" });
+			return;
+		}
+		if (this.activeSessionId === undefined) {
+			const first = [...this.sessionStores.keys()][0];
+			if (first !== undefined) this.setActiveSession(first);
+		}
+		this.router?.navigate({ page: "chat", sessionId: this.activeSessionId });
+		this.handlePromptText(text);
+	}
+
+	/** Send a pending hero prompt once its target session became active. */
+	private maybeFlushPendingPrompt(): void {
+		if (this.pendingPrompt !== undefined && this.activeSessionId !== undefined) {
+			const text = this.pendingPrompt;
+			this.pendingPrompt = undefined;
+			this.handlePromptText(text);
+		}
+	}
+
+	/** Session-table actions with confirms where they matter (spec §3.3). Commands
+	 *  that act on a slot (export/share/fork) carry an explicit sessionId tag so
+	 *  they target the right session even when it is not the active one; file-path
+	 *  commands (rename/delete) need no slot. */
+	private onSessionAction(
+		action: "rename" | "fork" | "export" | "share" | "delete",
+		sessions: Array<RpcSessionSummary>,
+	): void {
+		if (sessions.length === 0 || !this.connection) return;
+		const connection = this.connection;
+		if (action === "rename") {
+			const name = window.prompt("Rename session", sessions[0].name ?? sessions[0].file);
+			if (!name) return;
+			void connection
+				.request({ type: "rename_session", sessionPath: sessions[0].file, name })
+				.then(() => this.refreshSessionsList())
+				.catch((error: Error) => this.store.pushNotification(error.message, "error"));
+			return;
+		}
+		if (action === "delete") {
+			const label =
+				sessions.length === 1 ? `“${sessions[0].name ?? sessions[0].file}”` : `${sessions.length} sessions`;
+			if (!window.confirm(`Delete ${label}? This moves them to trash.`)) return;
+			for (const session of sessions) {
+				void connection
+					.request({ type: "delete_session", sessionPath: session.file })
+					.then(() => this.refreshSessionsList())
+					.catch(() => {});
+			}
+			return;
+		}
+		for (const session of sessions) {
+			if (action === "fork") {
+				// Fork edits history on a live slot: open the session first, then
+				// open the fork picker against the newly-opened slot.
+				void connection
+					.request<{ sessionId?: string }>({ type: "open_session", sessionPath: session.file })
+					.then((data) => {
+						if (typeof data?.sessionId === "string") {
+							this.pendingFocus = data.sessionId;
+							this.router?.navigate({ page: "chat", sessionId: data.sessionId });
+							this.openForkPicker(data.sessionId);
+						}
+					})
+					.catch(() => {});
+			} else if (action === "export") {
+				const openId = this.sessionIdForFile(session.file);
+				if (openId) {
+					void connection
+						.request<{ path: string }>({
+							type: "export_session",
+							path: `${session.file}.html`,
+							sessionId: openId,
+						})
+						.then((data) => this.store.pushNotification(`Exported to: ${data.path}`, "info"))
+						.catch((error: Error) => this.store.pushNotification(error.message, "error"));
+				} else {
+					// Not open: export needs a live slot — open it; the user re-runs export.
+					this.store.pushNotification(
+						`“${session.name ?? session.file}” must be open to export — opening it`,
+						"warning",
+					);
+					void connection
+						.request<{ sessionId?: string }>({ type: "open_session", sessionPath: session.file })
+						.then((data) => {
+							if (typeof data?.sessionId === "string") this.pendingFocus = data.sessionId;
+						})
+						.catch(() => {});
+				}
+			} else {
+				const openId = this.sessionIdForFile(session.file);
+				if (!openId) {
+					this.store.pushNotification("Session must be open to share — opening it", "warning");
+					void connection
+						.request<{ sessionId?: string }>({ type: "open_session", sessionPath: session.file })
+						.then((data) => {
+							if (typeof data?.sessionId === "string") this.pendingFocus = data.sessionId;
+						})
+						.catch(() => {});
+					continue;
+				}
+				void connection
+					.request<{ url?: string; gistUrl?: string }>({ type: "share_session", sessionId: openId })
+					.then((data) => this.store.pushNotification(`Share URL: ${data.url ?? data.gistUrl ?? ""}`, "info"))
+					.catch((error: Error) => this.store.pushNotification(error.message, "error"));
+			}
+		}
+	}
+
+	/** Slot id for a session file, when that session is open. */
+	private sessionIdForFile(file: string): string | undefined {
+		for (const [id, store] of this.sessionStores) {
+			const sessionFile = store.getState().sessionState?.sessionFile;
+			if (sessionFile === file) return id;
+		}
+		return undefined;
+	}
+
+	/** Resolve a hash route to its page; unknown routes fall back to home. */
 	private onRoute(route: Route): void {
+		// Settings section deep links rebuild the page (its sections are baked
+		// into the instance; a new hash ⇒ fresh instance with that section).
+		if (route.page === "settings" && this.lastSettingsSection !== route.section) {
+			this.lastSettingsSection = route.section;
+			this.pages.delete("settings");
+		}
 		const page = this.ensurePage(route.page);
 		this.shell?.setActive(route.page);
 		if (this.mountedPage !== page) {
@@ -250,14 +588,43 @@ export class App {
 		}
 	}
 
-	/** Stub pages replace the interim placeholders for the five next-slice pages. */
+	/** Build (and cache) the page for a route. Real pages for everything now. */
 	private ensurePage(page: PageId): ShellPage {
 		const existing = this.pages.get(page);
 		if (existing) return existing;
-		const stub = createStubPage(page);
-		if (!stub) throw new Error(`No page registered for route: ${page}`);
-		this.pages.set(page, stub);
-		return stub;
+		const deps = this.buildPageDeps();
+		let created: ShellPage | undefined;
+		switch (page) {
+			case "home":
+				created = createHomePage(deps.home);
+				break;
+			case "projects":
+				created = createProjectsPage(deps.projects, {
+					activePath: () => this.router?.current().pathArg,
+				});
+				break;
+			case "mcp":
+				created = createMcpPage(deps.mcp);
+				break;
+			case "usage":
+				created = createUsagePage(deps.usage);
+				break;
+			case "settings":
+				created = createSettingsPage(deps.settings, {
+					initialSection: this.router?.current().section,
+					onSectionChange: (section) => this.router?.navigate({ page: "settings", section }, true),
+				});
+				break;
+			case "chat":
+				// Registered at boot with its session-bound hosts.
+				break;
+		}
+		if (!created) throw new Error(`No page registered for route: ${page}`);
+		this.pages.set(page, created);
+		if (page === "settings" && this.lastSettingsSection === undefined) {
+			this.lastSettingsSection = this.router?.current().section ?? "general";
+		}
+		return created;
 	}
 
 	/** Session to focus once its pane exists (open/new in flight). */
@@ -677,6 +1044,11 @@ export class App {
 
 		switch (name) {
 			case "settings":
+				this.router?.navigate({ page: "settings" });
+				return true;
+			case "advanced":
+				// Legacy settings grid (transport, hideThinkingBlock, …) until every
+				// key gets a settings-page section (integration report tracks it).
 				openSettingsDialog(this.dialogs, connection, store);
 				return true;
 			case "model":
@@ -694,9 +1066,7 @@ export class App {
 						return true;
 					}
 				}
-				openModelSelector(this.dialogs, connection, this.store, {
-					onSaveDefault: () => this.saveModelDefault(),
-				});
+				this.openModelPicker();
 				return true;
 			case "thinking":
 				if (args) {
@@ -710,9 +1080,7 @@ export class App {
 						});
 					return true;
 				}
-				openThinkingSelector(this.dialogs, connection, this.store, {
-					onSaveDefault: () => this.saveThinkingDefault(),
-				});
+				this.activeToolbar?.revealThinkingPicker();
 				return true;
 			case "scoped-models":
 				store.pushNotification("Use /settings → Scoped models to edit the model cycle set", "info");
@@ -795,10 +1163,10 @@ export class App {
 				openSessionInfo(this.dialogs, connection);
 				return true;
 			case "changelog":
-				openChangelog(this.dialogs, connection);
+				this.router?.navigate({ page: "settings", section: "about" });
 				return true;
 			case "hotkeys":
-				openHotkeys(this.dialogs, this.store.getState().keybindings);
+				this.router?.navigate({ page: "settings", section: "keybindings" });
 				return true;
 			case "fork":
 				this.openForkPicker();
@@ -874,43 +1242,15 @@ export class App {
 		}
 	}
 
-	private saveModelDefault(): void {
-		const model = this.store.getState().sessionState?.model;
-		if (model && this.connection) {
-			void this.connection
-				.request({
-					type: "set_settings",
-					scope: "global",
-					values: { defaultProvider: model.provider, defaultModel: model.id },
-				})
-				.then(() => {
-					this.store.pushNotification(`Saved default model: ${model.id}`, "info");
-				})
-				.catch((error: Error) => {
-					this.store.pushNotification(error.message, "error");
-				});
-		}
-	}
-
-	private saveThinkingDefault(): void {
-		const level = this.store.getState().sessionState?.thinkingLevel;
-		if (level && this.connection) {
-			void this.connection
-				.request({ type: "set_settings", scope: "global", values: { defaultThinkingLevel: level } })
-				.then(() => {
-					this.store.pushNotification(`Saved default thinking level: ${level}`, "info");
-				})
-				.catch((error: Error) => {
-					this.store.pushNotification(error.message, "error");
-				});
-		}
-	}
-
-	private openForkPicker(): void {
+	private openForkPicker(slotId?: string): void {
 		const connection = this.connection;
 		if (!connection) return;
+		const tag = slotId !== undefined ? { sessionId: slotId } : {};
 		void connection
-			.request<{ messages: Array<{ entryId: string; text: string }> }>({ type: "get_fork_messages" })
+			.request<{ messages: Array<{ entryId: string; text: string }> }>({
+				type: "get_fork_messages",
+				...tag,
+			})
 			.then((data) => {
 				this.dialogs.open((close) => {
 					const list = h("div", {});
@@ -921,7 +1261,7 @@ export class App {
 							h("span", { class: "item-label" }, message.text.slice(0, 80)),
 						);
 						row.addEventListener("click", () => {
-							void connection.request({ type: "fork", entryId: message.entryId }).then(() => {
+							void connection.request({ type: "fork", entryId: message.entryId, ...tag }).then(() => {
 								void this.syncAfterSessionSwitch();
 								close();
 							});
@@ -1247,9 +1587,6 @@ export class App {
 		if (active !== undefined) {
 			this.setActiveSession(active);
 		}
-		if (active !== undefined) {
-			this.setActiveSession(active);
-		}
 		this.refreshSessionsList();
 	}
 
@@ -1280,6 +1617,7 @@ export class App {
 		// the next turn event arrives.
 		if (session.running) store.setTurnRunning(true);
 		this.sessionStores.set(id, store);
+		this.bindStoreWidgetFeed(store);
 		this.sidebar?.addSession(id, {
 			sessionPath: session.sessionPath,
 			cwd: session.cwd,
@@ -1297,6 +1635,8 @@ export class App {
 		for (const request of session.pendingUiRequests ?? []) {
 			this.handleExtensionUiRequest(request);
 		}
+		// A home-hero prompt waiting for its freshly-created session.
+		this.maybeFlushPendingPrompt();
 	}
 
 	/** The last connected payload's global section (themes/keybindings). */
@@ -1347,6 +1687,7 @@ export class App {
 		this.sidebar?.setActive(id);
 		// Keep the deep link in sync (replace: session clicks are not history).
 		this.router?.navigate({ page: "chat", sessionId: id }, true);
+		this.emitWidgetData();
 	}
 
 	/** Sessions with a turn (or continuation) in flight; feeds badge + title. */
@@ -1598,9 +1939,7 @@ export class App {
 						void connection.request({ type: "cycle_model" }).then(() => this.refreshState());
 						return true;
 					case "app.model.select":
-						openModelSelector(this.dialogs, connection, this.store, {
-							onSaveDefault: () => this.saveModelDefault(),
-						});
+						this.openModelPicker();
 						return true;
 					case "app.tools.expand": {
 						const next = !this.store.getState().toolsExpanded;

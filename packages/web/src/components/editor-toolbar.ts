@@ -52,6 +52,8 @@ export class EditorToolbar {
 	readonly element: HTMLElement;
 	private readonly opts: EditorToolbarOpts;
 	private unsubscribe: (() => void) | undefined;
+	/** Latest rendered thinking chip — anchor for /thinking and status-bar popovers. */
+	private thinkChipEl: HTMLElement | undefined;
 
 	constructor(opts: EditorToolbarOpts) {
 		this.opts = opts;
@@ -86,6 +88,7 @@ export class EditorToolbar {
 			onClick: () => this.openThinkingPicker(thinkChip),
 			title: "Switch thinking level",
 		});
+		this.thinkChipEl = thinkChip;
 		this.element.append(modelChip, thinkChip);
 		if (busy && this.opts.onQueuePrompt) {
 			this.element.append(
@@ -161,6 +164,11 @@ export class EditorToolbar {
 				});
 			})
 			.catch(() => {});
+	}
+
+	/** R8/R15: /thinking no-args opens the picker anchored at the toolbar's thinking chip. */
+	revealThinkingPicker(): void {
+		if (this.thinkChipEl) this.openThinkingPicker(this.thinkChipEl);
 	}
 
 	private openThinkingPicker(anchor: HTMLElement): void {
