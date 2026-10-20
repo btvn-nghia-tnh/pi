@@ -17,6 +17,16 @@ import type { SourceInfo } from "../../core/source-info.ts";
 // RPC Commands (stdin)
 // ============================================================================
 
+/** User-suppliable subset of the adapter MCP server definition (mcp_config_add). */
+export interface RpcMcpAddServerDefinition {
+	command?: string;
+	args?: Array<string>;
+	env?: Record<string, string>;
+	url?: string;
+	headers?: Record<string, string>;
+	disabled?: boolean;
+}
+
 export type RpcCommand =
 	// Prompting
 	| { id?: string; type: "prompt"; message: string; images?: ImageContent[]; streamingBehavior?: "steer" | "followUp" }
@@ -61,6 +71,13 @@ export type RpcCommand =
 
 	// MCP
 	| { id?: string; type: "mcp_config_write"; server: string; enabled: boolean }
+	| {
+			id?: string;
+			type: "mcp_config_add";
+			scope: "project" | "global";
+			server: string;
+			definition: RpcMcpAddServerDefinition;
+	  }
 	| { id?: string; type: "export_html"; outputPath?: string }
 	| { id?: string; type: "switch_session"; sessionPath: string }
 	| { id?: string; type: "fork"; entryId: string }
@@ -277,6 +294,7 @@ export type RpcResponse =
 			success: true;
 			data: { path: string; changed: boolean };
 	  }
+	| { id?: string; type: "response"; command: "mcp_config_add"; success: true; data: { path: string } }
 	| { id?: string; type: "response"; command: "export_html"; success: true; data: { path: string } }
 	| { id?: string; type: "response"; command: "switch_session"; success: true; data: { cancelled: boolean } }
 	| { id?: string; type: "response"; command: "fork"; success: true; data: { text: string; cancelled: boolean } }

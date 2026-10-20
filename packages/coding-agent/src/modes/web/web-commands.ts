@@ -39,6 +39,7 @@ import type {
 	RpcSlashCommand,
 	RpcTrustState,
 } from "../rpc/rpc-types.ts";
+import { addMcpServer, McpConfigAddError } from "./mcp-config-add.ts";
 import { McpConfigWriteError, writeMcpServerEnabled } from "./mcp-config-write.ts";
 import { OfficeParseError, parseDocx, parseXlsx, type SpreadsheetLimits } from "./office-parsers.ts";
 import { getUsageSummary } from "./usage-summary.ts";
@@ -661,6 +662,26 @@ export function createWebCommandHandler(): WebCommandHandler {
 					const message =
 						error instanceof McpConfigWriteError || error instanceof Error ? error.message : String(error);
 					return rpcError(id, "mcp_config_write", message);
+				}
+			}
+
+			case "mcp_config_add": {
+				const cwd = session.sessionManager.getCwd();
+				try {
+					const result = await addMcpServer(command.scope, command.server, command.definition, {
+						cwd,
+					});
+					return {
+						id,
+						type: "response",
+						command: "mcp_config_add",
+						success: true,
+						data: result,
+					};
+				} catch (error) {
+					const message =
+						error instanceof McpConfigAddError || error instanceof Error ? error.message : String(error);
+					return rpcError(id, "mcp_config_add", message);
 				}
 			}
 

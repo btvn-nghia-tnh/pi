@@ -34,7 +34,7 @@ import { dirname, join } from "node:path";
 import { getAgentDir } from "../../config.ts";
 
 /** File name of both the project-standard config and the pi override layer. */
-const PROJECT_CONFIG_FILE = "mcp.json";
+export const PROJECT_CONFIG_FILE = "mcp.json";
 /** Project-standard MCP config (discovered by hosts and the adapter). */
 const PROJECT_STANDARD_NAME = ".mcp.json";
 
@@ -109,7 +109,7 @@ function readOverrideLayer(piLayerPath: string): Record<string, unknown> {
 }
 
 /** Atomic 2-space JSON write (tmp + rename), mirrors the adapter writer. */
-function writeRawConfigObject(path: string, raw: Record<string, unknown>): void {
+export function writeRawConfigObject(path: string, raw: Record<string, unknown>): void {
 	mkdirSync(dirname(path), { recursive: true });
 	const tmpPath = `${path}.${process.pid}.tmp`;
 	writeFileSync(tmpPath, `${JSON.stringify(raw, null, 2)}\n`, "utf-8");
