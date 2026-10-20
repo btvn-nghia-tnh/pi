@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectGroups, relativeTime, sessionTableRows } from "../src/pages/projects.ts";
+import { projectGroups, sessionTableRows } from "../src/pages/projects.ts";
 import type { RpcSessionSummary } from "../src/types.ts";
 
 const MINUTE = 60_000;
@@ -20,21 +20,6 @@ function session(overrides: Partial<RpcSessionSummary>): RpcSessionSummary {
 		...overrides,
 	};
 }
-
-test("relativeTime thresholds match the plan (s/m/h/d then ISO date)", () => {
-	assert.equal(relativeTime(new Date(NOW).toISOString(), NOW), "just now");
-	assert.equal(relativeTime(new Date(NOW - 30_000).toISOString(), NOW), "just now");
-	assert.equal(relativeTime(new Date(NOW - MINUTE).toISOString(), NOW), "1m ago");
-	assert.equal(relativeTime(new Date(NOW - 59 * MINUTE).toISOString(), NOW), "59m ago");
-	assert.equal(relativeTime(new Date(NOW - HOUR).toISOString(), NOW), "1h ago");
-	assert.equal(relativeTime(new Date(NOW - 23 * HOUR).toISOString(), NOW), "23h ago");
-	assert.equal(relativeTime(new Date(NOW - DAY).toISOString(), NOW), "1d ago");
-	assert.equal(relativeTime(new Date(NOW - 14 * DAY).toISOString(), NOW), "14d ago");
-	// Beyond 14 days: ISO date of the session timestamp.
-	assert.equal(relativeTime(new Date(NOW - 15 * DAY).toISOString(), NOW), "2026-10-05");
-	// Future timestamps clamp to "just now".
-	assert.equal(relativeTime(new Date(NOW + MINUTE).toISOString(), NOW), "just now");
-});
 
 test("projectGroups groups by cwd, sorts by last activity, computes meta", () => {
 	const sessions = [

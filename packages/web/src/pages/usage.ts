@@ -131,37 +131,6 @@ export interface UsagePageDeps {
 	onNavigate(page: "chat" | "home" | "projects" | "mcp" | "settings"): void;
 }
 
-const PAGE_STYLE = `
-.cp-usage-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
-.cp-usage-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.cp-usage-sep { flex: 1; }
-.cp-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-.cp-stat-value { font: 650 18px var(--font-mono); color: var(--c-text); margin: 8px 0 2px; }
-.cp-stat-sub { font: 400 10.5px var(--font-mono); color: var(--c-faint); }
-.cp-usage-grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; min-width: 0; }
-.cp-legend { display: flex; gap: 14px; font: 400 10.5px var(--font-ui); color: var(--c-dim); margin-bottom: 10px; }
-.cp-legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; margin-right: 6px; vertical-align: -1px; }
-.cp-chart-svg { width: 100%; height: auto; display: block; }
-.cp-chart-wrap { width: 100%; overflow-x: auto; }
-.cp-model-row { margin: 0 0 14px; font-size: 11.5px; }
-.cp-model-head { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
-.cp-model-name { color: var(--c-text-2); font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cp-model-meta { color: var(--c-faint); font-family: var(--font-mono); font-size: 10.5px; white-space: nowrap; }
-.cp-select { background: var(--c-bg); border: 1px solid var(--c-border); color: var(--c-text-2); border-radius: 7px; font: 500 11.5px var(--font-ui); padding: 5px 8px; max-width: 220px; }
-.cp-table { width: 100%; border-collapse: collapse; font: 400 12px var(--font-ui); }
-.cp-table th { text-align: left; font: 600 10px var(--font-ui); letter-spacing: 0.8px; color: var(--c-faint); padding: 6px 10px; border-bottom: 1px solid var(--c-hairline); }
-.cp-table td { padding: 7px 10px; border-bottom: 1px solid var(--c-hairline); color: var(--c-text-2); }
-.cp-table tbody tr:hover td { background: var(--c-raised); cursor: pointer; }
-.cp-table .mono { font-family: var(--font-mono); font-size: 11px; }
-.cp-secondary { color: var(--c-faint); }
-.cp-muted { color: var(--c-dim); padding: 6px 0; font-size: 12px; }
-.cp-totals { font: 400 11px var(--font-mono); color: var(--c-dim); padding: 10px 10px 0; }
-@media (max-width: 1279px) {
-	.cp-stat-grid { grid-template-columns: repeat(2, 1fr); }
-	.cp-usage-grid2 { grid-template-columns: 1fr; }
-}
-`;
-
 function cellName(row: { name: string; id: string; file: string }): string {
 	if (row.name) return row.name;
 	return row.file.split(/[\\/]/).pop() ?? row.id;
@@ -182,13 +151,10 @@ export function createUsagePage(deps: UsagePageDeps): ShellPage {
 	let generation = 0;
 
 	const bodyHost = h("div", { class: "cp-usage-body" });
-	const style = h("style", {});
-	style.textContent = PAGE_STYLE;
 
 	const element = h(
 		"div",
 		{ class: "c-page cp-usage" },
-		style,
 		h(
 			"div",
 			{ class: "c-page-header" },

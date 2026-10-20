@@ -132,6 +132,7 @@ export class StatusBarView {
 	}
 
 	mount(): void {
+		if (this.unsubscribe) return; // idempotent across double-mount cycles
 		this.unsubscribe = this.store.subscribe(() => this.render());
 		this.render();
 	}

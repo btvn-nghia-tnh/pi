@@ -25,11 +25,22 @@ type ChipOpts = {
 
 export function chipEl(label: string, opts: ChipOpts = {}): HTMLElement {
 	const tone = opts.tone ?? "neutral";
+	const interactive = opts.onClick !== undefined;
 	const el = h("span", {
 		class: `c-chip c-chip--${tone}${opts.mono ? " c-chip--mono" : ""}`,
 		title: opts.title,
 		onclick: opts.onClick,
+		...(interactive ? { role: "button", tabindex: "0" } : {}),
 	});
+	// Interactive chips are keyboard-reachable: Enter/Space activate them.
+	if (interactive) {
+		el.addEventListener("keydown", (event) => {
+			if (event.key === "Enter" || event.key === " ") {
+				event.preventDefault();
+				el.click();
+			}
+		});
+	}
 	el.textContent = label;
 	if (opts.icon) el.prepend(iconEl(opts.icon));
 	return el;
@@ -57,13 +68,13 @@ export interface ProgressHandle {
 }
 
 export function progressEl(pct: number, width = 220): ProgressHandle {
-	const bar = h("span", { class: "c-bar-track" }, h("span", { class: "c-bar-fill" }));
+	const fill = h("span", { class: "c-bar-fill" });
+	const bar = h("span", { class: "c-bar-track" }, fill);
 	const root = h("span", { class: `c-progress tone-${progressTone(pct)}`, style: `width:${width}px` }, bar);
 	const update = (next: number): void => {
 		const clamped = Math.max(0, Math.min(100, next));
 		root.className = `c-progress tone-${progressTone(clamped)}`;
-		const fill = root.querySelector<HTMLElement>(".c-bar-fill");
-		if (fill) fill.style.width = `${clamped}%`;
+		fill.style.width = `${clamped}%`;
 	};
 	update(pct);
 	return { el: root, update };
@@ -272,6 +283,8 @@ export function openAnchoredMenu(anchor: HTMLElement, build: (close: () => void)
 	const close = (): void => {
 		host.remove();
 		document.removeEventListener("pointerdown", onDown, true);
+		// Return focus to the invoker so Esc/keyboard flows don't strand it.
+		anchor.focus();
 	};
 	const onDown = (event: Event): void => {
 		if (!host.contains(event.target as Node)) close();
@@ -286,4 +299,5 @@ export function openAnchoredMenu(anchor: HTMLElement, build: (close: () => void)
 	host.addEventListener("keydown", (event) => {
 		if (event.key === "Escape") close();
 	});
+	host.focus();
 }

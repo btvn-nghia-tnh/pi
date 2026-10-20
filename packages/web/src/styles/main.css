@@ -523,13 +523,6 @@ body {
 /* Editor dock                                                          */
 /* ------------------------------------------------------------------ */
 
-.editor-dock {
-	flex: none;
-	border-top: 1px solid var(--color-border-muted);
-	padding: 8px 12px 0;
-	background: var(--color-page-bg);
-}
-
 .editor-inner {
 	max-width: 900px;
 	margin: 0 auto;
@@ -670,57 +663,13 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
-/* Footer                                                               */
-/* ------------------------------------------------------------------ */
-
-.app-footer {
-	flex: none;
-	display: flex;
-	justify-content: space-between;
-	gap: 12px;
-	padding: 4px 12px;
-	border-top: 1px solid var(--color-border-muted);
-	font-family: var(--mono-font);
-	font-size: 12px;
-	color: var(--color-muted);
-	overflow: hidden;
-	white-space: nowrap;
-}
-
-.app-footer .footer-left {
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.app-footer .footer-stats {
-	flex: 1;
-	text-align: center;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.app-footer .footer-stats .ctx-warning {
-	color: var(--color-warning);
-}
-
-.app-footer .footer-stats .ctx-error {
-	color: var(--color-error);
-}
-
-.app-footer .footer-right {
-	color: var(--color-text);
-}
-
-/* ------------------------------------------------------------------ */
 /* Status rows, toasts, dialogs                                         */
 /* ------------------------------------------------------------------ */
 
 /*
- * Task 14 cleanup: .status-row / .status-row .spinner / .retry-row button
- * deleted — StatusRowsView renders .c-banner rows (Task 10) and the retired
- * FooterView is the only .spinner emitter left (no longer mounted by app).
- * The .status-rows container class is still emitted (footer.ts) but had no
- * rule of its own here.
+ * Console redesign note: .status-row / .spinner / .retry-row rules are gone
+ * — StatusRowsView/QueueView render .c-banner rows (components/pages css).
+ * The .status-rows container class is still emitted by footer.ts.
  */
 
 .toasts {
@@ -1448,22 +1397,10 @@ body {
 /* Multi-session sidebar                                               */
 /* ------------------------------------------------------------------ */
 
-/* Shell: [sidebar | main column] row; the footer spans the full width. */
-.app-shell {
-	display: flex;
-	flex: 1 1 auto;
-	min-height: 0;
-}
-
+/* Console shell note: layout now lives in pages.css (.c-shell et al.);
+ * this section keeps only .sidebar-* styles used by SidebarView. */
 /* Main column: transcript grows, editor dock sits under it (the original
  * single-session stacking, preserved inside the shell). */
-.app-main {
-	display: flex;
-	flex-direction: column;
-	flex: 1 1 auto;
-	min-width: 0;
-}
-
 .sidebar {
 	flex: 0 0 220px;
 	display: flex;

@@ -4,6 +4,7 @@
  * component and fall back to the setWidget string lines otherwise.
  */
 
+import { ansiToHtml } from "../ansi.ts";
 import { h } from "../dom.ts";
 import type { Store } from "../state.ts";
 
@@ -183,7 +184,12 @@ export function renderWidget(
 	if (widget.data && widget.data.kind === "pi-mcp-status") {
 		return renderMcpStatusCard(widget.data as unknown as McpWidgetData);
 	}
-	return h("div", { class: "widget-panel" }, widget.lines.join("\n"));
+	// Lines widgets are TUI heritage and may carry SGR sequences: render via
+	// ansiToHtml (escapes text, spans carry token classes — spec §4.2); data
+	// fields never pass through here.
+	const panel = h("div", { class: "widget-panel" });
+	panel.innerHTML = ansiToHtml(widget.lines.join("\n"));
+	return panel;
 }
 
 /** Re-exported for WidgetAreaView: render widgets from the store. */

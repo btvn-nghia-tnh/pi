@@ -8,7 +8,7 @@ import { chipEl, iconEl, pillEl } from "../components/kit.ts";
 import { clearElement, h } from "../dom.ts";
 import type { ShellPage } from "../shell.ts";
 import type { RpcSessionSummary } from "../types.ts";
-import { formatCost } from "../usage-text.ts";
+import { formatCost, relativeTime } from "../usage-text.ts";
 
 export type SessionAction = "rename" | "fork" | "export" | "share" | "delete";
 
@@ -91,18 +91,6 @@ export function projectGroups(
 	return groups;
 }
 
-/** Human relative time: just now → Nm → Nh → Nd (≤14d) → ISO date. */
-export function relativeTime(iso: string, now: number): string {
-	const timestamp = Date.parse(iso);
-	if (Number.isNaN(timestamp)) return iso;
-	const elapsed = now - timestamp;
-	if (elapsed < 60_000) return "just now";
-	if (elapsed < 60 * 60_000) return `${Math.floor(elapsed / 60_000)}m ago`;
-	if (elapsed < 24 * 60 * 60_000) return `${Math.floor(elapsed / (60 * 60_000))}h ago`;
-	if (elapsed <= 14 * 24 * 60 * 60_000) return `${Math.floor(elapsed / (24 * 60 * 60_000))}d ago`;
-	return iso.slice(0, 10);
-}
-
 export interface SessionTableRow {
 	name: string;
 	messages: string;
@@ -131,7 +119,7 @@ export function sessionTableRows(
 			name: sessionName(session),
 			messages: String(session.messageCount),
 			cost: cost === undefined ? "—" : formatCost(cost),
-			modifiedText: relativeTime(session.modified, now),
+			modifiedText: relativeTime(session.modified, now, { maxDays: 14 }),
 		};
 	});
 }
@@ -317,7 +305,7 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 					h(
 						"div",
 						{ style: "font:400 10px var(--font-ui);color:var(--c-dim)" },
-						`${group.sessions.length} · ${relativeTime(group.lastModified, Date.now())}`,
+						`${group.sessions.length} · ${relativeTime(group.lastModified, Date.now(), { maxDays: 14 })}`,
 					),
 				),
 			);
@@ -359,7 +347,7 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 				tile("Sessions", String(group.sessions.length)),
 				tile("Messages", String(group.totalMessages)),
 				tile("Spent", "—"),
-				tile("Last activity", relativeTime(group.lastModified, Date.now())),
+				tile("Last activity", relativeTime(group.lastModified, Date.now(), { maxDays: 14 })),
 			),
 		);
 	}

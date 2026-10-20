@@ -35,6 +35,26 @@ export function cacheHitPct(usage: { input: number; cacheRead: number; cacheWrit
 	return Math.round((usage.cacheRead / prompt) * 100);
 }
 
+export interface RelativeTimeOpts {
+	/** Cap in days: older stamps render as the ISO date (projects' table). */
+	maxDays?: number;
+	/** Render for unparseable stamps. Defaults to the raw string. */
+	invalidText?: string;
+}
+
+/** Coarse relative time: just now → Nm → Nh → Nd (capped or unbounded). */
+export function relativeTime(iso: string, now: number, opts: RelativeTimeOpts = {}): string {
+	const then = Date.parse(iso);
+	if (Number.isNaN(then)) return opts.invalidText ?? iso;
+	const elapsed = Math.max(0, now - then);
+	if (elapsed < 60_000) return "just now";
+	if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`;
+	if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
+	const days = elapsed / 86_400_000;
+	if (opts.maxDays !== undefined && days > opts.maxDays) return iso.slice(0, 10);
+	return `${Math.floor(days)}d ago`;
+}
+
 export function totalsLine(totals: { input: number; output: number; cost: number }, hitPct: number | null): string {
 	const hit = hitPct === null ? "" : ` · R ${hitPct}%`;
 	return `${formatCost(totals.cost)} · ↑${formatTokens(totals.input)} ↓${formatTokens(totals.output)}${hit}`;

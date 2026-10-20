@@ -14,7 +14,7 @@ import type { McpWidgetData } from "../render/widget-data.ts";
 import type { ShellPage } from "../shell.ts";
 import type { RpcSessionSummary } from "../types.ts";
 import { type UsageSummary, usageStatCards } from "../usage-client.ts";
-import { formatCost, totalsLine } from "../usage-text.ts";
+import { formatCost, relativeTime, totalsLine } from "../usage-text.ts";
 
 /** Sessions come from `list_sessions` summaries; app mirrors the rpc shape. */
 export type SessionRow = RpcSessionSummary;
@@ -121,17 +121,6 @@ export function sparklineSeries(costs: number[]): number[] {
 	for (const cost of costs) max = Math.max(max, cost);
 	const normalized = max > 0 ? costs.map((cost) => cost / max) : costs.map(() => 0);
 	return normalized.length === 1 ? [0, normalized[0]!] : normalized;
-}
-
-/** Coarse relative time ("just now" / "30m ago" / "10h ago" / "4d ago"). */
-export function relativeTime(iso: string, now: number): string {
-	const then = Date.parse(iso);
-	if (Number.isNaN(then)) return "—";
-	const deltaSeconds = Math.max(0, Math.floor((now - then) / 1000));
-	if (deltaSeconds < 60) return "just now";
-	if (deltaSeconds < 3600) return `${Math.floor(deltaSeconds / 60)}m ago`;
-	if (deltaSeconds < 86_400) return `${Math.floor(deltaSeconds / 3600)}h ago`;
-	return `${Math.floor(deltaSeconds / 86_400)}d ago`;
 }
 
 // ---------------------------------------------------------------------------
@@ -383,7 +372,7 @@ export class HomePage implements ShellPage {
 			this.projectsHost.appendChild(h("p", { class: "home-dim" }, "No projects yet"));
 		}
 		for (const group of groups) {
-			const meta = `${group.count} sessions · last ${relativeTime(group.lastModified, Date.now())}`;
+			const meta = `${group.count} sessions · last ${relativeTime(group.lastModified, Date.now(), { invalidText: "—" })}`;
 			const runningChip = group.running > 0 ? pillEl(`${group.running} running`, "accent") : undefined;
 			const row = h(
 				"div",
@@ -415,7 +404,7 @@ export class HomePage implements ShellPage {
 				...(pill ? [pill] : []),
 				h("span", { class: "home-row-main" }, row.displayName),
 				h("span", { class: "home-row-meta mono" }, row.path),
-				h("span", { class: "home-row-meta" }, relativeTime(row.modified, Date.now())),
+				h("span", { class: "home-row-meta" }, relativeTime(row.modified, Date.now(), { invalidText: "—" })),
 			);
 			this.sessionsHost.appendChild(rowEl);
 		}

@@ -75,6 +75,7 @@ export class SessionPanel {
 	}
 
 	mount(): void {
+		if (this.unsubscribe) return; // idempotent across double-mount cycles
 		this.unsubscribe = this.opts.store.subscribe(() => this.render());
 		this.render();
 	}

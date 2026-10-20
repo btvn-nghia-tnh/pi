@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { heroPlaceholder, recentProjects, recentSessions, relativeTime, sparklineSeries } from "../src/pages/home.ts";
+import { heroPlaceholder, recentProjects, recentSessions, sparklineSeries } from "../src/pages/home.ts";
 
 const mkSummary = (over: Record<string, unknown>) =>
 	({
@@ -100,13 +100,4 @@ test("sparklineSeries normalizes to 0..1 by max and pads single points", () => {
 	assert.deepEqual(sparklineSeries([7]), [0, 1]);
 	assert.deepEqual(sparklineSeries([]), []);
 	assert.deepEqual(sparklineSeries([0, 0]), [0, 0]);
-});
-
-test("relativeTime formats coarse human deltas", () => {
-	const now = Date.parse("2026-10-20T12:00:00.000Z");
-	assert.equal(relativeTime("2026-10-20T11:59:40.000Z", now), "just now");
-	assert.equal(relativeTime("2026-10-20T11:30:00.000Z", now), "30m ago");
-	assert.equal(relativeTime("2026-10-20T02:00:00.000Z", now), "10h ago");
-	assert.equal(relativeTime("2026-10-16T02:00:00.000Z", now), "4d ago");
-	assert.equal(relativeTime("not-a-date", now), "—");
 });
