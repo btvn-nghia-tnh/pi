@@ -100,6 +100,8 @@ export type ClientCommand =
 				disabled?: boolean;
 			};
 	  })
+	| (RpcCommandBase & { type: "mcp_config_list"; cwds: string[] })
+	| (RpcCommandBase & { type: "subagent_status" })
 	| (RpcCommandBase & { type: "export_html"; outputPath?: string })
 	| (RpcCommandBase & { type: "switch_session"; sessionPath: string })
 	| (RpcCommandBase & { type: "fork"; entryId: string })

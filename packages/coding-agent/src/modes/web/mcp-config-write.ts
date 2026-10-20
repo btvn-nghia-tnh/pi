@@ -71,7 +71,7 @@ function resolvedPaths(options: McpConfigWriteOptions) {
 }
 
 /** Parse a config file tolerantly; `null` when absent or unreadable. */
-function readRawConfig(path: string): Record<string, unknown> | null {
+export function readRawConfig(path: string): Record<string, unknown> | null {
 	if (!existsSync(path)) return null;
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf-8")) as unknown;
@@ -83,7 +83,7 @@ function readRawConfig(path: string): Record<string, unknown> | null {
 }
 
 /** The servers map of a config; tolerates both key spellings. */
-function serversOf(raw: Record<string, unknown>): Record<string, unknown> {
+export function serversOf(raw: Record<string, unknown>): Record<string, unknown> {
 	const servers = raw.mcpServers ?? raw["mcp-servers"];
 	if (!servers || typeof servers !== "object" || Array.isArray(servers)) return {};
 	return servers as Record<string, unknown>;

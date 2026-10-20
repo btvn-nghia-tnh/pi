@@ -71,6 +71,8 @@ export type RpcCommand =
 
 	// MCP
 	| { id?: string; type: "mcp_config_write"; server: string; enabled: boolean }
+	| { id?: string; type: "mcp_config_list"; cwds: string[] }
+	| { id?: string; type: "subagent_status" }
 	| {
 			id?: string;
 			type: "mcp_config_add";
@@ -295,6 +297,8 @@ export type RpcResponse =
 			data: { path: string; changed: boolean };
 	  }
 	| { id?: string; type: "response"; command: "mcp_config_add"; success: true; data: { path: string } }
+	| { id?: string; type: "response"; command: "mcp_config_list"; success: true; data: RpcMcpConfigListResult }
+	| { id?: string; type: "response"; command: "subagent_status"; success: true; data: RpcSubagentStatusResult }
 	| { id?: string; type: "response"; command: "export_html"; success: true; data: { path: string } }
 	| { id?: string; type: "response"; command: "switch_session"; success: true; data: { cancelled: boolean } }
 	| { id?: string; type: "response"; command: "fork"; success: true; data: { text: string; cancelled: boolean } }
@@ -609,6 +613,43 @@ export interface RpcUsageSummary {
 	perModel: RpcUsageModelRow[];
 	/** Descending by modified. */
 	sessions: RpcUsageSessionRow[];
+}
+
+/** One configured MCP server read from a config file (mcp_config_list). */
+export interface RpcMcpConfigListEntry {
+	scope: "project" | "global";
+	cwd?: string;
+	path: string;
+	name: string;
+	definition: Record<string, unknown>;
+}
+
+/** Result of mcp_config_list. */
+export interface RpcMcpConfigListResult {
+	entries: RpcMcpConfigListEntry[];
+}
+
+/** One pi-subagents run discovered on disk (subagent_status). */
+export interface RpcSubagentStatusRun {
+	id: string;
+	dir: string;
+	state: string;
+	agent?: string;
+	task?: string;
+	model?: string;
+	startedAt?: number;
+	updatedAt?: number;
+	activity?: string;
+	lines?: number;
+	turnCount?: number;
+	toolCount?: number;
+	steps?: number;
+}
+
+/** Result of subagent_status. */
+export interface RpcSubagentStatusResult {
+	roots: string[];
+	runs: RpcSubagentStatusRun[];
 }
 
 /** Startup context for the web GUI header. */
