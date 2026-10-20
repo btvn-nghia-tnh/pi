@@ -98,7 +98,8 @@ export function createChatPage(deps: ChatAppDeps): ChatPage {
 	// Right column: session panel host.
 	const right = h("aside", { class: "chat-right" }, panelHost);
 
-	const pageRoot = h("section", { class: "c-page chat-page" }, sidebarHost, main);
+	// `chat-console` scopes the Task-14 restyle layer (pages.css) to the chat page.
+	const pageRoot = h("section", { class: "c-page chat-page chat-console" }, sidebarHost, main);
 
 	// The preview column is a flex sibling of chat-main (opens/closes itself
 	// via .is-open; existing CSS sizes it 320-640px).
