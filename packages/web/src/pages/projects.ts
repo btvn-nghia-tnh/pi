@@ -242,7 +242,6 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 			const row = h(
 				"div",
 				{
-					class: "list-item",
 					style: `display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;cursor:pointer;${
 						active ? "background:var(--c-raised);box-shadow:inset 3px 0 0 var(--c-accent)" : ""
 					}`,
@@ -429,7 +428,7 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 			body.appendChild(
 				h(
 					"span",
-					{ class: "dim", style: "color:var(--c-dim);font:400 11.5px var(--font-ui)" },
+					{ style: "color:var(--c-dim);font:400 11.5px var(--font-ui)" },
 					"Open a session in this project to load its context files.",
 				),
 			);

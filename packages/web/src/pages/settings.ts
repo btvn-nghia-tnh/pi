@@ -80,6 +80,8 @@ export interface SettingsPageDeps {
 	/** Cross-page navigation (rail parity); settings itself is not a target. */
 	onNavigate(page: "chat" | "home" | "projects" | "mcp" | "usage"): void;
 	pushToast(message: string, level: "info" | "warning" | "error"): void;
+	/** Density toggle (R21b): persist + apply the shell class live. */
+	setDensity(on: boolean): void;
 }
 
 export interface SettingsPageOptions {
@@ -238,6 +240,46 @@ export function createSettingsPage(deps: SettingsPageDeps, opts: SettingsPageOpt
 				}),
 			);
 			behavior.body.appendChild(compactionLine);
+			// Auto-retry (R21): the RPC protocol exposes no readable live flag
+			// (RpcSessionState has no autoRetryEnabled), so this is an action row —
+			// commands target the active session; the absence of state reflection is
+			// documented in wave-fix-report.md.
+			behavior.body.append(
+				rowLine(
+					"Auto-retry",
+					h(
+						"span",
+						{ class: "settings-row-actions" },
+						h(
+							"button",
+							{
+								class: "c-btn",
+								title: "set_auto_retry {enabled: true} — active session",
+								onclick: () => {
+									void request({ type: "set_auto_retry", enabled: true })?.catch(() => {});
+								},
+							},
+							"enable",
+						),
+						h(
+							"button",
+							{
+								class: "c-btn",
+								title: "set_auto_retry {enabled: false} — active session",
+								onclick: () => {
+									void request({ type: "set_auto_retry", enabled: false })?.catch(() => {});
+								},
+							},
+							"disable",
+						),
+					),
+				),
+				h(
+					"p",
+					{ class: "settings-hint" },
+					"Auto-retry applies to the active session; its current on/off state is not broadcast over RPC.",
+				),
+			);
 		};
 
 		renderBehavior();
@@ -593,6 +635,10 @@ export function createSettingsPage(deps: SettingsPageDeps, opts: SettingsPageOpt
 		title: "Settings",
 		element: pageRoot,
 		mount(): void {
+			// Remount support (T8 minor): reset the disposed guard and invalidate
+			// async renders from a previous mount cycle (mirrors home.ts).
+			disposed = false;
+			renderToken++;
 			renderNav();
 			// Initial deep-link target renders without an onSectionChange call.
 			const resolved = resolveSection(activeId);

@@ -156,6 +156,7 @@ export class App {
 				),
 		});
 		this.element.appendChild(this.shell.element);
+		this.updateDensityClass();
 
 		// File preview panel: content-driven, hidden when closed; the chat
 		// page hosts it as a flex sibling of the main column.
@@ -377,6 +378,7 @@ export class App {
 				activeStore: () => (this.sessionStores.size > 0 ? this.store : undefined),
 				onNavigate: navigate,
 				pushToast,
+				setDensity: (on: boolean) => this.setDensity(on),
 			},
 		};
 	}
@@ -425,6 +427,17 @@ export class App {
 	}
 
 	/** Toolbar anchor for /model-range lookups (Home chip + keyboard shortcut). */
+	/** Density (R21b): persist locally and toggle the shell class live. */
+	private setDensity(on: boolean): void {
+		if (on) window.localStorage.setItem("pi-web-density", "1");
+		else window.localStorage.removeItem("pi-web-density");
+		this.updateDensityClass();
+	}
+
+	private updateDensityClass(): void {
+		this.shell?.element.classList.toggle("density-compact", window.localStorage.getItem("pi-web-density") === "1");
+	}
+
 	private modelPickerAnchor(): HTMLElement | undefined {
 		const toolbar = this.activeToolbar;
 		if (!toolbar) return undefined;

@@ -80,6 +80,35 @@ test("chartGeometry spreads bars evenly across the width", () => {
 	);
 });
 
+test("chartGeometry scales bar width down for long ranges (R20: no overlap)", () => {
+	// 30 days at width 680: available per bar = floor((680 - 29*2) / 30) = 20.
+	const series: StackedBarDay[] = [];
+	for (let i = 0; i < 30; i++) series.push(day(0.3, 0.2, 0.1));
+	const bars = chartGeometry(series, { width: 680, height: 140, barWidth: 28 });
+	assert.equal(bars.length, 30);
+	assert.equal(bars[0]?.rects[0]?.w, 20);
+	// No overlap, ordering preserved, and the run stays inside the canvas.
+	for (let i = 0; i + 1 < bars.length; i++) {
+		assert.ok(
+			(bars[i + 1]?.rects[0]?.x ?? 0) >= (bars[i]?.rects[0]?.x ?? 0) + (bars[i]?.rects[0]?.w ?? 0),
+			`bar ${i + 1} overlaps bar ${i}`,
+		);
+	}
+	const last = bars[29]?.rects[0];
+	assert.ok((last?.x ?? 0) + (last?.w ?? 0) <= 680);
+});
+
+test("chartGeometry keeps the requested width when it already fits (R20)", () => {
+	// n=1: available = width itself → the requested 28px cap passes through and
+	// the lone-bar centering stays intact; an oversized request fills the band.
+	const [solo] = chartGeometry([day(1, 0, 0)], { width: 100, height: 40 });
+	assert.equal(solo.rects[0]?.w, 28);
+	assert.equal(solo.rects[0]?.x, 36);
+	const [wide] = chartGeometry([day(1, 0, 0)], { width: 100, height: 40, barWidth: 999 });
+	assert.equal(wide.rects[0]?.w, 100);
+	assert.equal(wide.rects[0]?.x, 0);
+});
+
 test("applyFilters narrows the sessions table client-side", () => {
 	const rows = [row("a", "/one", "m1"), row("b", "/two", "m2")];
 	const modelOnly: UsageFilter = { model: "m1" };

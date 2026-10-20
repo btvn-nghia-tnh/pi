@@ -10,6 +10,7 @@
  */
 
 import { chipEl, iconEl, progressEl } from "../components/kit.ts";
+import { modelShortName } from "../components/session-panel.ts";
 import type { PiConnection } from "../connection.ts";
 import { clearElement, h } from "../dom.ts";
 import { formatTokens } from "../footer-format.ts";
@@ -75,8 +76,11 @@ export function chartGeometry(
 	if (series.length === 0) return [];
 	const width = opts.width ?? 680;
 	const height = opts.height ?? 140;
-	const barWidth = opts.barWidth ?? 28;
 	const n = series.length;
+	// R20: scale bars so long ranges (30+ days) never overlap — the requested
+	// width is an upper bound; n bars plus n-1 minimum gaps must fit in width.
+	const minGap = 2;
+	const barWidth = Math.max(1, Math.min(opts.barWidth ?? 28, Math.floor((width - (n - 1) * minGap) / n)));
 	const gap = n > 1 ? (width - n * barWidth) / (n - 1) : 0;
 	return series.map((entry, i) => {
 		const x = n > 1 ? Math.round(i * (barWidth + gap)) : Math.round((width - barWidth) / 2);
@@ -365,7 +369,7 @@ export function createUsagePage(deps: UsagePageDeps): ShellPage {
 			const head = h(
 				"div",
 				{ class: "cp-model-head" },
-				h("span", { class: "cp-model-name", title: row.model }, row.model),
+				h("span", { class: "cp-model-name", title: row.model }, modelShortName({ id: row.model })),
 				h("span", { class: "cp-model-meta" }, `${row.costText} · ${row.tokensText}`),
 			);
 			card.appendChild(h("div", { class: "cp-model-row" }, head, progressEl(row.pctBar, 250).el));
@@ -395,7 +399,7 @@ export function createUsagePage(deps: UsagePageDeps): ShellPage {
 			tr.append(
 				h("td", {}, cellName(row)),
 				h("td", { class: "mono cp-secondary", title: row.cwd }, row.cwd),
-				h("td", { class: "mono" }, row.model),
+				h("td", { class: "mono", title: row.model }, modelShortName({ id: row.model })),
 				h("td", { class: "mono" }, rowTokensText(row)),
 				h("td", { class: "mono" }, formatCost(row.cost)),
 				h("td", { class: "cp-secondary" }, shortWhen(row.modified)),

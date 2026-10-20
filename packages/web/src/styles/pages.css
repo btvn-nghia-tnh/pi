@@ -423,3 +423,9 @@
 
 /* --- Projects: left column reuses .chat-sidebar (unscoped) --- */
 .projects-body .chat-sidebar { min-height: 0; }
+
+/* Density (R21b): compact layout, persisted locally, toggled from Settings. */
+.density-compact .c-card { padding: 8px 12px 10px; }
+.density-compact .c-card .c-card-title { margin-bottom: 6px; }
+.density-compact .c-rail-btn { width: 32px; height: 32px; border-radius: 8px; }
+.density-compact .chat-dock { padding: 6px 16px 8px; }
