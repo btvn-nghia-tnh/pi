@@ -40,6 +40,7 @@ import type {
 	RpcTrustState,
 } from "../rpc/rpc-types.ts";
 import { OfficeParseError, parseDocx, parseXlsx, type SpreadsheetLimits } from "./office-parsers.ts";
+import { getUsageSummary } from "./usage-summary.ts";
 import { shareSessionHeadless } from "./web-share.ts";
 
 export type WebCommandHandler = (command: RpcCommand, core: RpcCore) => Promise<RpcResponse | undefined>;
@@ -628,6 +629,17 @@ export function createWebCommandHandler(): WebCommandHandler {
 							firstMessage: info.firstMessage,
 						})),
 					},
+				};
+			}
+
+			case "get_usage_summary": {
+				const summary = await getUsageSummary({ rangeDays: command.rangeDays ?? 0 });
+				return {
+					id,
+					type: "response",
+					command: "get_usage_summary",
+					success: true,
+					data: summary,
 				};
 			}
 

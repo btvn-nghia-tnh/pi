@@ -57,6 +57,7 @@ export type RpcCommand =
 
 	// Session
 	| { id?: string; type: "get_session_stats" }
+	| { id?: string; type: "get_usage_summary"; rangeDays?: number }
 	| { id?: string; type: "export_html"; outputPath?: string }
 	| { id?: string; type: "switch_session"; sessionPath: string }
 	| { id?: string; type: "fork"; entryId: string }
@@ -265,6 +266,7 @@ export type RpcResponse =
 
 	// Session
 	| { id?: string; type: "response"; command: "get_session_stats"; success: true; data: SessionStats }
+	| { id?: string; type: "response"; command: "get_usage_summary"; success: true; data: RpcUsageSummary }
 	| { id?: string; type: "response"; command: "export_html"; success: true; data: { path: string } }
 	| { id?: string; type: "response"; command: "switch_session"; success: true; data: { cancelled: boolean } }
 	| { id?: string; type: "response"; command: "fork"; success: true; data: { text: string; cancelled: boolean } }
@@ -521,6 +523,64 @@ export interface RpcSessionSummary {
 	modified: string;
 	messageCount: number;
 	firstMessage: string;
+}
+
+/** Usage aggregation types for get_usage_summary (web console Usage page). */
+export interface RpcUsageDayRow {
+	/** UTC date key, "YYYY-MM-DD". */
+	day: string;
+	input: number;
+	output: number;
+	cacheRead: number;
+	cacheWrite: number;
+	cost: number;
+}
+
+export interface RpcUsageModelRow {
+	model: string;
+	input: number;
+	output: number;
+	cacheRead: number;
+	cacheWrite: number;
+	cost: number;
+	/** Distinct session files that used this model in range. */
+	sessions: number;
+}
+
+export interface RpcUsageSessionRow {
+	/** Session file path on disk (the accounting identity, like list_sessions). */
+	file: string;
+	id: string;
+	/** Latest session_info name; empty when unnamed. */
+	name: string;
+	cwd: string;
+	/** Model of the session's most recent in-range usage record. */
+	model: string;
+	input: number;
+	output: number;
+	cost: number;
+	/** ISO timestamp of the last in-range usage record. */
+	modified: string;
+}
+
+export interface RpcUsageSummary {
+	totals: {
+		input: number;
+		output: number;
+		cacheRead: number;
+		cacheWrite: number;
+		cost: number;
+		/** Sessions contributing at least one in-range usage record. */
+		sessions: number;
+		/** Malformed lines/records encountered while scanning. */
+		skipped: number;
+	};
+	/** Ascending by day. */
+	perDay: RpcUsageDayRow[];
+	/** Descending by cost. */
+	perModel: RpcUsageModelRow[];
+	/** Descending by modified. */
+	sessions: RpcUsageSessionRow[];
 }
 
 /** Startup context for the web GUI header. */

@@ -85,6 +85,7 @@ export type ClientCommand =
 	| (RpcCommandBase & { type: "bash"; command: string; excludeFromContext?: boolean })
 	| (RpcCommandBase & { type: "abort_bash" })
 	| (RpcCommandBase & { type: "get_session_stats" })
+	| (RpcCommandBase & { type: "get_usage_summary"; rangeDays?: number })
 	| (RpcCommandBase & { type: "export_html"; outputPath?: string })
 	| (RpcCommandBase & { type: "switch_session"; sessionPath: string })
 	| (RpcCommandBase & { type: "fork"; entryId: string })
