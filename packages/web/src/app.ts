@@ -30,6 +30,7 @@ import { appendPromptHistory, loadPromptHistory, savePromptHistory } from "./his
 import { registerGlobalKeyboard, type ShortcutAction } from "./keyboard.ts";
 import { renderMarkdown, sanitizeMarkdownHtml } from "./markdown.ts";
 import { type ChatHosts, createChatPage } from "./pages/chat.ts";
+import { createStubPage } from "./pages/stubs.ts";
 import { PreviewStore } from "./preview-store.ts";
 import { decorateCodeBlockCopies } from "./render/messages.ts";
 import { PreviewView } from "./render/preview.ts";
@@ -97,7 +98,7 @@ export class App {
 	/** Console shell (rail + page host) and its hash router. */
 	private shell: AppShell | undefined;
 	private router: Router | undefined;
-	/** Registered pages; unbuilt routes get placeholder cards (Task 13). */
+	/** Registered pages; non-chat routes resolve to stub pages until the next slice. */
 	private readonly pages = new Map<PageId, ShellPage>();
 	private mountedPage: ShellPage | undefined;
 	/** Chat workbench hosts — rebuilt session views bind into these. */
@@ -235,7 +236,7 @@ export class App {
 		this.wireConnection();
 	}
 
-	/** Resolve a hash route to its page; unbuilt pages get placeholder cards. */
+	/** Resolve a hash route to its page; chat is registered at boot, others hit stubs. */
 	private onRoute(route: Route): void {
 		const page = this.ensurePage(route.page);
 		this.shell?.setActive(route.page);
@@ -249,13 +250,14 @@ export class App {
 		}
 	}
 
-	/** Pages land in Task 13; until then their routes show placeholder cards. */
+	/** Stub pages replace the interim placeholders for the five next-slice pages. */
 	private ensurePage(page: PageId): ShellPage {
 		const existing = this.pages.get(page);
 		if (existing) return existing;
-		const placeholder = createPlaceholderPage(page);
-		this.pages.set(page, placeholder);
-		return placeholder;
+		const stub = createStubPage(page);
+		if (!stub) throw new Error(`No page registered for route: ${page}`);
+		this.pages.set(page, stub);
+		return stub;
 	}
 
 	/** Session to focus once its pane exists (open/new in flight). */
@@ -1809,33 +1811,4 @@ export class App {
 			}
 		});
 	}
-}
-
-/** Placeholder card for pages that land in the next slice (Task 13 stubs). */
-function createPlaceholderPage(page: PageId): ShellPage {
-	const known: Partial<Record<PageId, string>> = {
-		home: "Home",
-		projects: "Projects",
-		mcp: "MCP",
-		usage: "Usage",
-		settings: "Settings",
-	};
-	const title = known[page] ?? page;
-	const element = h(
-		"section",
-		{ class: "c-page" },
-		h("div", { class: "c-page-header" }, h("span", { class: "c-page-title" }, title)),
-		h(
-			"div",
-			{ class: "c-placeholder" },
-			h(
-				"div",
-				{ class: "c-card" },
-				h("div", { class: "c-card-title" }, title),
-				h("p", {}, `The ${title} page lands in the next slice of the console redesign.`),
-				h("p", { class: "dim" }, "Chat is fully usable today."),
-			),
-		),
-	);
-	return { id: page, title, element, mount() {}, unmount() {} };
 }
