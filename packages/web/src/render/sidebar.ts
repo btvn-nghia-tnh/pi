@@ -31,6 +31,19 @@ export interface SidebarHandlers {
 
 const COLLAPSED_KEY = "pi-web-sidebar-collapsed";
 const EXPANDED_GROUPS_KEY = "pi-web-sidebar-expanded-groups";
+const SCOPE_KEY = "pi-web-sidebar-scope";
+
+export type SidebarScope = "project" | "all";
+
+/**
+ * Pure scope filter over the group keys (cwd of each project).
+ * "project" keeps only the active session's project group; "all" or an
+ * unknown active cwd falls back to every group.
+ */
+export function scopedGroupKeys(keys: string[], opts: { scope: SidebarScope; activeCwd?: string }): string[] {
+	if (opts.scope !== "project" || opts.activeCwd === undefined) return keys;
+	return keys.filter((key) => key === opts.activeCwd);
+}
 
 export class SidebarView {
 	readonly element: HTMLElement;
@@ -43,14 +56,18 @@ export class SidebarView {
 	private readonly openSessions = new Map<string, { sessionPath?: string; cwd: string; primary?: boolean }>();
 	private activeId: string | undefined;
 	private collapsed = false;
+	/** Session-list scope: only the active project ("project") or every group ("all"). */
+	private scope: SidebarScope;
 	/** Expanded project groups; collapsed by default. */
 	private readonly expandedGroups = new Set<string>();
 	private timer: ReturnType<typeof setInterval> | undefined;
 	private unsubscribers: Array<() => void> = [];
+	private readonly scopeHost: HTMLElement;
 
 	constructor(handlers: SidebarHandlers) {
 		this.handlers = handlers;
 		this.collapsed = window.localStorage.getItem(COLLAPSED_KEY) === "1";
+		this.scope = window.localStorage.getItem(SCOPE_KEY) === "all" ? "all" : "project";
 		try {
 			for (const cwd of JSON.parse(window.localStorage.getItem(EXPANDED_GROUPS_KEY) ?? "[]") as string[]) {
 				this.expandedGroups.add(cwd);
@@ -60,8 +77,11 @@ export class SidebarView {
 		}
 		this.element = h("aside", { class: `sidebar${this.collapsed ? " collapsed" : ""}` });
 		this.element.appendChild(this.buildChrome());
-		// Order per the layout spec: collapse button row, then "+ new",
-		// then the scrollable session list.
+		// Scope row: active-project chip + all-projects toggle (issue-batch).
+		this.scopeHost = h("div", { class: "sidebar-scope" });
+		this.element.appendChild(this.scopeHost);
+		// Order per the layout spec: collapse button row, then scope chips,
+		// then "+ new", then the scrollable session list.
 		this.newListHost = h("div", { class: "sidebar-new" });
 		this.groupsHost = h("div", { class: "sidebar-groups" });
 		this.element.append(this.newListHost, this.groupsHost);
@@ -164,6 +184,61 @@ export class SidebarView {
 
 	// ------------------------------------------------------------------
 
+	/** The active session's project cwd (falls back to the primary slot). */
+	private activeCwd(): string | undefined {
+		const active = this.activeId !== undefined ? this.openSessions.get(this.activeId) : undefined;
+		if (active?.cwd) return active.cwd;
+		for (const data of this.openSessions.values()) {
+			if (data.primary && data.cwd) return data.cwd;
+		}
+		return undefined;
+	}
+
+	/** "project" | "all" — persisted; entering project scope expands the active group. */
+	setScope(scope: SidebarScope): void {
+		this.scope = scope;
+		window.localStorage.setItem(SCOPE_KEY, scope);
+		if (scope === "project") {
+			const cwd = this.activeCwd();
+			if (cwd && !this.expandedGroups.has(cwd)) {
+				this.expandedGroups.add(cwd);
+				window.localStorage.setItem(EXPANDED_GROUPS_KEY, JSON.stringify([...this.expandedGroups]));
+			}
+		}
+		this.render();
+	}
+
+	/** Scope row: [active project chip] [All projects ⇄ Project] toggle. */
+	private renderScope(): void {
+		this.scopeHost.replaceChildren();
+		if (this.collapsed) return;
+		const cwd = this.activeCwd();
+		if (this.scope === "project" && cwd) {
+			const sessionsInProject = this.sessionsList.filter((session) => session.cwd === cwd).length;
+			const label = cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
+			const chip = h(
+				"span",
+				{ class: "sidebar-scope-chip", title: cwd },
+				`📁 ${label}`,
+				h("span", { class: "sidebar-group-count" }, String(sessionsInProject)),
+			);
+			this.scopeHost.appendChild(chip);
+		} else {
+			this.scopeHost.appendChild(h("span", { class: "sidebar-scope-chip is-muted" }, "All projects"));
+		}
+		const toggleLabel = this.scope === "project" ? "All ⇩" : "⇦ Project";
+		const toggle = h(
+			"button",
+			{
+				class: "sidebar-scope-toggle",
+				title: this.scope === "project" ? "Show every project's sessions" : "Show only the active project",
+			},
+			toggleLabel,
+		);
+		toggle.addEventListener("click", () => this.setScope(this.scope === "project" ? "all" : "project"));
+		this.scopeHost.appendChild(toggle);
+	}
+
 	private buildChrome(): HTMLElement {
 		const toggle = h("button", { class: "sidebar-toggle", title: "Toggle sidebar (Ctrl+B)" }, "◀");
 		toggle.addEventListener("click", () => this.setCollapsed(!this.collapsed));
@@ -193,6 +268,7 @@ export class SidebarView {
 	private render(): void {
 		this.groupsHost.replaceChildren();
 		this.newListHost.replaceChildren();
+		this.renderScope();
 
 		// One entry per visible session: disk sessions merged with open
 		// sessions that have no disk row yet (brand-new, unsaved).
@@ -241,10 +317,15 @@ export class SidebarView {
 		}
 
 		const orderedGroups = [...groups.entries()].sort((a, b) => newestRowIn(b[1]) - newestRowIn(a[1]));
+		const scopedKeys = scopedGroupKeys(
+			orderedGroups.map(([cwd]) => cwd),
+			{ scope: this.scope, activeCwd: this.activeCwd() },
+		);
 		for (const [cwd, rows] of orderedGroups) {
+			if (!scopedKeys.includes(cwd)) continue;
 			rows.sort((a, b) => b.modified - a.modified);
 			const expanded = this.expandedGroups.has(cwd);
-			const group = h("div", { class: `sidebar-group${expanded ? " expanded" : ""}` });
+			const group = h("div", { class: `sidebar-group${expanded && rows.length > 0 ? " expanded" : ""}` });
 
 			// Header: [^] project [count] [+] — collapse/expand and per-project
 			// new session.
@@ -280,7 +361,9 @@ export class SidebarView {
 
 		if (this.newListHost.childElementCount === 0) {
 			const newButton = h("button", { class: "sidebar-new-btn" }, "+ New session");
-			newButton.addEventListener("click", () => this.handlers.onNew());
+			newButton.addEventListener("click", () =>
+				this.handlers.onNew(this.scope === "project" ? this.activeCwd() : undefined),
+			);
 			this.newListHost.appendChild(newButton);
 		}
 	}

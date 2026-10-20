@@ -193,20 +193,46 @@
 	flex: 1;
 	min-height: 0;
 	display: flex;
+	/* Explicit: the same element also carries .c-page (flex-direction: column) —
+	 without this the sidebar stacks above the transcript (issue-batch layout bug). */
+	flex-direction: row;
 }
 .chat-sidebar {
-	flex: 0 0 264px;
+	flex: 0 0 var(--chat-sidebar-w, 264px);
 	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	position: relative;
 	border-right: 1px solid var(--c-hairline);
 	background: var(--c-bg-col);
 	display: flex;
 	flex-direction: column;
 }
-/* The app-owned sidebar keeps its own styles, stretched to fill the column. */
+/* Horizontal resizer handle on the sidebar's right edge. */
+.chat-sidebar-resizer {
+	position: absolute;
+	top: 0;
+	right: -3px;
+	width: 6px;
+	height: 100%;
+	cursor: col-resize;
+	z-index: 5;
+	touch-action: none;
+	user-select: none;
+}
+.chat-sidebar-resizer:hover,
+.chat-sidebar-resizer.is-dragging {
+	background: var(--c-accent);
+	opacity: 0.4;
+}
+/* The app-owned sidebar keeps its own styles, stretched to fill the column.
+ * The column owns the scrolling so the sidebar stays pinned (issue #6/#7). */
 .chat-sidebar .sidebar {
 	flex: 1 1 auto;
 	width: auto;
 	min-width: 0;
+	min-height: 0;
+	overflow-y: auto;
 	border-right: 0;
 	background: transparent;
 }
@@ -223,6 +249,10 @@
 	border-left: 1px solid var(--c-hairline);
 	background: var(--c-bg-col);
 	padding: 12px;
+}
+/* No widget cards → no right column (chat width goes to the transcript). */
+.chat-right.is-empty {
+	display: none;
 }
 .chat-transcript {
 	flex: 1;
@@ -481,6 +511,8 @@
 @media (max-width: 767px) {
 	.c-rail { display: none; }
 	.c-drawer-toggle { display: inline-flex; }
+	/* Drawer mode: the width is drawer-driven (min(304px,80vw)) — no resizer. */
+	.chat-sidebar-resizer { display: none; }
 
 	.c-tabbar {
 		display: flex;
@@ -635,4 +667,51 @@
 	.mcp-page > div { padding: 12px !important; }
 	.projects-body { padding: 0; }
 	.projects-body > div:not(.chat-sidebar) { overflow-x: hidden; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Sidebar scope row (render/sidebar.ts): active-project chip + All toggle. */
+/* ------------------------------------------------------------------ */
+.sidebar-scope {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 12px 8px;
+}
+.sidebar-scope-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 22px;
+	padding: 0 9px;
+	border-radius: var(--radius-chip);
+	background: var(--c-raised);
+	color: var(--c-text-2);
+	font: 600 10.5px var(--font-ui);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 60%;
+}
+.sidebar-scope-chip.is-muted {
+	color: var(--c-dim);
+	font-weight: 500;
+}
+.sidebar-scope-toggle {
+	border: 1px solid var(--c-border);
+	background: none;
+	color: var(--c-dim);
+	border-radius: var(--radius-chip);
+	height: 22px;
+	padding: 0 9px;
+	font: 600 10.5px var(--font-ui);
+	cursor: pointer;
+	white-space: nowrap;
+}
+.sidebar-scope-toggle:hover {
+ color: var(--c-text-2);
+	background: var(--c-raised);
+}
+.sidebar.collapsed .sidebar-scope {
+	display: none;
 }

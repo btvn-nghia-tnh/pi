@@ -7,12 +7,44 @@ import { type StatusTone, sanitizeStatusText } from "../ansi-clean.ts";
 import { h } from "../dom.ts";
 import { formatCwdForFooter } from "../footer-format.ts";
 import type { AppState, Store } from "../state.ts";
+import type { UsageInfo } from "../types.ts";
 import { cacheHitPct, contextLabel, totalsLine } from "../usage-text.ts";
 import { chipEl, type ProgressHandle, progressEl, toggleEl } from "./kit.ts";
 import { modelShortName } from "./session-panel.ts";
 
 /** Alias for the store state shape (Task 12 imports this name). */
 export type StoreState = AppState;
+
+/**
+ * TUI-equivalent context tokens (agent-session.ts calculateContextTokens):
+ * totalTokens when reported, else input+output+cacheRead+cacheWrite.
+ * Pure — unit-tested.
+ */
+export function contextTokensOf(usage: {
+	input: number;
+	output: number;
+	cacheRead: number;
+	cacheWrite: number;
+	totalTokens?: number;
+}): number {
+	const reported = usage.totalTokens ?? 0;
+	return reported || usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+}
+
+/** The freshest usable usage: streaming latestUsage, else the last rehydrated assistant message with usage. */
+export function lastAssistantUsage(state: StoreState): UsageInfo | undefined {
+	if (state.latestUsage) return state.latestUsage;
+	const items = state.items ?? [];
+	for (let i = items.length - 1; i >= 0; i--) {
+		const message = items[i]?.message as { role?: string; usage?: UsageInfo } | undefined;
+		if (message?.role !== "assistant" || !message.usage) continue;
+		const usage = message.usage;
+		if (usage.input + usage.output + usage.cacheRead + usage.cacheWrite + (usage.totalTokens ?? 0) > 0) {
+			return usage;
+		}
+	}
+	return undefined;
+}
 
 export interface StatusBarParts {
 	cwdText: string;
@@ -37,13 +69,25 @@ function prettyCwd(cwd: string, agentDir: string | undefined): string {
 
 export function statusBarProjector(state: StoreState): StatusBarParts {
 	const sessionState = state.sessionState;
+	// Derived context (matches TUI footer semantics): when the server has not
+	// reported a live context percent, derive one from the freshest assistant
+	// usage so the bar never sticks on "? of <window>".
+	const contextWindow = state.contextUsage?.contextWindow ?? sessionState?.model?.contextWindow ?? 0;
+	let contextPercent = state.contextUsage?.percent ?? null;
+	if (contextPercent === null && contextWindow > 0) {
+		const usage = lastAssistantUsage(state);
+		if (usage) {
+			const tokens = contextTokensOf(usage);
+			if (tokens > 0) contextPercent = (tokens / contextWindow) * 100;
+		}
+	}
 	const parts: StatusBarParts = {
 		cwdText: prettyCwd(state.contextInfo?.cwd ?? "", state.contextInfo?.agentDir),
 		branch: state.contextInfo?.gitBranch || undefined,
 		sessionName: sessionState?.sessionName || undefined,
 		context: {
-			percent: state.contextUsage?.percent ?? null,
-			window: state.contextUsage?.contextWindow ?? sessionState?.model?.contextWindow ?? 0,
+			percent: contextPercent,
+			window: contextWindow,
 			auto: sessionState?.autoCompactionEnabled ?? false,
 		},
 		rightText: "",

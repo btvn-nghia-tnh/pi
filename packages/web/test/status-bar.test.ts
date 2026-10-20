@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { statusBarProjector } from "../src/components/status-bar.ts";
+import { lastAssistantUsage, statusBarProjector } from "../src/components/status-bar.ts";
+import { contextLabel } from "../src/usage-text.ts";
 
 const baseState = {
 	sessionState: {
@@ -52,4 +53,93 @@ test("model text falls back to no-model", () => {
 	const bare = { ...baseState, sessionState: { model: undefined, thinkingLevel: undefined } } as never;
 	const parts = statusBarProjector(bare as never as Parameters<typeof statusBarProjector>[0]);
 	assert.equal(parts.modelText, "no-model");
+});
+
+test("derives context percent from latestUsage when server percent is null (TUI formula)", () => {
+	const state = {
+		...baseState,
+		contextUsage: null,
+		latestUsage: {
+			input: 40_000,
+			output: 10_000,
+			cacheRead: 50_000,
+			cacheWrite: 0,
+			totalTokens: undefined,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+		},
+	} as never as Parameters<typeof statusBarProjector>[0];
+	const parts = statusBarProjector(state);
+	assert.equal(parts.context.percent, 50); // 100k of 200k
+	assert.equal(parts.context.window, 200_000);
+});
+
+test("prefers reported totalTokens for derived context", () => {
+	const state = {
+		...baseState,
+		contextUsage: null,
+		latestUsage: {
+			input: 1,
+			output: 1,
+			cacheRead: 1,
+			cacheWrite: 1,
+			totalTokens: 100_000,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+		},
+	} as never as Parameters<typeof statusBarProjector>[0];
+	const parts = statusBarProjector(state);
+	assert.equal(parts.context.percent, 50);
+});
+
+test("falls back to the last rehydrated assistant item when latestUsage is unset", () => {
+	const state = {
+		...baseState,
+		contextUsage: null,
+		latestUsage: undefined,
+		items: [
+			{ kind: "user", message: { role: "user", content: [] } },
+			{
+				kind: "assistant",
+				message: {
+					role: "assistant",
+					usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 160_000 },
+				},
+			},
+		],
+	} as never as Parameters<typeof statusBarProjector>[0];
+	const parts = statusBarProjector(state);
+	assert.equal(parts.context.percent, 80);
+});
+
+test("stays unknown when no usage exists anywhere", () => {
+	const state = {
+		...baseState,
+		contextUsage: null,
+		latestUsage: undefined,
+		items: [],
+	} as never as Parameters<typeof statusBarProjector>[0];
+	const parts = statusBarProjector(state);
+	assert.equal(parts.context.percent, null);
+	assert.equal(contextLabel(parts.context), "? of 200k (auto)");
+});
+
+test("lastAssistantUsage scans items newest-first and skips zero-usage assistants", () => {
+	const state = {
+		...baseState,
+		latestUsage: undefined,
+		items: [
+			{
+				kind: "assistant",
+				message: { role: "assistant", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
+			},
+			{
+				kind: "assistant",
+				message: {
+					role: "assistant",
+					usage: { input: 40_000, output: 10_000, cacheRead: 50_000, cacheWrite: 0, totalTokens: 100_000 },
+				},
+			},
+		],
+	} as never as Parameters<typeof statusBarProjector>[0];
+	const usage = lastAssistantUsage(state);
+	assert.equal(usage?.totalTokens, 100_000);
 });

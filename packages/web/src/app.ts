@@ -747,12 +747,7 @@ export class App {
 		});
 		hosts.statusBarHost.replaceChildren(statusBar.element);
 
-		const panel = new SessionPanel({
-			store,
-			connection,
-			onOpenModels: (anchor) => toolbar.openModelPicker(anchor),
-			onOpenUsage: () => this.router?.navigate({ page: "usage" }),
-		});
+		const panel = new SessionPanel({ store });
 		hosts.panelHost.replaceChildren(panel.element);
 
 		transcript.mount(hosts.transcriptWrap);
