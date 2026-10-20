@@ -7,6 +7,7 @@
  * the transcript/status rows/queue). The app-level file preview column sits
  * between the main column and the right panel.
  */
+import { iconEl } from "../components/kit.ts";
 import { h } from "../dom.ts";
 import type { SidebarView } from "../render/sidebar.ts";
 import type { ShellPage } from "../shell.ts";
@@ -86,20 +87,64 @@ export function createChatPage(deps: ChatAppDeps): ChatPage {
 	);
 	const dock = h("div", { class: "chat-dock" }, editorInner);
 
+	// Mobile drawer (spec §3.7): the sidebar column slides off-canvas below
+	// 768px; a header hamburger toggles `drawer-open` on the page root and a
+	// scrim closes it. The matchMedia gate keeps desktop clicks inert.
+	const mobile = window.matchMedia("(max-width: 767px)");
+	let drawerOpen = false;
+	let drawerButton: HTMLButtonElement;
+	const applyDrawer = (): void => {
+		pageRoot.classList.toggle("drawer-open", drawerOpen);
+		scrim.classList.toggle("is-open", drawerOpen);
+		drawerButton.setAttribute("aria-expanded", String(drawerOpen));
+	};
+	drawerButton = h(
+		"button",
+		{
+			class: "c-drawer-toggle",
+			title: "Sessions",
+			"aria-label": "Toggle sessions drawer",
+			"aria-expanded": "false",
+			onclick: () => {
+				if (!mobile.matches) return;
+				drawerOpen = !drawerOpen;
+				applyDrawer();
+			},
+		},
+		iconEl("chat"),
+	) as HTMLButtonElement;
+	const scrim = h("div", { class: "c-scrim", "aria-hidden": "true" });
+	scrim.addEventListener("click", () => {
+		drawerOpen = false;
+		applyDrawer();
+	});
 	// Page header + main column.
-	const header = h("div", { class: "c-page-header" }, h("span", { class: "c-page-title" }, "Chat"));
+	const header = h("div", { class: "c-page-header" }, drawerButton, h("span", { class: "c-page-title" }, "Chat"));
 	const main = h("div", { class: "chat-main" }, header, transcriptWrap, dock, statusBarHost);
 
 	// Left column: the app-owned sidebar (its own styles, stretched to fill).
 	const sidebarHost = h("aside", { class: "chat-sidebar" });
 	const sidebar = deps.sidebar();
 	if (sidebar) sidebarHost.appendChild(sidebar.element);
+	// Tapping a session row (inside the sidebar groups host) closes the drawer.
+	sidebarHost.addEventListener("click", (event) => {
+		if (drawerOpen && (event.target as HTMLElement).closest(".sidebar-groups")) {
+			drawerOpen = false;
+			applyDrawer();
+		}
+	});
 
 	// Right column: session panel host.
 	const right = h("aside", { class: "chat-right" }, panelHost);
 
 	// `chat-console` scopes the Task-14 restyle layer (pages.css) to the chat page.
-	const pageRoot = h("section", { class: "c-page chat-page chat-console" }, sidebarHost, main);
+	const pageRoot = h(
+		"section",
+		{ class: "c-page chat-page chat-console", "aria-label": "Chat" },
+		sidebarHost,
+		main,
+		scrim,
+	);
 
 	// The preview column is a flex sibling of chat-main (opens/closes itself
 	// via .is-open; existing CSS sizes it 320-640px).

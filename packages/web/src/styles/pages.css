@@ -429,3 +429,129 @@
 .density-compact .c-card .c-card-title { margin-bottom: 6px; }
 .density-compact .c-rail-btn { width: 32px; height: 32px; border-radius: 8px; }
 .density-compact .chat-dock { padding: 6px 16px 8px; }
+
+/* ------------------------------------------------------------------ */
+/* Mobile pass (07-mobile.svg, spec §3.7): shell chrome under 768.    */
+/* Above 768 the icon rail owns navigation; the tabbar node stays in   */
+/* the DOM but display:none. Drawers mirror mockup 07: off-canvas    */
+/* column + scrim; dialogs become bottom sheets.                      */
+/* ------------------------------------------------------------------ */
+
+.c-drawer-toggle { display: none; background: none; border: 0; padding: 4px; color: var(--c-dim); align-items: center; cursor: pointer; }
+.c-drawer-toggle:hover { color: var(--c-text-2); }
+.c-drawer-toggle .c-icon { width: 18px; height: 18px; }
+
+.c-tabbar { display: none; }
+.c-scrim { display: none; }
+
+@media (max-width: 767px) {
+	.c-rail { display: none; }
+	.c-drawer-toggle { display: inline-flex; }
+
+	.c-tabbar {
+		display: flex;
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 210;
+		height: calc(56px + env(safe-area-inset-bottom, 0px));
+		padding-bottom: env(safe-area-inset-bottom, 0px);
+		background: var(--c-bg-rail);
+		border-top: 1px solid var(--c-hairline);
+	}
+	.c-tabbar-btn {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 2px;
+		background: none;
+		border: 0;
+		color: var(--c-dim);
+		position: relative;
+		cursor: pointer;
+		padding: 0;
+	}
+	.c-tabbar-btn.is-active { color: var(--c-accent); }
+	.c-tabbar-label { font: 500 9px var(--font-ui); }
+	.c-tabbar-badge {
+		position: absolute;
+		top: 6px;
+		right: calc(50% - 22px);
+		min-width: 14px;
+		height: 14px;
+		border-radius: 7px;
+		background: var(--c-ok);
+		color: #06130a;
+		font: 700 9px var(--font-ui);
+		display: none;
+		place-items: center;
+		padding: 0 3px;
+	}
+	.c-tabbar-btn.has-running .c-tabbar-badge { display: grid; }
+
+	/* Keep page content clear of the fixed tab bar. */
+	.c-page-host { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+
+	/* Off-canvas session/project drawers with scrim (tab bar stays above). */
+	.c-scrim.is-open {
+		display: block;
+		position: fixed;
+		inset: 0;
+		z-index: 190;
+		background: rgba(1, 4, 9, 0.55);
+	}
+	.chat-page > .chat-sidebar,
+	.projects-body > .chat-sidebar {
+		position: fixed;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: min(304px, 80vw);
+		z-index: 200;
+		transform: translateX(-100%);
+		transition: transform 0.2s ease;
+		background: var(--c-bg-col);
+		overflow-y: auto;
+	}
+	.chat-page.drawer-open > .chat-sidebar,
+	.c-page.drawer-open .projects-body > .chat-sidebar {
+		transform: translateX(0);
+		box-shadow: 8px 0 24px rgba(1, 4, 9, 0.5);
+	}
+
+	/* Status bar collapses to the center context chip (mockup 07). */
+	.c-sb-left,
+	.c-sb-right { display: none; }
+	.c-statusbar { justify-content: center; }
+
+	/* Header/status paddings tighten for narrow screens. */
+	.c-page-header { padding: 0 12px; gap: 8px; }
+	.c-statusbar { padding: 0 10px; }
+
+	/* Dialogs become bottom sheets (DialogStack uses pure CSS classes). */
+	.dialog-overlay { align-items: flex-end; }
+	.dialog {
+		min-width: 240px;
+		width: 100vw;
+		max-width: 100%;
+		max-height: 85vh;
+		border-radius: 14px 14px 0 0;
+		border-bottom: 0;
+		padding-top: 18px;
+		position: relative;
+	}
+	.dialog::before {
+		content: "";
+		position: absolute;
+		top: 7px;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 40px;
+		height: 4px;
+		border-radius: 2px;
+		background: var(--c-border);
+	}
+}

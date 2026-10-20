@@ -197,17 +197,58 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 		"⟳ Refresh",
 	);
 
+	// Mobile drawer (spec §3.7): the project list column slides off-canvas
+	// below 768px; matchMedia-gated hamburger + scrim mirror the chat page.
+	const mobile = window.matchMedia("(max-width: 767px)");
+	let drawerOpen = false;
+	const scrim = h("div", { class: "c-scrim", "aria-hidden": "true" });
+	scrim.addEventListener("click", () => {
+		drawerOpen = false;
+		applyDrawer();
+	});
+	let drawerButton: HTMLButtonElement;
+	const applyDrawer = (): void => {
+		element.classList.toggle("drawer-open", drawerOpen);
+		scrim.classList.toggle("is-open", drawerOpen);
+		drawerButton.setAttribute("aria-expanded", String(drawerOpen));
+	};
+	drawerButton = h(
+		"button",
+		{
+			class: "c-drawer-toggle",
+			title: "Projects",
+			"aria-label": "Toggle projects drawer",
+			"aria-expanded": "false",
+			onclick: () => {
+				if (!mobile.matches) return;
+				drawerOpen = !drawerOpen;
+				applyDrawer();
+			},
+		},
+		iconEl("folder"),
+	) as HTMLButtonElement;
+	// Tapping a project row (a button inside the list column) closes it.
+	leftColumn.addEventListener("click", (event) => {
+		const target = event.target as HTMLElement;
+		if (drawerOpen && target !== searchInput && target.closest("button")) {
+			drawerOpen = false;
+			applyDrawer();
+		}
+	});
+
 	const element = h(
 		"div",
-		{ class: "c-page" },
+		{ class: "c-page", "aria-label": "Projects" },
 		h(
 			"div",
 			{ class: "c-page-header" },
+			drawerButton,
 			h("span", { class: "c-page-title" }, "Projects"),
 			newSessionButton,
 			refreshButton,
 		),
 		h("div", { style: "flex:1;min-height:0;display:flex", class: "projects-body" }, leftColumn, rightColumn),
+		scrim,
 	);
 
 	// ---- helpers -----------------------------------------------------
