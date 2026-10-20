@@ -553,7 +553,7 @@ export function createSettingsPage(deps: SettingsPageDeps, opts: SettingsPageOpt
 		}
 		void request<{ markdown: string }>({ type: "get_changelog" })?.then((data) => {
 			if (token !== renderToken) return;
-			const body = h("div", { class: "settings-changelog" });
+			const body = h("div", { class: "settings-changelog md-body" });
 			body.innerHTML = renderMarkdown(data.markdown ?? "");
 			changelogCard.body.replaceChildren(body);
 		});
