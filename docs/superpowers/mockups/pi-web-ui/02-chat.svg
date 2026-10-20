@@ -1,0 +1,271 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="940" viewBox="0 0 1440 940">
+<style>text{font-family:system-ui,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:12px;fill:#E6EDF3}</style>
+<rect x="0" y="0" width="1440" height="940" fill="#0D1117"/>
+<rect x="0" y="0" width="52" height="940" fill="#0B0E13"/>
+<line x1="51.5" y1="0" x2="51.5" y2="940" stroke="#21262D" stroke-width="1"/>
+<text x="26" y="38" font-size="22" fill="#2DD4BF" text-anchor="middle" font-weight="800">π</text>
+<rect x="8" y="72" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,82)" fill="#8B949E" stroke="none">
+<path d="M2 7.4 L8 2.2 L14 7.4 V13.8 H9.4 V9.6 H6.6 V13.8 H2 Z" fill="#8B949E"/>
+</g>
+<rect x="8" y="124" width="36" height="36" rx="10" fill="#2DD4BF1A"/>
+<g transform="translate(18,134)" fill="#2DD4BF" stroke="none">
+<rect x="1.6" y="2.8" width="12.8" height="8.8" rx="2.4" fill="#2DD4BF"/>
+<path d="M4.4 11.2 L4.4 14.6 L7.8 11.6 Z" fill="#2DD4BF"/>
+<circle cx="5" cy="7.2" r="0.9" fill="#0D1117"/><circle cx="8" cy="7.2" r="0.9" fill="#0D1117"/><circle cx="11" cy="7.2" r="0.9" fill="#0D1117"/>
+</g>
+<rect x="8" y="176" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,186)" fill="#8B949E" stroke="none">
+<path d="M1.8 12.8 V4.6 H5.6 L7.2 6.4 H14.2 V12.8 Z" fill="none" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<rect x="8" y="228" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,238)" fill="#8B949E" stroke="none">
+<circle cx="3.1" cy="12.2" r="2.0" fill="#8B949E"/>
+<circle cx="12.9" cy="12.2" r="2.0" fill="#8B949E"/>
+<circle cx="8" cy="3.8" r="2.0" fill="#8B949E"/>
+<line x1="6.6" y1="5.1" x2="4.3" y2="10.1" stroke="#8B949E" stroke-width="1.5"/>
+<line x1="9.4" y1="5.1" x2="11.7" y2="10.1" stroke="#8B949E" stroke-width="1.5"/>
+<line x1="5.1" y1="12.2" x2="10.9" y2="12.2" stroke="#8B949E" stroke-width="1.5"/>
+</g>
+<rect x="8" y="280" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,290)" fill="#8B949E" stroke="none">
+<rect x="2.0" y="8.6" width="3.1" height="5.4" rx="0.8" fill="#8B949E" opacity="0.55"/>
+<rect x="6.4" y="5.6" width="3.1" height="8.4" rx="0.8" fill="#8B949E" opacity="0.8"/>
+<rect x="10.8" y="2.6" width="3.1" height="11.4" rx="0.8" fill="#8B949E"/>
+</g>
+<rect x="8" y="882" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,892)" fill="#8B949E" stroke="none">
+<circle cx="8" cy="8" r="2.5" fill="none" stroke="#8B949E" stroke-width="1.7"/>
+<line x1="8.0" y1="5.731999999999999" x2="8.0" y2="2.329999999999999" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="8.0" y1="10.268" x2="8.0" y2="13.670000000000002" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="5.731999999999999" y1="8.0" x2="2.329999999999999" y2="8.0" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="10.268" y1="8.0" x2="13.670000000000002" y2="8.0" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="6.404" y1="6.404" x2="4.01" y2="4.01" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="9.596" y1="6.404" x2="11.99" y2="4.01" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="6.404" y1="9.596" x2="4.01" y2="11.99" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="9.596" y1="9.596" x2="11.99" y2="11.99" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+</g>
+<rect x="52" y="46" width="264" height="894" fill="#10141B"/>
+<line x1="316.5" y1="46" x2="316.5" y2="940" stroke="#21262D" stroke-width="1"/>
+<rect x="66" y="62" width="236" height="30" rx="8" fill="#0D1117" stroke="#2D333B" stroke-width="1"/>
+<g transform="translate(72,69)" fill="#8B949E" stroke="none">
+<circle cx="7" cy="7" r="4.4" fill="none" stroke="#8B949E" stroke-width="1.8"/>
+<line x1="10.4" y1="10.4" x2="13.8" y2="13.8" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/>
+</g>
+<text x="94" y="81" font-size="11.5" fill="#6E7681">Search sessions…</text>
+<rect x="66" y="100" width="236" height="32" rx="8" fill="none" stroke="#2DD4BF" stroke-width="1"/>
+<g transform="translate(74,108)" fill="#2DD4BF" stroke="none">
+<line x1="8" y1="2.6" x2="8" y2="13.4" stroke="#2DD4BF" stroke-width="2" stroke-linecap="round"/>
+<line x1="2.6" y1="8" x2="13.4" y2="8" stroke="#2DD4BF" stroke-width="2" stroke-linecap="round"/>
+</g>
+<text x="96" y="120" font-size="12" fill="#2DD4BF" font-weight="650">New chat</text>
+<text x="76" y="160" font-size="9.5" fill="#6E7681" letter-spacing="0.8">PI — ~/projects/pi</text>
+<g transform="translate(284,148)" fill="#6E7681" stroke="none">
+<path d="M6 3.5 L10.5 8 L6 12.5" fill="none" stroke="#6E7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<rect x="64" y="180" width="240" height="40" rx="9" fill="#1F2630"/>
+<rect x="64" y="180" width="3" height="40" rx="1.5" fill="#2DD4BF"/>
+<circle cx="286" cy="200" r="3.2" fill="#2DD4BF"/>
+<text x="78" y="198" font-size="12" fill="#E6EDF3" font-weight="600">pi-web UI redesign</text>
+<text x="78" y="212" font-size="10" fill="#8B949E">running · 2m ago</text>
+<rect x="64" y="226" width="240" height="40" rx="9" fill="#10141B"/>
+<text x="78" y="244" font-size="12" fill="#E6EDF3" font-weight="400">fix-tui-bug</text>
+<text x="78" y="258" font-size="10" fill="#8B949E">23m ago · 18 msgs</text>
+<rect x="64" y="272" width="240" height="40" rx="9" fill="#10141B"/>
+<text x="78" y="290" font-size="12" fill="#E6EDF3" font-weight="400">nightly-evals</text>
+<text x="78" y="304" font-size="10" fill="#8B949E">2h ago · 96 msgs</text>
+<rect x="64" y="318" width="240" height="40" rx="9" fill="#10141B"/>
+<text x="78" y="336" font-size="12" fill="#E6EDF3" font-weight="400">tui-plan rewrite</text>
+<text x="78" y="350" font-size="10" fill="#8B949E">Yesterday · 210 msgs</text>
+<rect x="64" y="364" width="240" height="40" rx="9" fill="#10141B"/>
+<text x="78" y="382" font-size="12" fill="#E6EDF3" font-weight="400">session gallery SVG</text>
+<text x="78" y="396" font-size="10" fill="#8B949E">3d ago · 12 msgs</text>
+<text x="76" y="426" font-size="9.5" fill="#6E7681" letter-spacing="0.8">WATVMEDIA — ~/projects/watvmedia</text>
+<g transform="translate(284,414)" fill="#6E7681" stroke="none">
+<path d="M6 3.5 L10.5 8 L6 12.5" fill="none" stroke="#6E7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="78" y="458" font-size="11.5" fill="#8B949E">crawl danh sách video</text>
+<text x="78" y="470" font-size="9.5" fill="#6E7681">3d ago</text>
+<text x="78" y="484" font-size="11.5" fill="#8B949E">excel → postgres</text>
+<text x="78" y="496" font-size="9.5" fill="#6E7681">1w ago</text>
+<text x="76" y="514" font-size="9.5" fill="#6E7681" letter-spacing="0.8">DOTFILES — ~/dotfiles</text>
+<g transform="translate(284,502)" fill="#6E7681" stroke="none">
+<path d="M6 3.5 L10.5 8 L6 12.5" fill="none" stroke="#6E7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="78" y="540" font-size="10" fill="#6E7681">3 older…  (group collapsed)</text>
+<text x="66" y="890" font-size="10" fill="#6E7681">⟳ reload  ·  12 on disk</text>
+<line x1="317" y1="94.5" x2="1120" y2="94.5" stroke="#21262D" stroke-width="1"/>
+<text x="345" y="76" font-size="13.5" fill="#E6EDF3" font-weight="650">pi-web UI redesign</text>
+<rect x="493" y="62" width="58" height="22" rx="11.0" fill="#2DD4BF1A"/>
+<circle cx="502" cy="73.0" r="3.2" fill="#2DD4BF"/>
+<text x="510" y="76.5" font-size="10.5" fill="#2DD4BF">running</text>
+<g transform="translate(1044,64)" fill="#8B949E" stroke="none">
+<circle cx="7" cy="7" r="4.4" fill="none" stroke="#8B949E" stroke-width="1.8"/>
+<line x1="10.4" y1="10.4" x2="13.8" y2="13.8" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/>
+</g>
+<g transform="translate(1088,64)" fill="#8B949E" stroke="none">
+<circle cx="3" cy="8" r="1.3" fill="#8B949E"/>
+<circle cx="8" cy="8" r="1.3" fill="#8B949E"/>
+<circle cx="13" cy="8" r="1.3" fill="#8B949E"/>
+</g>
+<text x="1010" y="76" font-size="11" fill="#8B949E" text-anchor="end">sonnet-4.5 · medium</text>
+<rect x="345" y="100" width="747" height="64" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<rect x="345" y="100" width="3" height="64" rx="1.5" fill="#2DD4BF"/>
+<text x="365" y="122" font-size="9.5" fill="#2DD4BF" font-weight="700" letter-spacing="1">YOU</text>
+<text x="365" y="142" font-size="12.5" fill="#E6EDF3">Redesign the pi web UI: real pages for Projects / MCP / Usage, model switcher, clean status bar, per-message usage, stop buttons everywhere.</text>
+<g transform="translate(345,180)" fill="#6E7681" stroke="none">
+<path d="M6 3.5 L10.5 8 L6 12.5" fill="none" stroke="#6E7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="365" y="192" font-size="11.5" fill="#8B949E">Thought for 14s</text>
+<circle cx="355" cy="222" r="4" fill="#2DD4BF"/>
+<text x="369" y="226" font-size="9.5" fill="#8B949E" font-weight="700" letter-spacing="1">ASSISTANT · sonnet-4.5</text>
+<text x="526.2" y="226" font-size="9.5" fill="#6E7681">21:34</text>
+<text x="369" y="248" font-size="12.5" fill="#E6EDF3">Surveyed the shell. Structure I propose:</text>
+<text x="369" y="270" font-size="12.5" fill="#E6EDF3">•  Left rail with 6 pages — session list stays inside Chat.</text>
+<text x="369" y="288" font-size="12.5" fill="#E6EDF3">•  Status bar: context bar + cost + model chip, no raw ANSI (stripped at the extension boundary).</text>
+<rect x="345" y="306" width="747" height="118" rx="10" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<rect x="345" y="306" width="3" height="118" rx="1.5" fill="#D29922"/>
+<text x="383" y="332" font-size="12.5" fill="#E6EDF3" font-weight="650" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">bash</text>
+<text x="437" y="332" font-size="11.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">npm run check --workspace @earendil-works/pi-web</text>
+<rect x="856" y="318" width="82" height="22" rx="11.0" fill="#D299221F"/>
+<circle cx="865" cy="329.0" r="3.2" fill="#D29922"/>
+<text x="873" y="332.5" font-size="10.5" fill="#D29922">running 12s</text>
+<rect x="1038" y="315" width="54" height="26" rx="7" fill="#F851491F" stroke="#F85149" stroke-width="1"/>
+<g transform="translate(1046,320)" fill="#F85149" stroke="none">
+<rect x="3.4" y="3.4" width="9.2" height="9.2" rx="2.2" fill="#F85149"/>
+</g>
+<text x="1066" y="332" font-size="11" fill="#F85149">stop</text>
+<line x1="346" y1="346" x2="1091" y2="346" stroke="#21262D" stroke-width="1"/>
+<text x="367" y="366" font-size="11" fill="#C9D1D9" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">&gt; npm run check --workspace @earendil-works/pi-web</text>
+<text x="367" y="380.5" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">tsgo --noEmit</text>
+<text x="367" y="395.0" font-size="11" fill="#C9D1D9" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">pi-web/src/app.ts  ·  0 errors</text>
+<text x="367" y="409.5" font-size="11" fill="#C9D1D9" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">biome check --write .  ✓</text>
+<text x="367" y="424.0" font-size="11" fill="#3FB950" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">tests:  214 passed</text>
+<text x="367" y="438.5" font-size="11" fill="#6E7681" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">…</text>
+<circle cx="355" cy="440" r="4" fill="#2DD4BF"/>
+<text x="369" y="444" font-size="9.5" fill="#8B949E" font-weight="700" letter-spacing="1">ASSISTANT · sonnet-4.5</text>
+<text x="526.2" y="444" font-size="9.5" fill="#6E7681">21:35</text>
+<text x="369" y="466" font-size="12.5" fill="#E6EDF3">Type check passes. Next: design tokens CSS, then the rail + router shell.</text>
+<rect x="346" y="490" width="260" height="20" rx="6" fill="none"/>
+<text x="345" y="498" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">⌁ ctx 45% · ↑12.4k ↓3.1k · R 8.2k W 0 · $0.048</text>
+<rect x="345" y="524" width="747" height="64" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<rect x="345" y="524" width="3" height="64" rx="1.5" fill="#2DD4BF"/>
+<text x="365" y="546" font-size="9.5" fill="#2DD4BF" font-weight="700" letter-spacing="1">YOU</text>
+<text x="365" y="566" font-size="12.5" fill="#E6EDF3">Queue: “add the mobile mockups too”</text>
+<text x="345" y="608" font-size="9.5" fill="#6E7681" font-weight="700" letter-spacing="1">queued</text>
+<rect x="397" y="596" width="197.8" height="24" rx="12.0" fill="#1F2630"/>
+<text x="495.9" y="611.6" font-size="11" fill="#2DD4BF" text-anchor="middle">steering · add mobile mockups</text>
+<text x="345" y="636" font-size="9.5" fill="#6E7681">while running — delivers after current turn</text>
+<rect x="345" y="658" width="747" height="34" rx="9" fill="#D299221F"/>
+<rect x="345" y="658" width="3" height="34" rx="1.5" fill="#D29922"/>
+<text x="361" y="679" font-size="11.5" fill="#D29922">Retrying (2/5) in 12s — 429 rate limit exceeded (upstream)</text>
+<rect x="984" y="663" width="96" height="24" rx="7" fill="none" stroke="#D29922" stroke-width="1"/>
+<text x="1032" y="679" font-size="11" fill="#D29922" text-anchor="middle">Cancel</text>
+<rect x="345" y="706" width="747" height="132" rx="14" fill="#1F2630" stroke="#2D333B" stroke-width="1"/>
+<rect x="361" y="720" width="715" height="54" rx="10" fill="#0D1117"/>
+<g transform="translate(373,739)" fill="#8B949E" stroke="none">
+<path d="M9.2 6.4 L5.4 10.2 A2.6 2.6 0 0 0 9.1 13.9 L12.9 10.1 A4.4 4.4 0 0 0 6.7 3.9 L3.2 7.4" fill="none" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="401" y="751" font-size="12" fill="#6E7681">Send a message…  (⌘↵ send · ⇧↵ newline · ⌘K models)</text>
+<g transform="translate(369,794)" fill="#8B949E" stroke="none">
+<circle cx="8" cy="8" r="2.5" fill="none" stroke="#8B949E" stroke-width="1.7"/>
+<line x1="8.0" y1="5.731999999999999" x2="8.0" y2="2.329999999999999" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="8.0" y1="10.268" x2="8.0" y2="13.670000000000002" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="5.731999999999999" y1="8.0" x2="2.329999999999999" y2="8.0" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="10.268" y1="8.0" x2="13.670000000000002" y2="8.0" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="6.404" y1="6.404" x2="4.01" y2="4.01" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="9.596" y1="6.404" x2="11.99" y2="4.01" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="6.404" y1="9.596" x2="4.01" y2="11.99" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="9.596" y1="9.596" x2="11.99" y2="11.99" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+</g>
+<rect x="397" y="788" width="92.4" height="26" rx="13.0" fill="#1F2630"/>
+<text x="443.2" y="804.6" font-size="11" fill="#C9D1D9" text-anchor="middle">sonnet-4.5 ▾</text>
+<rect x="499.4" y="788" width="111.0" height="26" rx="13.0" fill="#1F2630"/>
+<text x="554.9" y="804.6" font-size="11" fill="#C9D1D9" text-anchor="middle">think: medium ▾</text>
+<rect x="639.0" y="788" width="111.0" height="26" rx="13.0" fill="#1F2630"/>
+<text x="694.5" y="804.6" font-size="11" fill="#8B949E" text-anchor="middle">auto-compact on</text>
+<rect x="904" y="786" width="84" height="30" rx="8" fill="none" stroke="#2D333B" stroke-width="1"/>
+<text x="946" y="806" font-size="11.5" fill="#C9D1D9" text-anchor="middle">＋ queue</text>
+<rect x="996" y="786" width="80" height="30" rx="8" fill="#F85149"/>
+<g transform="translate(1014,793)" fill="#0D1117" stroke="none">
+<rect x="3.4" y="3.4" width="9.2" height="9.2" rx="2.2" fill="#0D1117"/>
+</g>
+<text x="1038" y="806" font-size="12.5" fill="#0D1117" font-weight="700">Stop</text>
+<rect x="1120" y="46" width="320" height="894" fill="#10141B"/>
+<line x1="1119.5" y1="46" x2="1119.5" y2="940" stroke="#21262D" stroke-width="1"/>
+<g transform="translate(1410,64)" fill="#6E7681" stroke="none">
+<path d="M6 3.5 L10.5 8 L6 12.5" fill="none" stroke="#6E7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<rect x="1136" y="62" width="288" height="254" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="1152" y="86" font-size="13" fill="#E6EDF3" font-weight="650">Session details</text>
+<text x="1408" y="86" font-size="11" fill="#8B949E" text-anchor="end">edit</text>
+<text x="1152" y="108" font-size="11" fill="#8B949E">Model</text>
+<text x="1408" y="108" font-size="11.5" fill="#2DD4BF" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">sonnet-4.5 ▾</text>
+<line x1="1152" y1="120" x2="1408" y2="120" stroke="#21262D" stroke-width="1"/>
+<text x="1152" y="144" font-size="11" fill="#8B949E">Thinking</text>
+<text x="1408" y="144" font-size="11.5" fill="#2DD4BF" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">medium ▾</text>
+<line x1="1152" y1="156" x2="1408" y2="156" stroke="#21262D" stroke-width="1"/>
+<text x="1152" y="180" font-size="11" fill="#8B949E">Branch</text>
+<text x="1408" y="180" font-size="11.5" fill="#2DD4BF" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">main</text>
+<line x1="1152" y1="192" x2="1408" y2="192" stroke="#21262D" stroke-width="1"/>
+<text x="1152" y="216" font-size="11" fill="#8B949E">Compaction</text>
+<text x="1408" y="216" font-size="11.5" fill="#C9D1D9" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">auto · 45% ctx</text>
+<line x1="1152" y1="228" x2="1408" y2="228" stroke="#21262D" stroke-width="1"/>
+<text x="1152" y="252" font-size="11" fill="#8B949E">Trust</text>
+<text x="1408" y="252" font-size="11.5" fill="#C9D1D9" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">trusted ✓</text>
+<line x1="1152" y1="264" x2="1408" y2="264" stroke="#21262D" stroke-width="1"/>
+<rect x="1136" y="328" width="288" height="240" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="1152" y="352" font-size="13" fill="#E6EDF3" font-weight="650">Todo — 5 tasks</text>
+<text x="1408" y="352" font-size="11" fill="#8B949E" text-anchor="end">rpiv widget</text>
+<circle cx="1154" cy="374" r="4" fill="#3FB950"/>
+<text x="1168" y="378" font-size="11.5" fill="#C9D1D9">✓ Draft spec</text>
+<circle cx="1154" cy="408" r="4" fill="#3FB950"/>
+<text x="1168" y="412" font-size="11.5" fill="#C9D1D9">✓ Design tokens</text>
+<circle cx="1154" cy="442" r="4" fill="#2DD4BF"/>
+<text x="1168" y="446" font-size="11.5" fill="#C9D1D9">◐ Rail + router shell</text>
+<circle cx="1154" cy="476" r="4" fill="#8B949E"/>
+<text x="1168" y="480" font-size="11.5" fill="#C9D1D9">○ 6 page mockups</text>
+<circle cx="1154" cy="510" r="4" fill="#8B949E"/>
+<text x="1168" y="514" font-size="11.5" fill="#C9D1D9">○ Mobile pass</text>
+<rect x="1136" y="580" width="288" height="170" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="1152" y="604" font-size="13" fill="#E6EDF3" font-weight="650">Usage — today</text>
+<text x="1408" y="604" font-size="11" fill="#8B949E" text-anchor="end">Usage page →</text>
+<text x="1152" y="642" font-size="20" fill="#E6EDF3" font-weight="700">$1.28</text>
+<text x="1230" y="640" font-size="10.5" fill="#8B949E">this session</text>
+<text x="1152" y="666" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">↑ 312k  ↓ 88k  ·  R 74%  ·  14 turns</text>
+<polyline points="1152.0,716.4 1179.5555555555557,706.0 1207.111111111111,710.16 1234.6666666666667,695.6 1262.2222222222222,703.4 1289.7777777777778,690.4 1317.3333333333333,706.0 1344.888888888889,684.16 1372.4444444444443,695.6 1400.0,680.0" fill="none" stroke="#2DD4BF" stroke-width="1.6"/>
+<path d="M1152.0,716.4 L 1179.5555555555557,706.0 L 1207.111111111111,710.16 L 1234.6666666666667,695.6 L 1262.2222222222222,703.4 L 1289.7777777777778,690.4 L 1317.3333333333333,706.0 L 1344.888888888889,684.16 L 1372.4444444444443,695.6 L 1400.0,680.0 L1400,732 L1152,732 Z" fill="#2DD4BF22"/>
+<text x="1152" y="758" font-size="10.5" fill="#8B949E">context 45% of 200k — compaction at 92%</text>
+<rect x="1136" y="774" width="288" height="120" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="1152" y="798" font-size="13" fill="#E6EDF3" font-weight="650">Extension statuses</text>
+<text x="1408" y="798" font-size="11" fill="#8B949E" text-anchor="end">no raw ANSI</text>
+<rect x="1152" y="824" width="61.4" height="24" rx="12.0" fill="#1F2630"/>
+<text x="1182.7" y="839.6" font-size="10.5" fill="#C9D1D9" text-anchor="middle">Ⓜ build</text>
+<rect x="1221.4" y="824" width="73.80000000000001" height="24" rx="12.0" fill="#1F2630"/>
+<text x="1258.3000000000002" y="839.6" font-size="10.5" fill="#D29922" text-anchor="middle">🔌 MCP 3/4</text>
+<rect x="1303.2" y="824" width="80.0" height="24" rx="12.0" fill="#1F2630"/>
+<text x="1343.2" y="839.6" font-size="10.5" fill="#3FB950" text-anchor="middle">✓ hooks ok</text>
+<text x="1152" y="870" font-size="9.5" fill="#6E7681">each status → pill · color from data ·</text>
+<text x="1152" y="884" font-size="9.5" fill="#6E7681">ANSI escapes parsed + stripped at boundary</text>
+<rect x="52" y="908" width="1388" height="32" fill="#0B0E13"/>
+<line x1="52" y1="907.5" x2="1440" y2="907.5" stroke="#21262D" stroke-width="1"/>
+<text x="70" y="928" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">~/projects/pi</text>
+<g transform="translate(164,916)" fill="#8B949E" stroke="none">
+<circle cx="4.5" cy="3.5" r="1.8" fill="none" stroke="#8B949E" stroke-width="1.6"/>
+<circle cx="4.5" cy="12.5" r="1.8" fill="none" stroke="#8B949E" stroke-width="1.6"/>
+<circle cx="11.5" cy="3.5" r="1.8" fill="none" stroke="#8B949E" stroke-width="1.6"/>
+<line x1="4.5" y1="5.3" x2="4.5" y2="10.7" stroke="#8B949E" stroke-width="1.6"/>
+<line x1="11.5" y1="5.3" x2="11.5" y2="7.5" stroke="#8B949E" stroke-width="1.6"/>
+<line x1="11.5" y1="7.5" x2="4.5" y2="7.5" stroke="#8B949E" stroke-width="1.6" stroke-dasharray="2 1.6"/>
+<line x1="4.5" y1="7.5" x2="4.5" y2="7.5" stroke="#8B949E" stroke-width="1.6"/>
+</g>
+<text x="184" y="928" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">main</text>
+<line x1="240" y1="916" x2="240" y2="932" stroke="#21262D" stroke-width="1"/>
+<text x="254" y="928" font-size="10.5" fill="#6E7681" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">pi-web-ui-redesign</text>
+<text x="560" y="928" font-size="10" fill="#6E7681">ctx</text>
+<rect x="586" y="921" width="220" height="6" rx="3.0" fill="#21262D"/>
+<rect x="586" y="921" width="99" height="6" rx="3.0" fill="#2DD4BF"/>
+<text x="816" y="928" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">45% of 200k (auto)</text>
+<text x="1120" y="928" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$1.28 · ↑312k ↓88k · R 74% · W 0</text>
+<text x="1364" y="928" font-size="10.5" fill="#2DD4BF" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">sonnet-4.5 · med</text>
+</svg>

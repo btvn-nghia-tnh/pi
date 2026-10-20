@@ -1,0 +1,279 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<style>text{font-family:system-ui,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:12px;fill:#E6EDF3}</style>
+<rect x="0" y="0" width="1440" height="900" fill="#0D1117"/>
+<rect x="0" y="0" width="52" height="900" fill="#0B0E13"/>
+<line x1="51.5" y1="0" x2="51.5" y2="900" stroke="#21262D" stroke-width="1"/>
+<text x="26" y="38" font-size="22" fill="#2DD4BF" text-anchor="middle" font-weight="800">π</text>
+<rect x="8" y="72" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,82)" fill="#8B949E" stroke="none">
+<path d="M2 7.4 L8 2.2 L14 7.4 V13.8 H9.4 V9.6 H6.6 V13.8 H2 Z" fill="#8B949E"/>
+</g>
+<rect x="8" y="124" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,134)" fill="#8B949E" stroke="none">
+<rect x="1.6" y="2.8" width="12.8" height="8.8" rx="2.4" fill="#8B949E"/>
+<path d="M4.4 11.2 L4.4 14.6 L7.8 11.6 Z" fill="#8B949E"/>
+<circle cx="5" cy="7.2" r="0.9" fill="#0D1117"/><circle cx="8" cy="7.2" r="0.9" fill="#0D1117"/><circle cx="11" cy="7.2" r="0.9" fill="#0D1117"/>
+</g>
+<rect x="8" y="176" width="36" height="36" rx="10" fill="#2DD4BF1A"/>
+<g transform="translate(18,186)" fill="#2DD4BF" stroke="none">
+<path d="M1.8 12.8 V4.6 H5.6 L7.2 6.4 H14.2 V12.8 Z" fill="none" stroke="#2DD4BF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<rect x="8" y="228" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,238)" fill="#8B949E" stroke="none">
+<circle cx="3.1" cy="12.2" r="2.0" fill="#8B949E"/>
+<circle cx="12.9" cy="12.2" r="2.0" fill="#8B949E"/>
+<circle cx="8" cy="3.8" r="2.0" fill="#8B949E"/>
+<line x1="6.6" y1="5.1" x2="4.3" y2="10.1" stroke="#8B949E" stroke-width="1.5"/>
+<line x1="9.4" y1="5.1" x2="11.7" y2="10.1" stroke="#8B949E" stroke-width="1.5"/>
+<line x1="5.1" y1="12.2" x2="10.9" y2="12.2" stroke="#8B949E" stroke-width="1.5"/>
+</g>
+<rect x="8" y="280" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,290)" fill="#8B949E" stroke="none">
+<rect x="2.0" y="8.6" width="3.1" height="5.4" rx="0.8" fill="#8B949E" opacity="0.55"/>
+<rect x="6.4" y="5.6" width="3.1" height="8.4" rx="0.8" fill="#8B949E" opacity="0.8"/>
+<rect x="10.8" y="2.6" width="3.1" height="11.4" rx="0.8" fill="#8B949E"/>
+</g>
+<rect x="8" y="844" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,854)" fill="#8B949E" stroke="none">
+<circle cx="8" cy="8" r="2.5" fill="none" stroke="#8B949E" stroke-width="1.7"/>
+<line x1="8.0" y1="5.731999999999999" x2="8.0" y2="2.329999999999999" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="8.0" y1="10.268" x2="8.0" y2="13.670000000000002" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="5.731999999999999" y1="8.0" x2="2.329999999999999" y2="8.0" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="10.268" y1="8.0" x2="13.670000000000002" y2="8.0" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="6.404" y1="6.404" x2="4.01" y2="4.01" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="9.596" y1="6.404" x2="11.99" y2="4.01" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="6.404" y1="9.596" x2="4.01" y2="11.99" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="9.596" y1="9.596" x2="11.99" y2="11.99" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+</g>
+<text x="76" y="30" font-size="14" fill="#C9D1D9" font-weight="650">Projects</text>
+<text x="155.6" y="30" font-size="12" fill="#8B949E">›  pi (monorepo)</text>
+<rect x="1292.4" y="10" width="119.60000000000001" height="28" rx="8" fill="#2DD4BF"/>
+<text x="1352.2" y="28" font-size="12" fill="#0D1117" text-anchor="middle" font-weight="700">＋ New session</text>
+<rect x="1210.0" y="11" width="74.4" height="26" rx="7" fill="none" stroke="#2D333B" stroke-width="1"/>
+<text x="1247.2" y="28" font-size="11.5" fill="#C9D1D9" text-anchor="middle">Refresh</text>
+<line x1="52" y1="47.5" x2="1440" y2="47.5" stroke="#21262D" stroke-width="1"/>
+<rect x="52" y="48" width="308" height="852" fill="#10141B"/>
+<line x1="360.5" y1="48" x2="360.5" y2="900" stroke="#21262D" stroke-width="1"/>
+<rect x="66" y="64" width="280" height="30" rx="8" fill="#0D1117" stroke="#2D333B" stroke-width="1"/>
+<g transform="translate(72,71)" fill="#8B949E" stroke="none">
+<circle cx="7" cy="7" r="4.4" fill="none" stroke="#8B949E" stroke-width="1.8"/>
+<line x1="10.4" y1="10.4" x2="13.8" y2="13.8" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/>
+</g>
+<text x="94" y="83" font-size="11.5" fill="#6E7681">Filter projects…</text>
+<rect x="64" y="110" width="284" height="52" rx="10" fill="#1F2630"/>
+<rect x="64" y="110" width="3" height="52" rx="1.5" fill="#2DD4BF"/>
+<g transform="translate(78,120)" fill="#2DD4BF" stroke="none">
+<path d="M1.8 12.8 V4.6 H5.6 L7.2 6.4 H14.2 V12.8 Z" fill="none" stroke="#2DD4BF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="104" y="128" font-size="12.5" fill="#E6EDF3" font-weight="650">pi</text>
+<text x="104" y="144" font-size="10" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">~/projects/pi</text>
+<text x="340" y="128" font-size="9.5" fill="#8B949E" text-anchor="end">12 sessions · 2 running</text>
+<circle cx="332" cy="150" r="4" fill="#2DD4BF"/>
+<rect x="64" y="168" width="284" height="52" rx="10" fill="#10141B"/>
+<g transform="translate(78,178)" fill="#8B949E" stroke="none">
+<path d="M1.8 12.8 V4.6 H5.6 L7.2 6.4 H14.2 V12.8 Z" fill="none" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="104" y="186" font-size="12.5" fill="#E6EDF3" font-weight="650">watvmedia</text>
+<text x="104" y="202" font-size="10" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">~/projects/watvmedia</text>
+<text x="340" y="186" font-size="9.5" fill="#8B949E" text-anchor="end">8 sessions</text>
+<rect x="64" y="226" width="284" height="52" rx="10" fill="#10141B"/>
+<g transform="translate(78,236)" fill="#8B949E" stroke="none">
+<path d="M1.8 12.8 V4.6 H5.6 L7.2 6.4 H14.2 V12.8 Z" fill="none" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="104" y="244" font-size="12.5" fill="#E6EDF3" font-weight="650">nhann-homelab</text>
+<text x="104" y="260" font-size="10" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">~/projects/nhann-homelab</text>
+<text x="340" y="244" font-size="9.5" fill="#8B949E" text-anchor="end">5 sessions</text>
+<rect x="64" y="284" width="284" height="52" rx="10" fill="#10141B"/>
+<g transform="translate(78,294)" fill="#8B949E" stroke="none">
+<path d="M1.8 12.8 V4.6 H5.6 L7.2 6.4 H14.2 V12.8 Z" fill="none" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="104" y="302" font-size="12.5" fill="#E6EDF3" font-weight="650">dotfiles</text>
+<text x="104" y="318" font-size="10" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">~/dotfiles</text>
+<text x="340" y="302" font-size="9.5" fill="#8B949E" text-anchor="end">3 sessions</text>
+<rect x="64" y="342" width="284" height="52" rx="10" fill="#10141B"/>
+<g transform="translate(78,352)" fill="#8B949E" stroke="none">
+<path d="M1.8 12.8 V4.6 H5.6 L7.2 6.4 H14.2 V12.8 Z" fill="none" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="104" y="360" font-size="12.5" fill="#E6EDF3" font-weight="650">superpowers</text>
+<text x="104" y="376" font-size="10" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">~/.pi/agent/git/…/superpowers</text>
+<text x="340" y="360" font-size="9.5" fill="#8B949E" text-anchor="end">4 sessions</text>
+<text x="66" y="856" font-size="11" fill="#58A6FF">＋ open folder as project…</text>
+<g transform="translate(396,78)" fill="#2DD4BF" stroke="none">
+<path d="M1.8 12.8 V4.6 H5.6 L7.2 6.4 H14.2 V12.8 Z" fill="none" stroke="#2DD4BF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="428" y="82" font-size="18" fill="#E6EDF3" font-weight="700">pi</text>
+<text x="520" y="80" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">~/projects/pi</text>
+<rect x="404" y="96" width="58" height="22" rx="11.0" fill="#3FB9501F"/>
+<circle cx="413" cy="107.0" r="3.2" fill="#3FB950"/>
+<text x="421" y="110.5" font-size="10.5" fill="#3FB950">trusted</text>
+<rect x="472" y="96" width="82" height="22" rx="11.0" fill="#8B949E"/>
+<circle cx="481" cy="107.0" r="3.2" fill="#1F2630"/>
+<text x="489" y="110.5" font-size="10.5" fill="#1F2630">branch main</text>
+<rect x="564" y="92" width="73.80000000000001" height="24" rx="12.0" fill="#1F2630"/>
+<text x="600.9" y="107.6" font-size="11" fill="#58A6FF" text-anchor="middle">AGENTS.md</text>
+<rect x="647.8" y="92" width="80.0" height="24" rx="12.0" fill="#1F2630"/>
+<text x="687.8" y="107.6" font-size="11" fill="#8B949E" text-anchor="middle">biome.json</text>
+<rect x="735.8" y="92" width="73.80000000000001" height="24" rx="12.0" fill="#1F2630"/>
+<text x="772.6999999999999" y="107.6" font-size="11" fill="#8B949E" text-anchor="middle">.mcp.json</text>
+<rect x="388.0" y="124" width="246.5" height="72" rx="10" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="402.0" y="150" font-size="10" fill="#6E7681" letter-spacing="1">Sessions</text>
+<text x="402.0" y="176" font-size="14" fill="#E6EDF3" font-weight="650" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">12 · 2 running</text>
+<rect x="648.5" y="124" width="246.5" height="72" rx="10" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="662.5" y="150" font-size="10" fill="#6E7681" letter-spacing="1">Messages</text>
+<text x="662.5" y="176" font-size="14" fill="#E6EDF3" font-weight="650" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">3.2k</text>
+<rect x="909.0" y="124" width="246.5" height="72" rx="10" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="923.0" y="150" font-size="10" fill="#6E7681" letter-spacing="1">Spent</text>
+<text x="923.0" y="176" font-size="14" fill="#E6EDF3" font-weight="650" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$14.20</text>
+<rect x="1169.5" y="124" width="246.5" height="72" rx="10" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="1183.5" y="150" font-size="10" fill="#6E7681" letter-spacing="1">Last activity</text>
+<text x="1183.5" y="176" font-size="14" fill="#E6EDF3" font-weight="650" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">2h ago</text>
+<rect x="388" y="220" width="1028" height="324" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<rect x="406" y="244" width="16" height="16" rx="4" fill="none" stroke="#2D333B" stroke-width="1.2"/>
+<text x="406" y="256" font-size="10" fill="#6E7681" font-weight="700" letter-spacing="1">SESSION</text>
+<text x="666" y="256" font-size="10" fill="#6E7681" font-weight="700" letter-spacing="1">MESSAGES</text>
+<text x="776" y="256" font-size="10" fill="#6E7681" font-weight="700" letter-spacing="1">CTX</text>
+<text x="866" y="256" font-size="10" fill="#6E7681" font-weight="700" letter-spacing="1">COST</text>
+<text x="976" y="256" font-size="10" fill="#6E7681" font-weight="700" letter-spacing="1">MODIFIED</text>
+<line x1="389" y1="272" x2="1415" y2="272" stroke="#21262D" stroke-width="1"/>
+<rect x="406" y="272" width="16" height="16" rx="4" fill="#2DD4BF1A" stroke="#2DD4BF" stroke-width="1.2"/>
+<g transform="translate(406,272)" fill="#2DD4BF" stroke="none">
+<path d="M2.6 8.4 L6.2 12 L13.4 3.6" fill="none" stroke="#2DD4BF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="452" y="284" font-size="12" fill="#E6EDF3" font-weight="600">pi-web UI redesign</text>
+<circle cx="444" cy="280" r="3" fill="#2DD4BF"/>
+<text x="674" y="284" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">3 (1 running)</text>
+<text x="784" y="284" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">45%</text>
+<rect x="786" y="279" width="50" height="5" rx="2.5" fill="#21262D"/>
+<rect x="786" y="279" width="22" height="5" rx="2.5" fill="#2DD4BF"/>
+<text x="876" y="284" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$2.86</text>
+<text x="986" y="284" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">just now</text>
+<g transform="translate(1380,272)" fill="#6E7681" stroke="none">
+<circle cx="3" cy="8" r="1.3" fill="#6E7681"/>
+<circle cx="8" cy="8" r="1.3" fill="#6E7681"/>
+<circle cx="13" cy="8" r="1.3" fill="#6E7681"/>
+</g>
+<rect x="406" y="312" width="16" height="16" rx="4" fill="none" stroke="#2D333B" stroke-width="1.2"/>
+<text x="452" y="324" font-size="12" fill="#E6EDF3" font-weight="600">fix-tui-bug</text>
+<text x="674" y="324" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">18</text>
+<text x="784" y="324" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">88%</text>
+<rect x="786" y="319" width="50" height="5" rx="2.5" fill="#21262D"/>
+<rect x="786" y="319" width="44" height="5" rx="2.5" fill="#D29922"/>
+<text x="876" y="324" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$0.42</text>
+<text x="986" y="324" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">23m ago</text>
+<g transform="translate(1380,312)" fill="#6E7681" stroke="none">
+<circle cx="3" cy="8" r="1.3" fill="#6E7681"/>
+<circle cx="8" cy="8" r="1.3" fill="#6E7681"/>
+<circle cx="13" cy="8" r="1.3" fill="#6E7681"/>
+</g>
+<rect x="406" y="352" width="16" height="16" rx="4" fill="none" stroke="#2D333B" stroke-width="1.2"/>
+<text x="452" y="364" font-size="12" fill="#E6EDF3" font-weight="600">nightly-evals</text>
+<text x="674" y="364" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">96</text>
+<text x="784" y="364" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">62%</text>
+<rect x="786" y="359" width="50" height="5" rx="2.5" fill="#21262D"/>
+<rect x="786" y="359" width="31" height="5" rx="2.5" fill="#2DD4BF"/>
+<text x="876" y="364" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$1.24</text>
+<text x="986" y="364" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">2h ago</text>
+<g transform="translate(1380,352)" fill="#6E7681" stroke="none">
+<circle cx="3" cy="8" r="1.3" fill="#6E7681"/>
+<circle cx="8" cy="8" r="1.3" fill="#6E7681"/>
+<circle cx="13" cy="8" r="1.3" fill="#6E7681"/>
+</g>
+<rect x="396" y="384" width="1012" height="40" rx="8" fill="#1F2630"/>
+<rect x="406" y="392" width="16" height="16" rx="4" fill="#2DD4BF1A" stroke="#2DD4BF" stroke-width="1.2"/>
+<g transform="translate(406,392)" fill="#2DD4BF" stroke="none">
+<path d="M2.6 8.4 L6.2 12 L13.4 3.6" fill="none" stroke="#2DD4BF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="452" y="404" font-size="12" fill="#E6EDF3" font-weight="600">tui-plan rewrite</text>
+<text x="674" y="404" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">210</text>
+<text x="784" y="404" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">74%</text>
+<rect x="786" y="399" width="50" height="5" rx="2.5" fill="#21262D"/>
+<rect x="786" y="399" width="37" height="5" rx="2.5" fill="#D29922"/>
+<text x="876" y="404" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$4.10</text>
+<text x="986" y="404" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">yesterday</text>
+<g transform="translate(1380,392)" fill="#6E7681" stroke="none">
+<circle cx="3" cy="8" r="1.3" fill="#6E7681"/>
+<circle cx="8" cy="8" r="1.3" fill="#6E7681"/>
+<circle cx="13" cy="8" r="1.3" fill="#6E7681"/>
+</g>
+<rect x="406" y="432" width="16" height="16" rx="4" fill="#2DD4BF1A" stroke="#2DD4BF" stroke-width="1.2"/>
+<g transform="translate(406,432)" fill="#2DD4BF" stroke="none">
+<path d="M2.6 8.4 L6.2 12 L13.4 3.6" fill="none" stroke="#2DD4BF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="452" y="444" font-size="12" fill="#E6EDF3" font-weight="600">session gallery SVG</text>
+<text x="674" y="444" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">12</text>
+<text x="784" y="444" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">10%</text>
+<rect x="786" y="439" width="50" height="5" rx="2.5" fill="#21262D"/>
+<rect x="786" y="439" width="5" height="5" rx="2.5" fill="#F85149"/>
+<text x="876" y="444" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$0.08</text>
+<text x="986" y="444" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">3d ago</text>
+<g transform="translate(1380,432)" fill="#6E7681" stroke="none">
+<circle cx="3" cy="8" r="1.3" fill="#6E7681"/>
+<circle cx="8" cy="8" r="1.3" fill="#6E7681"/>
+<circle cx="13" cy="8" r="1.3" fill="#6E7681"/>
+</g>
+<rect x="406" y="472" width="16" height="16" rx="4" fill="none" stroke="#2D333B" stroke-width="1.2"/>
+<text x="452" y="484" font-size="12" fill="#E6EDF3" font-weight="600">middleware refactor</text>
+<text x="674" y="484" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">41</text>
+<text x="784" y="484" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">31%</text>
+<rect x="786" y="479" width="50" height="5" rx="2.5" fill="#21262D"/>
+<rect x="786" y="479" width="15" height="5" rx="2.5" fill="#2DD4BF"/>
+<text x="876" y="484" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$1.44</text>
+<text x="986" y="484" font-size="11" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">4d ago</text>
+<g transform="translate(1380,472)" fill="#6E7681" stroke="none">
+<circle cx="3" cy="8" r="1.3" fill="#6E7681"/>
+<circle cx="8" cy="8" r="1.3" fill="#6E7681"/>
+<circle cx="13" cy="8" r="1.3" fill="#6E7681"/>
+</g>
+<rect x="388" y="560" width="1028" height="52" rx="10" fill="#1F2630" stroke="#2D333B" stroke-width="1"/>
+<text x="408" y="590" font-size="11.5" fill="#C9D1D9" font-weight="650">2 sessions selected</text>
+<rect x="568" y="571" width="68.4" height="30" rx="7" fill="none" stroke="#2D333B" stroke-width="1"/>
+<text x="602.2" y="590" font-size="11" fill="#C9D1D9" text-anchor="middle">Rename</text>
+<rect x="644.4" y="571" width="53.6" height="30" rx="7" fill="none" stroke="#2D333B" stroke-width="1"/>
+<text x="671.1999999999999" y="590" font-size="11" fill="#C9D1D9" text-anchor="middle">Fork</text>
+<rect x="706.0" y="571" width="105.4" height="30" rx="7" fill="none" stroke="#2D333B" stroke-width="1"/>
+<text x="758.7" y="590" font-size="11" fill="#C9D1D9" text-anchor="middle">Export HTML</text>
+<rect x="819.4" y="571" width="61.0" height="30" rx="7" fill="none" stroke="#2D333B" stroke-width="1"/>
+<text x="849.9" y="590" font-size="11" fill="#C9D1D9" text-anchor="middle">Share</text>
+<rect x="888.4" y="571" width="68.4" height="30" rx="7" fill="none" stroke="#F85149" stroke-width="1"/>
+<text x="922.6" y="590" font-size="11" fill="#F85149" text-anchor="middle">Delete</text>
+<rect x="388" y="628" width="1028" height="244" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="404" y="652" font-size="13" fill="#E6EDF3" font-weight="650">Context files</text>
+<text x="1400" y="652" font-size="11" fill="#8B949E" text-anchor="end">fed to every session in this project</text>
+<g transform="translate(414,670)" fill="#58A6FF" stroke="none">
+<path d="M3.4 1.8 H10 L12.8 4.6 V14.2 H3.4 Z" fill="none" stroke="#58A6FF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M9.8 1.9 V4.8 H12.7" fill="none" stroke="#58A6FF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="440" y="682" font-size="12" fill="#E6EDF3" font-weight="600" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">AGENTS.md</text>
+<text x="688" y="682" font-size="10.5" fill="#8B949E">project · 11.8 kB · 21 rules</text>
+<rect x="1296" y="662" width="64" height="22" rx="11.0" fill="#58A6FF5A"/>
+<circle cx="1305" cy="673.0" r="3.2" fill="#58A6FF"/>
+<text x="1313" y="676.5" font-size="10.5" fill="#58A6FF">editable</text>
+<g transform="translate(414,712)" fill="#58A6FF" stroke="none">
+<path d="M3.4 1.8 H10 L12.8 4.6 V14.2 H3.4 Z" fill="none" stroke="#58A6FF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M9.8 1.9 V4.8 H12.7" fill="none" stroke="#58A6FF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="440" y="724" font-size="12" fill="#E6EDF3" font-weight="600" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">.mcp.json</text>
+<text x="688" y="724" font-size="10.5" fill="#8B949E">project · 2 servers</text>
+<rect x="1296" y="704" width="64" height="22" rx="11.0" fill="#58A6FF5A"/>
+<circle cx="1305" cy="715.0" r="3.2" fill="#58A6FF"/>
+<text x="1313" y="718.5" font-size="10.5" fill="#58A6FF">editable</text>
+<g transform="translate(414,754)" fill="#58A6FF" stroke="none">
+<path d="M3.4 1.8 H10 L12.8 4.6 V14.2 H3.4 Z" fill="none" stroke="#58A6FF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M9.8 1.9 V4.8 H12.7" fill="none" stroke="#58A6FF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="440" y="766" font-size="12" fill="#E6EDF3" font-weight="600" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">biome.json</text>
+<text x="688" y="766" font-size="10.5" fill="#8B949E">repo root · formatter</text>
+<rect x="1296" y="746" width="64" height="22" rx="11.0" fill="#58A6FF5A"/>
+<circle cx="1305" cy="757.0" r="3.2" fill="#58A6FF"/>
+<text x="1313" y="760.5" font-size="10.5" fill="#58A6FF">editable</text>
+<g transform="translate(414,796)" fill="#8B949E" stroke="none">
+<path d="M3.4 1.8 H10 L12.8 4.6 V14.2 H3.4 Z" fill="none" stroke="#8B949E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M9.8 1.9 V4.8 H12.7" fill="none" stroke="#8B949E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="440" y="808" font-size="12" fill="#E6EDF3" font-weight="600" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">settings.json (override)</text>
+<text x="688" y="808" font-size="10.5" fill="#8B949E">agent · per-project defaults</text>
+<rect x="1296" y="788" width="64" height="22" rx="11.0" fill="#58A6FF5A"/>
+<circle cx="1305" cy="799.0" r="3.2" fill="#58A6FF"/>
+<text x="1313" y="802.5" font-size="10.5" fill="#58A6FF">editable</text>
+<text x="404" y="852" font-size="10" fill="#6E7681">changes reload on next session open — pinned file: AGENTS.md</text>
+</svg>

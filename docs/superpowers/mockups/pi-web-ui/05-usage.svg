@@ -1,0 +1,209 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<style>text{font-family:system-ui,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:12px;fill:#E6EDF3}</style>
+<rect x="0" y="0" width="1440" height="900" fill="#0D1117"/>
+<rect x="0" y="0" width="52" height="900" fill="#0B0E13"/>
+<line x1="51.5" y1="0" x2="51.5" y2="900" stroke="#21262D" stroke-width="1"/>
+<text x="26" y="38" font-size="22" fill="#2DD4BF" text-anchor="middle" font-weight="800">π</text>
+<rect x="8" y="72" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,82)" fill="#8B949E" stroke="none">
+<path d="M2 7.4 L8 2.2 L14 7.4 V13.8 H9.4 V9.6 H6.6 V13.8 H2 Z" fill="#8B949E"/>
+</g>
+<rect x="8" y="124" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,134)" fill="#8B949E" stroke="none">
+<rect x="1.6" y="2.8" width="12.8" height="8.8" rx="2.4" fill="#8B949E"/>
+<path d="M4.4 11.2 L4.4 14.6 L7.8 11.6 Z" fill="#8B949E"/>
+<circle cx="5" cy="7.2" r="0.9" fill="#0D1117"/><circle cx="8" cy="7.2" r="0.9" fill="#0D1117"/><circle cx="11" cy="7.2" r="0.9" fill="#0D1117"/>
+</g>
+<rect x="8" y="176" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,186)" fill="#8B949E" stroke="none">
+<path d="M1.8 12.8 V4.6 H5.6 L7.2 6.4 H14.2 V12.8 Z" fill="none" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<rect x="8" y="228" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,238)" fill="#8B949E" stroke="none">
+<circle cx="3.1" cy="12.2" r="2.0" fill="#8B949E"/>
+<circle cx="12.9" cy="12.2" r="2.0" fill="#8B949E"/>
+<circle cx="8" cy="3.8" r="2.0" fill="#8B949E"/>
+<line x1="6.6" y1="5.1" x2="4.3" y2="10.1" stroke="#8B949E" stroke-width="1.5"/>
+<line x1="9.4" y1="5.1" x2="11.7" y2="10.1" stroke="#8B949E" stroke-width="1.5"/>
+<line x1="5.1" y1="12.2" x2="10.9" y2="12.2" stroke="#8B949E" stroke-width="1.5"/>
+</g>
+<rect x="8" y="280" width="36" height="36" rx="10" fill="#2DD4BF1A"/>
+<g transform="translate(18,290)" fill="#2DD4BF" stroke="none">
+<rect x="2.0" y="8.6" width="3.1" height="5.4" rx="0.8" fill="#2DD4BF" opacity="0.55"/>
+<rect x="6.4" y="5.6" width="3.1" height="8.4" rx="0.8" fill="#2DD4BF" opacity="0.8"/>
+<rect x="10.8" y="2.6" width="3.1" height="11.4" rx="0.8" fill="#2DD4BF"/>
+</g>
+<rect x="8" y="844" width="36" height="36" rx="10" fill="none"/>
+<g transform="translate(18,854)" fill="#8B949E" stroke="none">
+<circle cx="8" cy="8" r="2.5" fill="none" stroke="#8B949E" stroke-width="1.7"/>
+<line x1="8.0" y1="5.731999999999999" x2="8.0" y2="2.329999999999999" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="8.0" y1="10.268" x2="8.0" y2="13.670000000000002" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="5.731999999999999" y1="8.0" x2="2.329999999999999" y2="8.0" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="10.268" y1="8.0" x2="13.670000000000002" y2="8.0" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="6.404" y1="6.404" x2="4.01" y2="4.01" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="9.596" y1="6.404" x2="11.99" y2="4.01" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="6.404" y1="9.596" x2="4.01" y2="11.99" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+<line x1="9.596" y1="9.596" x2="11.99" y2="11.99" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round"/>
+</g>
+<text x="76" y="30" font-size="14" fill="#C9D1D9" font-weight="650">Usage</text>
+<rect x="1316.0" y="11" width="96.0" height="26" rx="7" fill="none" stroke="#2D333B" stroke-width="1"/>
+<text x="1364.0" y="28" font-size="11.5" fill="#C9D1D9" text-anchor="middle">Export CSV</text>
+<rect x="1274.0" y="11" width="28" height="26" rx="7" fill="none" stroke="#2D333B" stroke-width="1"/>
+<g transform="translate(1280.0,16)" fill="#8B949E" stroke="none">
+</g>
+<line x1="52" y1="47.5" x2="1440" y2="47.5" stroke="#21262D" stroke-width="1"/>
+<rect x="76" y="72" width="64.0" height="28" rx="14" fill="none" stroke="#2D333B" stroke-width="1"/>
+<text x="108.0" y="90" font-size="11.5" fill="#8B949E" text-anchor="middle" font-weight="400">Today</text>
+<rect x="148.0" y="72" width="71.6" height="28" rx="14" fill="#2DD4BF1A" stroke="#2DD4BF" stroke-width="1"/>
+<text x="183.8" y="90" font-size="11.5" fill="#2DD4BF" text-anchor="middle" font-weight="650">7 days</text>
+<rect x="227.6" y="72" width="79.19999999999999" height="28" rx="14" fill="none" stroke="#2D333B" stroke-width="1"/>
+<text x="267.2" y="90" font-size="11.5" fill="#8B949E" text-anchor="middle" font-weight="400">30 days</text>
+<rect x="314.79999999999995" y="72" width="86.8" height="28" rx="14" fill="none" stroke="#2D333B" stroke-width="1"/>
+<text x="358.19999999999993" y="90" font-size="11.5" fill="#8B949E" text-anchor="middle" font-weight="400">All time</text>
+<rect x="435.59999999999997" y="72" width="119.19999999999999" height="28" rx="8" fill="#1F2630"/>
+<text x="495.19999999999993" y="90" font-size="11" fill="#8B949E" text-anchor="middle">Model: all ▾</text>
+<rect x="580.8" y="72" width="132.39999999999998" height="28" rx="8" fill="#1F2630"/>
+<text x="647.0" y="90" font-size="11" fill="#8B949E" text-anchor="middle">Project: all ▾</text>
+<rect x="76.0" y="116" width="323.0" height="86" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="92.0" y="146" font-size="10" fill="#6E7681" letter-spacing="1">Cost — 7 days</text>
+<text x="92.0" y="178" font-size="20" fill="#E6EDF3" font-weight="700" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$23.80</text>
+<text x="92.0" y="194" font-size="9.5" fill="#8B949E">+12% vs prior week</text>
+<rect x="415.0" y="116" width="323.0" height="86" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="431.0" y="146" font-size="10" fill="#6E7681" letter-spacing="1">Sessions</text>
+<text x="431.0" y="178" font-size="20" fill="#E6EDF3" font-weight="700" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">34</text>
+<text x="431.0" y="194" font-size="9.5" fill="#8B949E">2 active now</text>
+<rect x="754.0" y="116" width="323.0" height="86" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="770.0" y="146" font-size="10" fill="#6E7681" letter-spacing="1">Tokens ↑</text>
+<text x="770.0" y="178" font-size="20" fill="#E6EDF3" font-weight="700" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">8.1M</text>
+<text x="770.0" y="194" font-size="9.5" fill="#8B949E">in + cache-read 6.2M</text>
+<rect x="1093.0" y="116" width="323.0" height="86" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="1109.0" y="146" font-size="10" fill="#6E7681" letter-spacing="1">Tokens ↓</text>
+<text x="1109.0" y="178" font-size="20" fill="#E6EDF3" font-weight="700" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">2.4M</text>
+<text x="1109.0" y="194" font-size="9.5" fill="#8B949E">cache-write 940k · hit 88%</text>
+<rect x="76" y="224" width="830" height="360" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="92" y="248" font-size="13" fill="#E6EDF3" font-weight="650">Cost per day</text>
+<rect x="842.0" y="242" width="14" height="4" rx="2" fill="#2DD4BF"/>
+<text x="850.0" y="243" font-size="10" fill="#8B949E" text-anchor="end">input</text>
+<rect x="767.6" y="242" width="14" height="4" rx="2" fill="#58A6FF"/>
+<text x="775.6" y="243" font-size="10" fill="#8B949E" text-anchor="end">output</text>
+<rect x="674.0" y="242" width="14" height="4" rx="2" fill="#8B949E"/>
+<text x="682.0" y="243" font-size="10" fill="#8B949E" text-anchor="end">cache R/W</text>
+<line x1="116" y1="540.0" x2="866" y2="540.0" stroke="#21262D" stroke-width="1"/>
+<text x="108" y="543.5" font-size="9" fill="#6E7681" text-anchor="end">$8</text>
+<line x1="116" y1="475.0" x2="866" y2="475.0" stroke="#21262D" stroke-width="1"/>
+<text x="108" y="478.5" font-size="9" fill="#6E7681" text-anchor="end">$6</text>
+<line x1="116" y1="410.0" x2="866" y2="410.0" stroke="#21262D" stroke-width="1"/>
+<text x="108" y="413.5" font-size="9" fill="#6E7681" text-anchor="end">$4</text>
+<line x1="116" y1="345.0" x2="866" y2="345.0" stroke="#21262D" stroke-width="1"/>
+<text x="108" y="348.5" font-size="9" fill="#6E7681" text-anchor="end">$2</text>
+<line x1="116" y1="280.0" x2="866" y2="280.0" stroke="#21262D" stroke-width="1"/>
+<text x="108" y="283.5" font-size="9" fill="#6E7681" text-anchor="end">$0</text>
+<rect x="116.0" y="489.6774193548387" width="34" height="50.32258064516129" rx="3" fill="#2DD4BF"/>
+<rect x="116.0" y="477.0967741935484" width="34" height="12.580645161290322" rx="3" fill="#58A6FF"/>
+<rect x="116.0" y="460.32258064516134" width="34" height="16.774193548387096" rx="3" fill="#8B949E"/>
+<text x="133.0" y="556" font-size="9.5" fill="#6E7681" text-anchor="middle">Oct 15</text>
+<rect x="235.33333333333331" y="464.51612903225805" width="34" height="75.48387096774194" rx="3" fill="#2DD4BF"/>
+<rect x="235.33333333333331" y="443.54838709677415" width="34" height="20.967741935483872" rx="3" fill="#58A6FF"/>
+<rect x="235.33333333333331" y="418.3870967741935" width="34" height="25.161290322580644" rx="3" fill="#8B949E"/>
+<text x="252.33333333333331" y="556" font-size="9.5" fill="#6E7681" text-anchor="middle">16</text>
+<rect x="354.66666666666663" y="439.35483870967744" width="34" height="100.64516129032258" rx="3" fill="#2DD4BF"/>
+<rect x="354.66666666666663" y="401.61290322580646" width="34" height="37.74193548387097" rx="3" fill="#58A6FF"/>
+<rect x="354.66666666666663" y="359.6774193548387" width="34" height="41.935483870967744" rx="3" fill="#8B949E"/>
+<text x="371.66666666666663" y="556" font-size="9.5" fill="#6E7681" text-anchor="middle">17</text>
+<rect x="474.0" y="472.9032258064516" width="34" height="67.09677419354838" rx="3" fill="#2DD4BF"/>
+<rect x="474.0" y="456.1290322580645" width="34" height="16.774193548387096" rx="3" fill="#58A6FF"/>
+<rect x="474.0" y="435.1612903225806" width="34" height="20.967741935483872" rx="3" fill="#8B949E"/>
+<text x="491.0" y="556" font-size="9.5" fill="#6E7681" text-anchor="middle">18</text>
+<rect x="593.3333333333333" y="456.1290322580645" width="34" height="83.87096774193549" rx="3" fill="#2DD4BF"/>
+<rect x="593.3333333333333" y="426.7741935483871" width="34" height="29.354838709677416" rx="3" fill="#58A6FF"/>
+<rect x="593.3333333333333" y="393.22580645161287" width="34" height="33.54838709677419" rx="3" fill="#8B949E"/>
+<text x="610.3333333333333" y="556" font-size="9.5" fill="#6E7681" text-anchor="middle">19</text>
+<rect x="712.6666666666666" y="405.80645161290323" width="34" height="134.19354838709677" rx="3" fill="#2DD4BF"/>
+<rect x="712.6666666666666" y="359.6774193548387" width="34" height="46.12903225806452" rx="3" fill="#58A6FF"/>
+<rect x="712.6666666666666" y="300.9677419354839" width="34" height="58.70967741935483" rx="3" fill="#8B949E"/>
+<text x="729.6666666666666" y="556" font-size="9.5" fill="#6E7681" text-anchor="middle">20</text>
+<rect x="654.6666666666666" y="248.9677419354839" width="150" height="40" rx="8" fill="#1F2630" stroke="#2D333B" stroke-width="1"/>
+<text x="666.6666666666666" y="264.9677419354839" font-size="10.5" fill="#E6EDF3" font-weight="650">Oct 20 · $5.70</text>
+<text x="666.6666666666666" y="278.9677419354839" font-size="10" fill="#8B949E">in 3.2k↑ 1.1k↓ 1.4k cache</text>
+<line x1="729.6666666666666" y1="292.9677419354839" x2="729.6666666666666" y2="300.9677419354839" stroke="#2DD4BF" stroke-width="1.5"/>
+<rect x="832.0" y="481.2903225806452" width="34" height="58.70967741935483" rx="3" fill="#2DD4BF"/>
+<rect x="832.0" y="464.5161290322581" width="34" height="16.774193548387096" rx="3" fill="#58A6FF"/>
+<rect x="832.0" y="435.16129032258067" width="34" height="29.354838709677416" rx="3" fill="#8B949E"/>
+<text x="849.0" y="556" font-size="9.5" fill="#6E7681" text-anchor="middle">21</text>
+<rect x="934" y="224" width="482" height="240" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="950" y="248" font-size="13" fill="#E6EDF3" font-weight="650">By model</text>
+<text x="1400" y="248" font-size="11" fill="#8B949E" text-anchor="end">34 sessions</text>
+<text x="950" y="280" font-size="11.5" fill="#E6EDF3" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">claude-sonnet-4.5</text>
+<text x="950" y="296" font-size="10" fill="#8B949E">$9.62 · 41%</text>
+<rect x="950" y="306" width="450" height="4" rx="2.0" fill="#21262D"/>
+<rect x="950" y="306" width="184" height="4" rx="2.0" fill="#2DD4BF"/>
+<text x="950" y="322" font-size="11.5" fill="#E6EDF3" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">gpt-5.2-codex</text>
+<text x="950" y="338" font-size="10" fill="#8B949E">$8.14 · 34%</text>
+<rect x="950" y="348" width="450" height="4" rx="2.0" fill="#21262D"/>
+<rect x="950" y="348" width="153" height="4" rx="2.0" fill="#58A6FF"/>
+<text x="950" y="364" font-size="11.5" fill="#E6EDF3" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">gpt-5.2-high</text>
+<text x="950" y="380" font-size="10" fill="#8B949E">$3.41 · 14%</text>
+<rect x="950" y="390" width="450" height="4" rx="2.0" fill="#21262D"/>
+<rect x="950" y="390" width="63" height="4" rx="2.0" fill="#58A6FF"/>
+<text x="950" y="406" font-size="11.5" fill="#E6EDF3" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">o4-mini · misc</text>
+<text x="950" y="422" font-size="10" fill="#8B949E">$2.63 · 11%</text>
+<rect x="950" y="432" width="450" height="4" rx="2.0" fill="#21262D"/>
+<rect x="950" y="432" width="49" height="4" rx="2.0" fill="#8B949E"/>
+<rect x="76" y="600" width="1340" height="276" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="92" y="628" font-size="13" fill="#E6EDF3" font-weight="650">Sessions — matching filters</text>
+<text x="1400" y="628" font-size="10" fill="#6E7681" text-anchor="end">search ⌘F · click a row to open it</text>
+<text x="92" y="656" font-size="9.5" fill="#6E7681" font-weight="700" letter-spacing="1">SESSION</text>
+<text x="392" y="656" font-size="9.5" fill="#6E7681" font-weight="700" letter-spacing="1">PROJECT</text>
+<text x="632" y="656" font-size="9.5" fill="#6E7681" font-weight="700" letter-spacing="1">MODEL</text>
+<text x="842" y="656" font-size="9.5" fill="#6E7681" font-weight="700" letter-spacing="1">TOKENS</text>
+<text x="1062" y="656" font-size="9.5" fill="#6E7681" font-weight="700" letter-spacing="1">COST</text>
+<text x="1182" y="656" font-size="9.5" fill="#6E7681" font-weight="700" letter-spacing="1">LAST ACTIVE</text>
+<line x1="93" y1="668" x2="1421" y2="668" stroke="#21262D" stroke-width="1"/>
+<rect x="84" y="664" width="1332" height="30" rx="7" fill="#1F2630"/>
+<text x="92" y="682" font-size="12" fill="#E6EDF3" font-weight="600">pi-web UI redesign</text>
+<text x="392" y="682" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">~/projects/pi</text>
+<text x="632" y="682" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">claude-sonnet-4.5</text>
+<text x="842" y="682" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">↑420k ↓96k · R81%</text>
+<text x="1062" y="682" font-size="10.5" fill="#C9D1D9" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$2.86</text>
+<text x="1182" y="682" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">now</text>
+<g transform="translate(1340,670)" fill="#2DD4BF" stroke="none">
+<path d="M3 8 H12.6 M9 4.4 L12.6 8 L9 11.6" fill="none" stroke="#2DD4BF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="92" y="712" font-size="12" fill="#E6EDF3" font-weight="600">fix-tui-bug</text>
+<text x="392" y="712" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">~/projects/pi</text>
+<text x="632" y="712" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">gpt-5.2-codex</text>
+<text x="842" y="712" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">↑118k ↓31k · R77%</text>
+<text x="1062" y="712" font-size="10.5" fill="#C9D1D9" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$0.42</text>
+<text x="1182" y="712" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">23m</text>
+<g transform="translate(1340,700)" fill="#6E7681" stroke="none">
+<path d="M3 8 H12.6 M9 4.4 L12.6 8 L9 11.6" fill="none" stroke="#6E7681" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="92" y="742" font-size="12" fill="#E6EDF3" font-weight="600">nightly-evals</text>
+<text x="392" y="742" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">~/projects/pi</text>
+<text x="632" y="742" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">gpt-5.2-high</text>
+<text x="842" y="742" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">↑2.1M ↓340k · R89%</text>
+<text x="1062" y="742" font-size="10.5" fill="#C9D1D9" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$1.24</text>
+<text x="1182" y="742" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">2h</text>
+<g transform="translate(1340,730)" fill="#6E7681" stroke="none">
+<path d="M3 8 H12.6 M9 4.4 L12.6 8 L9 11.6" fill="none" stroke="#6E7681" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="92" y="772" font-size="12" fill="#E6EDF3" font-weight="600">crawl danh sách video</text>
+<text x="392" y="772" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">~/projects/watvmedia</text>
+<text x="632" y="772" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">claude-sonnet-4.5</text>
+<text x="842" y="772" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">↑96k ↓12k · —</text>
+<text x="1062" y="772" font-size="10.5" fill="#C9D1D9" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$0.19</text>
+<text x="1182" y="772" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">3d</text>
+<g transform="translate(1340,760)" fill="#6E7681" stroke="none">
+<path d="M3 8 H12.6 M9 4.4 L12.6 8 L9 11.6" fill="none" stroke="#6E7681" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="92" y="802" font-size="12" fill="#E6EDF3" font-weight="600">wireguard setup</text>
+<text x="392" y="802" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">~/projects/nhann-homelab</text>
+<text x="632" y="802" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">o4-mini</text>
+<text x="842" y="802" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">↑210k ↓40k · R64%</text>
+<text x="1062" y="802" font-size="10.5" fill="#C9D1D9" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$0.31</text>
+<text x="1182" y="802" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">1w</text>
+<g transform="translate(1340,790)" fill="#6E7681" stroke="none">
+<path d="M3 8 H12.6 M9 4.4 L12.6 8 L9 11.6" fill="none" stroke="#6E7681" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="92" y="834" font-size="10.5" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">Totals — 34 sessions · $23.80 · ↑8.1M ↓2.4M · cache hit 88%</text>
+</svg>

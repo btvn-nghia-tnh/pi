@@ -1,0 +1,220 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1080" viewBox="0 0 1440 1080">
+<style>text{font-family:system-ui,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:12px;fill:#E6EDF3}</style>
+<rect x="0" y="0" width="1440" height="1080" fill="#0D1117"/>
+<text x="24" y="34" font-size="15" fill="#E6EDF3" font-weight="700">07 · Mobile</text>
+<text x="24" y="52" font-size="11.5" fill="#8B949E">390 × 826 — rail → tab bar · lists → drawer · dialogs → bottom sheets</text>
+<rect x="34" y="72" width="390" height="826" rx="26" fill="#0D1117" stroke="#2D333B" stroke-width="2"/>
+<text x="62" y="98" font-size="11" fill="#E6EDF3" font-weight="700">9:41</text>
+<rect x="177.0" y="84" width="104" height="22" rx="11" fill="none" stroke="#21262D" stroke-width="1"/>
+<text x="396" y="98" font-size="9.5" fill="#8B949E" text-anchor="end">5G ▮▮</text>
+<text x="34" y="62" font-size="12.5" fill="#8B949E" text-anchor="start">① Home</text>
+<rect x="34" y="834" width="390" height="0.8" fill="#21262D"/>
+<g transform="translate(65.0,848)" fill="#2DD4BF" stroke="none">
+<path d="M2 7.4 L8 2.2 L14 7.4 V13.8 H9.4 V9.6 H6.6 V13.8 H2 Z" fill="#2DD4BF"/>
+</g>
+<text x="73.0" y="878" font-size="8" fill="#2DD4BF" text-anchor="middle">home</text>
+<g transform="translate(143.0,848)" fill="#8B949E" stroke="none">
+<rect x="1.6" y="2.8" width="12.8" height="8.8" rx="2.4" fill="#8B949E"/>
+<path d="M4.4 11.2 L4.4 14.6 L7.8 11.6 Z" fill="#8B949E"/>
+<circle cx="5" cy="7.2" r="0.9" fill="#0D1117"/><circle cx="8" cy="7.2" r="0.9" fill="#0D1117"/><circle cx="11" cy="7.2" r="0.9" fill="#0D1117"/>
+</g>
+<text x="151.0" y="878" font-size="8" fill="#6E7681" text-anchor="middle">chats</text>
+<g transform="translate(221.0,848)" fill="#8B949E" stroke="none">
+<path d="M1.8 12.8 V4.6 H5.6 L7.2 6.4 H14.2 V12.8 Z" fill="none" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="229.0" y="878" font-size="8" fill="#6E7681" text-anchor="middle">projects</text>
+<g transform="translate(299.0,848)" fill="#8B949E" stroke="none">
+<circle cx="3.1" cy="12.2" r="2.0" fill="#8B949E"/>
+<circle cx="12.9" cy="12.2" r="2.0" fill="#8B949E"/>
+<circle cx="8" cy="3.8" r="2.0" fill="#8B949E"/>
+<line x1="6.6" y1="5.1" x2="4.3" y2="10.1" stroke="#8B949E" stroke-width="1.5"/>
+<line x1="9.4" y1="5.1" x2="11.7" y2="10.1" stroke="#8B949E" stroke-width="1.5"/>
+<line x1="5.1" y1="12.2" x2="10.9" y2="12.2" stroke="#8B949E" stroke-width="1.5"/>
+</g>
+<text x="307.0" y="878" font-size="8" fill="#6E7681" text-anchor="middle">mcp</text>
+<g transform="translate(377.0,848)" fill="#8B949E" stroke="none">
+<rect x="2.0" y="8.6" width="3.1" height="5.4" rx="0.8" fill="#8B949E" opacity="0.55"/>
+<rect x="6.4" y="5.6" width="3.1" height="8.4" rx="0.8" fill="#8B949E" opacity="0.8"/>
+<rect x="10.8" y="2.6" width="3.1" height="11.4" rx="0.8" fill="#8B949E"/>
+</g>
+<text x="385.0" y="878" font-size="8" fill="#6E7681" text-anchor="middle">usage</text>
+<text x="58" y="144" font-size="17" fill="#E6EDF3" font-weight="700">Welcome back</text>
+<text x="58" y="162" font-size="11" fill="#8B949E">2 sessions are running</text>
+<rect x="54" y="176" width="346" height="60" rx="12" fill="#1F2630" stroke="#2D333B" stroke-width="1"/>
+<text x="70" y="212" font-size="11.5" fill="#6E7681">What should we build today?</text>
+<circle cx="370" cy="206" r="20" fill="#2DD4BF"/>
+<g transform="translate(362,198)" fill="#0D1117" stroke="none">
+<path d="M2.0 7.4 L13.8 2.4 L9.4 13.8 L7.6 8.2 Z" fill="#0D1117"/>
+</g>
+<rect x="54" y="250" width="346" height="96" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="70" y="274" font-size="10.5" fill="#6E7681" font-weight="700">Active sessions</text>
+<circle cx="74" cy="286" r="3.2" fill="#2DD4BF"/>
+<text x="86" y="290" font-size="11.5" fill="#E6EDF3" font-weight="600">pi-web UI redesign</text>
+<text x="382" y="290" font-size="9.5" fill="#58A6FF" text-anchor="end">resume</text>
+<circle cx="74" cy="312" r="3.2" fill="#D29922"/>
+<text x="86" y="316" font-size="11.5" fill="#E6EDF3" font-weight="600">fix-tui-bug</text>
+<text x="382" y="316" font-size="9.5" fill="#58A6FF" text-anchor="end">resume</text>
+<rect x="54" y="360" width="346" height="96" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="70" y="384" font-size="10.5" fill="#6E7681" font-weight="700">Today</text>
+<text x="70" y="410" font-size="15" fill="#E6EDF3" font-weight="700">$8.42</text>
+<polyline points="70.0,438.8 106.66666666666666,431.0 143.33333333333331,433.6 180.0,425.8 216.66666666666666,431.0 253.33333333333331,421.9 290.0,428.4" fill="none" stroke="#2DD4BF" stroke-width="1.6"/>
+<path d="M70.0,438.8 L 106.66666666666666,431.0 L 143.33333333333331,433.6 L 180.0,425.8 L 216.66666666666666,431.0 L 253.33333333333331,421.9 L 290.0,428.4 L290,444 L70,444 Z" fill="#2DD4BF30"/>
+<rect x="54" y="470" width="346" height="120" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<text x="70" y="494" font-size="10.5" fill="#6E7681" font-weight="700">MCP</text>
+<text x="70" y="518" font-size="13" fill="#E6EDF3" font-weight="650">3/4 connected</text>
+<rect x="70" y="530" width="314" height="36" rx="9" fill="#D299221F"/>
+<text x="82" y="552" font-size="10.5" fill="#D29922">google-drive needs sign-in</text>
+<rect x="70" y="604" width="226" height="22" rx="11.0" fill="#8B949E"/>
+<circle cx="79" cy="615.0" r="3.2" fill="#1F2630"/>
+<text x="87" y="618.5" font-size="10.5" fill="#1F2630">projects: pi · watvmedia · dotfiles</text>
+<text x="58" y="632" font-size="10.5" fill="#8B949E">recent:  ui-redesign · tui-bug · evals…</text>
+<rect x="496" y="72" width="390" height="826" rx="26" fill="#0D1117" stroke="#2D333B" stroke-width="2"/>
+<text x="524" y="98" font-size="11" fill="#E6EDF3" font-weight="700">9:41</text>
+<rect x="639.0" y="84" width="104" height="22" rx="11" fill="none" stroke="#21262D" stroke-width="1"/>
+<text x="858" y="98" font-size="9.5" fill="#8B949E" text-anchor="end">5G ▮▮</text>
+<text x="496" y="62" font-size="12.5" fill="#8B949E" text-anchor="start">② Chat — running turn</text>
+<rect x="496" y="834" width="390" height="0.8" fill="#21262D"/>
+<g transform="translate(527.0,848)" fill="#8B949E" stroke="none">
+<path d="M2 7.4 L8 2.2 L14 7.4 V13.8 H9.4 V9.6 H6.6 V13.8 H2 Z" fill="#8B949E"/>
+</g>
+<text x="535.0" y="878" font-size="8" fill="#6E7681" text-anchor="middle">home</text>
+<g transform="translate(605.0,848)" fill="#2DD4BF" stroke="none">
+<rect x="1.6" y="2.8" width="12.8" height="8.8" rx="2.4" fill="#2DD4BF"/>
+<path d="M4.4 11.2 L4.4 14.6 L7.8 11.6 Z" fill="#2DD4BF"/>
+<circle cx="5" cy="7.2" r="0.9" fill="#0D1117"/><circle cx="8" cy="7.2" r="0.9" fill="#0D1117"/><circle cx="11" cy="7.2" r="0.9" fill="#0D1117"/>
+</g>
+<text x="613.0" y="878" font-size="8" fill="#2DD4BF" text-anchor="middle">chats</text>
+<g transform="translate(683.0,848)" fill="#8B949E" stroke="none">
+<path d="M1.8 12.8 V4.6 H5.6 L7.2 6.4 H14.2 V12.8 Z" fill="none" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="691.0" y="878" font-size="8" fill="#6E7681" text-anchor="middle">projects</text>
+<g transform="translate(761.0,848)" fill="#8B949E" stroke="none">
+<circle cx="3.1" cy="12.2" r="2.0" fill="#8B949E"/>
+<circle cx="12.9" cy="12.2" r="2.0" fill="#8B949E"/>
+<circle cx="8" cy="3.8" r="2.0" fill="#8B949E"/>
+<line x1="6.6" y1="5.1" x2="4.3" y2="10.1" stroke="#8B949E" stroke-width="1.5"/>
+<line x1="9.4" y1="5.1" x2="11.7" y2="10.1" stroke="#8B949E" stroke-width="1.5"/>
+<line x1="5.1" y1="12.2" x2="10.9" y2="12.2" stroke="#8B949E" stroke-width="1.5"/>
+</g>
+<text x="769.0" y="878" font-size="8" fill="#6E7681" text-anchor="middle">mcp</text>
+<g transform="translate(839.0,848)" fill="#8B949E" stroke="none">
+<rect x="2.0" y="8.6" width="3.1" height="5.4" rx="0.8" fill="#8B949E" opacity="0.55"/>
+<rect x="6.4" y="5.6" width="3.1" height="8.4" rx="0.8" fill="#8B949E" opacity="0.8"/>
+<rect x="10.8" y="2.6" width="3.1" height="11.4" rx="0.8" fill="#8B949E"/>
+</g>
+<text x="847.0" y="878" font-size="8" fill="#6E7681" text-anchor="middle">usage</text>
+<g transform="translate(510,116)" fill="#6E7681" stroke="none">
+<path d="M6 3.5 L10.5 8 L6 12.5" fill="none" stroke="#6E7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="540" y="128" font-size="12.5" fill="#E6EDF3" font-weight="700">fix-tui-bug</text>
+<circle cx="636" cy="124" r="3.5" fill="#2DD4BF"/>
+<text x="646" y="128" font-size="9.5" fill="#2DD4BF">running</text>
+<g transform="translate(850,116)" fill="#8B949E" stroke="none">
+<circle cx="3" cy="8" r="1.3" fill="#8B949E"/>
+<circle cx="8" cy="8" r="1.3" fill="#8B949E"/>
+<circle cx="13" cy="8" r="1.3" fill="#8B949E"/>
+</g>
+<line x1="496" y1="144" x2="886" y2="144" stroke="#21262D" stroke-width="1"/>
+<rect x="512" y="168" width="358" height="56" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<rect x="512" y="168" width="3" height="56" rx="1.5" fill="#2DD4BF"/>
+<text x="528" y="190" font-size="8.5" fill="#2DD4BF" font-weight="700">YOU</text>
+<text x="528" y="208" font-size="11.5" fill="#E6EDF3">why does the footer overflow on 320 cols?</text>
+<rect x="512" y="238" width="358" height="64" rx="12" fill="#161B22" stroke="#2D333B" stroke-width="1"/>
+<rect x="512" y="238" width="3" height="64" rx="1.5" fill="#D29922"/>
+<text x="528" y="262" font-size="11.5" fill="#E6EDF3" font-weight="650" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">bash</text>
+<text x="528" y="280" font-size="10" fill="#8B949E" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">npm -w tui test -t footer</text>
+<rect x="770" y="252" width="92" height="26" rx="13" fill="#F85149"/>
+<g transform="translate(780,257)" fill="#0D1117" stroke="none">
+<rect x="3.4" y="3.4" width="9.2" height="9.2" rx="2.2" fill="#0D1117"/>
+</g>
+<text x="802" y="269" font-size="10.5" fill="#0D1117" text-anchor="middle" font-weight="700">stop</text>
+<text x="528" y="322" font-size="8.5" fill="#8B949E" font-weight="700">ASSISTANT</text>
+<text x="528" y="340" font-size="11.5" fill="#E6EDF3">Investigating the wrap — likely grid-cols</text>
+<text x="528" y="358" font-size="11.5" fill="#E6EDF3">calc drops the remainder. Patch:</text>
+<text x="528" y="380" font-size="9" fill="#6E7681">⌁ ago 34m ago</text>
+<rect x="512" y="408" width="358" height="30" rx="9" fill="#D299221F"/>
+<text x="526" y="427" font-size="10" fill="#D29922">Retry 2/5 in 12s — rate limit</text>
+<rect x="784" y="412" width="80" height="22" rx="11" fill="none" stroke="#D29922" stroke-width="1"/>
+<text x="824" y="427" font-size="9.5" fill="#D29922" text-anchor="middle">cancel</text>
+<text x="512" y="498" font-size="9.5" fill="#6E7681">queued: add regression test</text>
+<rect x="508" y="770" width="366" height="52" rx="14" fill="#1F2630" stroke="#2D333B" stroke-width="1"/>
+<text x="524" y="792" font-size="11" fill="#6E7681">message…</text>
+<g transform="translate(810,780)" fill="#8B949E" stroke="none">
+<path d="M9.2 6.4 L5.4 10.2 A2.6 2.6 0 0 0 9.1 13.9 L12.9 10.1 A4.4 4.4 0 0 0 6.7 3.9 L3.2 7.4" fill="none" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<circle cx="848" cy="796" r="15" fill="#F85149"/>
+<g transform="translate(840,788)" fill="#0D1117" stroke="none">
+<rect x="3.4" y="3.4" width="9.2" height="9.2" rx="2.2" fill="#0D1117"/>
+</g>
+<rect x="958" y="72" width="390" height="826" rx="26" fill="#0D1117" stroke="#2D333B" stroke-width="2"/>
+<text x="986" y="98" font-size="11" fill="#E6EDF3" font-weight="700">9:41</text>
+<rect x="1101.0" y="84" width="104" height="22" rx="11" fill="none" stroke="#21262D" stroke-width="1"/>
+<text x="1320" y="98" font-size="9.5" fill="#8B949E" text-anchor="end">5G ▮▮</text>
+<text x="958" y="62" font-size="12.5" fill="#8B949E" text-anchor="start">③ Drawer lists (scrim)</text>
+<rect x="958" y="834" width="390" height="0.8" fill="#21262D"/>
+<g transform="translate(989.0,848)" fill="#8B949E" stroke="none">
+<path d="M2 7.4 L8 2.2 L14 7.4 V13.8 H9.4 V9.6 H6.6 V13.8 H2 Z" fill="#8B949E"/>
+</g>
+<text x="997.0" y="878" font-size="8" fill="#6E7681" text-anchor="middle">home</text>
+<g transform="translate(1067.0,848)" fill="#2DD4BF" stroke="none">
+<rect x="1.6" y="2.8" width="12.8" height="8.8" rx="2.4" fill="#2DD4BF"/>
+<path d="M4.4 11.2 L4.4 14.6 L7.8 11.6 Z" fill="#2DD4BF"/>
+<circle cx="5" cy="7.2" r="0.9" fill="#0D1117"/><circle cx="8" cy="7.2" r="0.9" fill="#0D1117"/><circle cx="11" cy="7.2" r="0.9" fill="#0D1117"/>
+</g>
+<text x="1075.0" y="878" font-size="8" fill="#2DD4BF" text-anchor="middle">chats</text>
+<g transform="translate(1145.0,848)" fill="#8B949E" stroke="none">
+<path d="M1.8 12.8 V4.6 H5.6 L7.2 6.4 H14.2 V12.8 Z" fill="none" stroke="#8B949E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="1153.0" y="878" font-size="8" fill="#6E7681" text-anchor="middle">projects</text>
+<g transform="translate(1223.0,848)" fill="#8B949E" stroke="none">
+<circle cx="3.1" cy="12.2" r="2.0" fill="#8B949E"/>
+<circle cx="12.9" cy="12.2" r="2.0" fill="#8B949E"/>
+<circle cx="8" cy="3.8" r="2.0" fill="#8B949E"/>
+<line x1="6.6" y1="5.1" x2="4.3" y2="10.1" stroke="#8B949E" stroke-width="1.5"/>
+<line x1="9.4" y1="5.1" x2="11.7" y2="10.1" stroke="#8B949E" stroke-width="1.5"/>
+<line x1="5.1" y1="12.2" x2="10.9" y2="12.2" stroke="#8B949E" stroke-width="1.5"/>
+</g>
+<text x="1231.0" y="878" font-size="8" fill="#6E7681" text-anchor="middle">mcp</text>
+<g transform="translate(1301.0,848)" fill="#8B949E" stroke="none">
+<rect x="2.0" y="8.6" width="3.1" height="5.4" rx="0.8" fill="#8B949E" opacity="0.55"/>
+<rect x="6.4" y="5.6" width="3.1" height="8.4" rx="0.8" fill="#8B949E" opacity="0.8"/>
+<rect x="10.8" y="2.6" width="3.1" height="11.4" rx="0.8" fill="#8B949E"/>
+</g>
+<text x="1309.0" y="878" font-size="8" fill="#6E7681" text-anchor="middle">usage</text>
+<rect x="958" y="144" width="390" height="690" fill="#0D1117" opacity="0.9"/>
+<text x="1288" y="192" font-size="10" fill="#6E7681">(underneath: chat)</text>
+<rect x="1258" y="144" width="90" height="690" fill="#010409" opacity="0.55"/>
+<rect x="958" y="144" width="300" height="690" fill="#10141B" stroke="#21262D" stroke-width="1"/>
+<text x="978" y="174" font-size="13" fill="#E6EDF3" font-weight="700">Sessions</text>
+<rect x="1170" y="160" width="76" height="24" rx="8" fill="none" stroke="#2DD4BF" stroke-width="1"/>
+<text x="1208" y="176" font-size="10.5" fill="#2DD4BF" text-anchor="middle">＋ new</text>
+<g transform="translate(972,200)" fill="#8B949E" stroke="none">
+<circle cx="7" cy="7" r="4.4" fill="none" stroke="#8B949E" stroke-width="1.8"/>
+<line x1="10.4" y1="10.4" x2="13.8" y2="13.8" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/>
+</g>
+<text x="996" y="212" font-size="11" fill="#6E7681">search…</text>
+<text x="1002" y="236" font-size="8.5" fill="#6E7681" letter-spacing="0.6">PI — ~/projects/pi</text>
+<rect x="966" y="250" width="284" height="36" rx="9" fill="#1F2630"/>
+<rect x="966" y="250" width="3" height="36" rx="1.5" fill="#2DD4BF"/>
+<text x="980" y="272" font-size="11.5" fill="#E6EDF3" font-weight="600">pi-web UI redesign</text>
+<circle cx="1230" cy="268" r="3.5" fill="#2DD4BF"/>
+<rect x="966" y="290" width="284" height="36" rx="9" fill="#10141B"/>
+<text x="980" y="312" font-size="11.5" fill="#E6EDF3" font-weight="400">fix-tui-bug</text>
+<rect x="966" y="330" width="284" height="36" rx="9" fill="#10141B"/>
+<text x="980" y="352" font-size="11.5" fill="#E6EDF3" font-weight="400">nightly-evals</text>
+<text x="1002" y="380" font-size="8.5" fill="#6E7681" letter-spacing="0.6">WATVMEDIA</text>
+<text x="980" y="406" font-size="11" fill="#8B949E">crawl danh sách video</text>
+<text x="980" y="446" font-size="11" fill="#8B949E">excel → postgres</text>
+<text x="978" y="772" font-size="9" fill="#6E7681">⟳ reload · 12 on disk</text>
+<text x="978" y="796" font-size="9.5" fill="#6E7681">projects view → hamburger in tab bar</text>
+<line x1="24" y1="936" x2="1416" y2="936" stroke="#21262D" stroke-width="1"/>
+<text x="34" y="962" font-size="13" fill="#E6EDF3" font-weight="700">Mobile rules</text>
+<text x="34" y="990" font-size="11" fill="#8B949E">—  rail 6 mục → bottom tab bar, badge chạy 2</text>
+<text x="34" y="1016" font-size="11" fill="#8B949E">—  session list &amp; projects = drawer trái + scrim</text>
+<text x="34" y="1042" font-size="11" fill="#8B949E">—  editor luôn sticky bottom, Send↔Stop đổi theo state</text>
+<text x="34" y="1068" font-size="11" fill="#8B949E">—  model/thinking = action sheet từ chip trong editor</text>
+<text x="740" y="990" font-size="11" fill="#8B949E">—  status bar rút thành 1 chip ctx% trong header</text>
+<text x="740" y="1016" font-size="11" fill="#8B949E">—  usage / mcp pages scroll dọc, cards collapse</text>
+<text x="740" y="1042" font-size="11" fill="#8B949E">—  retry banner + queue vẫn 1 hàng, tap để cancel</text>
+<text x="740" y="1068" font-size="11" fill="#8B949E">—  bottom sheet cho dialogs · grip bar kéo đóng</text>
+</svg>
