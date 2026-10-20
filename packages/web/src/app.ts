@@ -356,6 +356,21 @@ export class App {
 				onOpenSession: openSession,
 				onNewSession: newSession,
 				openPreview,
+				// issue batch 3 (lane C): folder validation for the New project dialog.
+				validatePath: (path: string): Promise<{ ok: boolean; reason?: string }> => {
+					const connection = this.connection;
+					if (!connection) return Promise.resolve({ ok: false, reason: "not connected" });
+					return connection
+						.request<StatPathsData>({ type: "stat_paths", paths: [path] })
+						.then((data) => {
+							const result = data.results.find((entry) => entry.path === path) ?? data.results[0];
+							if (!result?.exists) return { ok: false, reason: `folder not found: ${path}` };
+							if (result.kind && result.kind !== "dir") return { ok: false, reason: `not a folder: ${path}` };
+							return { ok: true };
+						})
+						.catch((error: Error) => ({ ok: false as const, reason: error.message }));
+				},
+				pushToast,
 				/** Session-table actions (rename/fork/export/share/delete). */
 				onRowAction: (action: "rename" | "fork" | "export" | "share" | "delete", session: RpcSessionSummary) =>
 					this.onSessionAction(action, [session]),
@@ -369,6 +384,8 @@ export class App {
 				connection: () => this.connection,
 				subscribeWidget: (cb: (data: McpWidgetData | undefined) => void) => this.subscribeWidget(cb),
 				projectCwd,
+				// issue batch 3 (lane C): known project roots for per-scope sections.
+				projectCwds: (): string[] => this.knownProjectCwds,
 				onNavigate: navigate,
 				openPreview,
 				pushToast,
@@ -1663,6 +1680,10 @@ export class App {
 	private connectedBase: ConnectedPayload = { type: "connected", version: "", messages: [] };
 
 	/** Refresh the sidebar's disk session list (all projects). */
+	// ---- issue batch 3 (lane C): sync project-roots feed for the MCP page ----
+	/** All known project cwds (disk sessions union open slots), stable order. */
+	private knownProjectCwds: string[] = [];
+
 	private refreshSessionsList(): void {
 		void this.connection
 			?.request<{
@@ -1672,14 +1693,24 @@ export class App {
 				scope: "all",
 			})
 			.then((data) => {
+				const sessions = data.sessions ?? [];
 				this.sidebar?.setSessionsList(
-					(data.sessions ?? []).map((session) => ({
+					sessions.map((session) => ({
 						path: session.file,
 						cwd: session.cwd,
 						name: session.name?.trim() || session.firstMessage,
 						modified: new Date(session.modified ?? 0).getTime() || 0,
 					})),
 				);
+				const cwdSet = new Set<string>();
+				for (const session of sessions) {
+					if (session.cwd) cwdSet.add(session.cwd);
+				}
+				for (const store of this.sessionStores.values()) {
+					const cwd = store.getState().contextInfo?.cwd;
+					if (cwd) cwdSet.add(cwd);
+				}
+				this.knownProjectCwds = [...cwdSet];
 			})
 			.catch(() => {});
 	}

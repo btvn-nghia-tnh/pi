@@ -4,7 +4,8 @@
  * actions, context files. Integration (app.ts) supplies the deps and
  * registers the page; this module owns markup + pure projections only.
  */
-import { chipEl, iconEl, pillEl } from "../components/kit.ts";
+import { chipEl, iconEl, openAnchoredMenu, pillEl } from "../components/kit.ts";
+import { makePanelResizer, type PanelResizerHandle, readStoredPanelWidth } from "../components/panel-resizer.ts";
 import { clearElement, h } from "../dom.ts";
 import type { ShellPage } from "../shell.ts";
 import type { RpcSessionSummary } from "../types.ts";
@@ -21,8 +22,18 @@ export interface ProjectContextFiles {
 export interface ProjectsPageDeps {
 	/** Connection for future direct requests; integration may pass it, page currently routes data through fetchSessions. */
 	connection(): import("../connection.ts").PiConnection | undefined;
-	/** Cross-page navigation hook (reserved: unused in v1 markup, kept per integration contract). */
-	onNavigate(page: "chat" | "mcp" | "usage" | "home" | "settings"): void;
+	/**
+	 * Cross-page navigation hook. "projects" resets the #/projects/<cwd>
+	 * deep link back to the plain list (used after deleting a project).
+	 */
+	onNavigate(page: "chat" | "mcp" | "usage" | "home" | "settings" | "projects"): void;
+	/**
+	 * Folder validation for the New project dialog (stat_paths-backed).
+	 * ok:false carries a human-readable reason to show inline.
+	 */
+	validatePath(path: string): Promise<{ ok: boolean; reason?: string }>;
+	/** Optional toast surface; integration supplies store-backed toasts. */
+	pushToast?(message: string, level: "info" | "warning" | "error"): void;
 	fetchSessions(): Promise<Array<RpcSessionSummary>>;
 	/** Open slots to compute running badges; running=false when idle. */
 	openSessions(): Array<{ id: string; cwd: string; running: boolean }>;
@@ -127,11 +138,40 @@ export function sessionTableRows(
 }
 
 // ---------------------------------------------------------------------
+// New project path resolution (pure; validation backend is stat_paths)
+// ---------------------------------------------------------------------
+
+export type NewProjectPath = { ok: true; cwd: string } | { ok: false; reason: "empty" | "relative" };
+
+/**
+ * Resolve the New project dialog's input into an absolute candidate cwd.
+ * `~` / `~/...` expand against home when known; trailing slashes collapse
+ * (bare "/" survives as root); anything else relative is rejected.
+ */
+export function resolveNewProject(input: string, home?: string): NewProjectPath {
+	const trimmed = input.trim();
+	if (trimmed === "") return { ok: false, reason: "empty" };
+	if (trimmed === "~") return { ok: true, cwd: home ?? "~" };
+	if (trimmed.startsWith("~/")) {
+		const tail = trimmed.slice(2).replace(/^\/+/, "");
+		return { ok: true, cwd: home ? (tail === "" ? home : `${home}/${tail}`) : trimmed };
+	}
+	if (!trimmed.startsWith("/")) return { ok: false, reason: "relative" };
+	return { ok: true, cwd: trimmed.replace(/\/+$/, "") || "/" };
+}
+
+// ---------------------------------------------------------------------
 // Page assembly
 // ---------------------------------------------------------------------
 
 const TABLE_GRID =
 	"display:grid;grid-template-columns:30px 1fr 76px 84px 110px auto;column-gap:10px;align-items:center";
+
+/** Left list width: defaults, drag bounds, storage key (issue batch 3). */
+const PROJECTS_LIST_WIDTH = 308;
+const PROJECTS_LIST_MIN = 220;
+const PROJECTS_LIST_MAX = 480;
+const PROJECTS_LIST_KEY = "pi-web-projects-w";
 
 function tile(label: string, value: string): HTMLElement {
 	return h(
@@ -156,9 +196,11 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 	let usageMap: Map<string, number> | undefined;
 
 	// ---- static chrome ------------------------------------------------
+	// Inline flex-basis overrides the .chat-sidebar class var (which the chat
+	// page owns); the resizer below drives this variable, persisted per user.
 	const leftColumn = h("div", {
 		class: "chat-sidebar",
-		style: "display:flex;flex-direction:column;overflow-y:auto;padding:12px;gap:10px",
+		style: "display:flex;flex-direction:column;overflow-y:auto;padding:12px;gap:10px;flex:0 0 var(--projects-list-w,308px)",
 	});
 	const rightColumn = h("div", { style: "flex:1;min-width:0;overflow-y:auto;padding:16px 20px" });
 
@@ -172,16 +214,26 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 		renderProjectList();
 	});
 
-	const newSessionButton = h(
+	// Drag handle on the project list's right edge (shared panel-resizer).
+	const applyListWidth = (px: number): void => {
+		element.style.setProperty("--projects-list-w", `${px}px`);
+	};
+	const resizer: PanelResizerHandle = makePanelResizer({
+		onWidth: applyListWidth,
+		initial: PROJECTS_LIST_WIDTH,
+		min: PROJECTS_LIST_MIN,
+		max: PROJECTS_LIST_MAX,
+		storageKey: PROJECTS_LIST_KEY,
+		edgeOffset: "0px", // parent clips overflow while scrolling; keep the nub inside
+		dragOn: () => !mobile.matches,
+	});
+
+	// New project: pick a folder, validate, then start a session in it —
+	// the session makes the project visible in this page (issue batch 3).
+	const newProjectButton = h(
 		"button",
-		{
-			class: "c-btn c-btn--primary",
-			onclick: () => {
-				const cwd = currentCwd();
-				if (cwd) deps.onNewSession(cwd);
-			},
-		},
-		"＋ New session",
+		{ class: "c-btn c-btn--primary", onclick: () => openNewProjectDialog(newProjectButton) },
+		"＋ New project",
 	);
 	const refreshButton = h(
 		"button",
@@ -236,12 +288,17 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 			{ class: "c-page-header" },
 			drawerButton,
 			h("span", { class: "c-page-title" }, "Projects"),
-			newSessionButton,
+			newProjectButton,
 			refreshButton,
 		),
 		h("div", { style: "flex:1;min-height:0;display:flex", class: "projects-body" }, leftColumn, rightColumn),
 		scrim,
 	);
+	// The resizer rides INSIDE the list panel so drags anchor on its edge.
+	leftColumn.appendChild(resizer.el);
+	// Boot restore: re-apply a persisted width (parity with the chat sidebar).
+	const storedListWidth = readStoredPanelWidth(PROJECTS_LIST_KEY, PROJECTS_LIST_MIN, PROJECTS_LIST_MAX);
+	if (storedListWidth !== undefined) applyListWidth(storedListWidth);
 
 	// ---- helpers -----------------------------------------------------
 	function currentCwd(): string | undefined {
@@ -252,6 +309,74 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 	function visibleGroups(): Array<ProjectGroup> {
 		if (!searchQuery) return groups;
 		return groups.filter((group) => `${group.name} ${group.cwd}`.toLowerCase().includes(searchQuery));
+	}
+
+	// ---- New project dialog (issue batch 3) ---------------------------
+	// `~` stays literal when home is unknown (contextInfo carries no home);
+	// stat_paths still validates the expanded-or-literal path either way.
+	function openNewProjectDialog(anchor: HTMLElement): void {
+		openAnchoredMenu(anchor, (close) => {
+			const input = h("input", {
+				class: "c-popover-search",
+				placeholder: "/absolute/path/to/project",
+				style: "width:100%;box-sizing:border-box",
+			}) as HTMLInputElement;
+			const errorLine = h(
+				"div",
+				{ class: "c-usage-sub", style: "min-height:15px;color:var(--c-danger);white-space:normal" },
+				"",
+			);
+			let busy = false;
+			const submit = async (): Promise<void> => {
+				if (busy) return;
+				errorLine.textContent = "";
+				const resolution = resolveNewProject(input.value);
+				if (!resolution.ok) {
+					errorLine.textContent =
+						resolution.reason === "empty"
+							? "Enter a project path."
+							: "Path must be absolute (start with / or ~).";
+					return;
+				}
+				busy = true;
+				errorLine.textContent = `checking ${resolution.cwd}…`;
+				let validation: { ok: boolean; reason?: string };
+				try {
+					validation = await deps.validatePath(resolution.cwd);
+				} catch (error: unknown) {
+					validation = { ok: false, reason: error instanceof Error ? error.message : String(error) };
+				}
+				busy = false;
+				if (!validation.ok) {
+					errorLine.textContent = validation.reason ?? "folder not found";
+					return;
+				}
+				deps.pushToast?.(`Opening ${resolution.cwd}…`, "info");
+				deps.onNewSession(resolution.cwd);
+				close();
+			};
+			input.addEventListener("keydown", (event) => {
+				if (event.key === "Enter") void submit();
+			});
+			return h(
+				"div",
+				{ style: "display:flex;flex-direction:column;gap:8px;min-width:340px" },
+				h("div", { class: "c-card-title" }, "New project"),
+				input,
+				h(
+					"div",
+					{ class: "c-usage-sub", style: "white-space:normal" },
+					"A project is any working folder — pi creates a session inside it, so it shows up in the list on the left.",
+				),
+				errorLine,
+				h(
+					"div",
+					{ style: "display:flex;gap:8px;justify-content:flex-end" },
+					h("button", { class: "c-btn", onclick: () => close() }, "Cancel"),
+					h("button", { class: "c-btn c-btn--primary", onclick: () => void submit() }, "Open project"),
+				),
+			);
+		});
 	}
 
 	// ---- left column --------------------------------------------------
@@ -347,6 +472,27 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 	}
 
 	function renderProjectHeader(group: ProjectGroup): void {
+		// Delete project (issue batch 3): confirm at project scope, then reuse
+		// the batch delete action (app-side confirm still runs — see lane report).
+		const deleteProject = h(
+			"button",
+			{
+				class: "c-btn",
+				title: `Delete every session in ${group.name} (to trash)`,
+				style: "color:var(--c-danger);border-color:var(--c-danger);padding:4px 12px",
+				onclick: () => {
+					const confirmed = window.confirm(
+						`Delete project “${group.name}”?\n\nThis deletes ${group.sessions.length} session(s) to trash — the project disappears from the list.`,
+					);
+					if (!confirmed) return;
+					deps.onBatchAction("delete", group.sessions);
+					selectedCwd = undefined;
+					void fetchAndRender();
+					deps.onNavigate("projects");
+				},
+			},
+			"Delete project",
+		);
 		rightColumn.append(
 			h(
 				"div",
@@ -354,6 +500,8 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 				iconEl("folder"),
 				h("span", { style: "font:700 17px var(--font-ui);color:var(--c-text)" }, group.name),
 				h("span", { style: "font:400 11px var(--font-mono);color:var(--c-dim)" }, group.cwd),
+				h("span", { style: "flex:1" }),
+				deleteProject,
 			),
 			h(
 				"div",
@@ -573,6 +721,7 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 			fetchToken++;
 			selection.clear();
 			selectedCwd = undefined;
+			resizer.destroy();
 		},
 	};
 }

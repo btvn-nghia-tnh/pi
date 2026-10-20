@@ -110,3 +110,53 @@ test("sessionTableRows formats cost from a usage map via formatCost and tolerate
 	// formatCost(23.8) === "$23.80" (R10: real formatter output).
 	assert.equal(rows[1]?.cost, "$23.80");
 });
+
+// ---- issue batch 3: New project path resolution + panel width clamps ----
+
+import { clampPanelWidth, readStoredPanelWidth } from "../src/components/panel-resizer.ts";
+import { resolveNewProject } from "../src/pages/projects.ts";
+
+test("resolveNewProject accepts absolute paths and strips trailing slashes", () => {
+	assert.deepEqual(resolveNewProject("/home/u/pi"), { ok: true, cwd: "/home/u/pi" });
+	assert.deepEqual(resolveNewProject("/home/u/pi/"), { ok: true, cwd: "/home/u/pi" });
+	assert.deepEqual(resolveNewProject("  /home/u/pi  "), { ok: true, cwd: "/home/u/pi" });
+	// root survives slash-strip
+	assert.deepEqual(resolveNewProject("/"), { ok: true, cwd: "/" } as const);
+	assert.deepEqual(resolveNewProject("/home///"), { ok: true, cwd: "/home" } as const);
+});
+
+test("resolveNewProject rejects empty and relative inputs", () => {
+	assert.deepEqual(resolveNewProject(""), { ok: false, reason: "empty" });
+	assert.deepEqual(resolveNewProject("   "), { ok: false, reason: "empty" });
+	assert.deepEqual(resolveNewProject("relative/path"), { ok: false, reason: "relative" });
+	assert.deepEqual(resolveNewProject("~/../etc", "/home/u"), { ok: true, cwd: "/home/u/../etc" } as const);
+});
+
+test("resolveNewProject expands ~ against home when known", () => {
+	assert.deepEqual(resolveNewProject("~", "/home/u"), { ok: true, cwd: "/home/u" } as const);
+	assert.deepEqual(resolveNewProject("~/projects/pi", "/home/u"), { ok: true, cwd: "/home/u/projects/pi" } as const);
+	assert.deepEqual(resolveNewProject("~/", "/home/u"), { ok: true, cwd: "/home/u" } as const);
+	assert.deepEqual(resolveNewProject("~", undefined), { ok: true, cwd: "~" } as const);
+});
+
+test("clampPanelWidth clamps to range and rounds (R10: pure math truth)", () => {
+	assert.equal(clampPanelWidth(100, 220, 480), 220);
+	assert.equal(clampPanelWidth(600, 220, 480), 480);
+	assert.equal(clampPanelWidth(307.6, 220, 480), 308);
+	assert.equal(clampPanelWidth(Number.NaN, 220, 480), 220);
+	assert.equal(clampPanelWidth(Number.POSITIVE_INFINITY, 220, 480), 480);
+});
+
+test("readStoredPanelWidth clamps persisted values and tolerates junk", () => {
+	const store = new Map<string, string>([
+		["good", "340"],
+		["junk", "abc"],
+		["out-of-range", "9999"],
+	]);
+	(globalThis as { window?: unknown }).window = { localStorage: { getItem: (key: string) => store.get(key) ?? null } };
+	assert.equal(readStoredPanelWidth("good", 220, 480), 340);
+	assert.equal(readStoredPanelWidth("missing", 220, 480), undefined);
+	assert.equal(readStoredPanelWidth("junk", 220, 480), undefined);
+	assert.equal(readStoredPanelWidth("out-of-range", 220, 480), 480);
+	delete (globalThis as { window?: unknown }).window;
+});
