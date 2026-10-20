@@ -1234,10 +1234,19 @@ export class App {
 			this.rebuildSessionViews();
 		}
 		const remembered = window.localStorage.getItem("pi-web-active-session") ?? undefined;
+		// A #/chat/<id> deep link beats the remembered/primary choice: the user
+		// explicitly asked for this session when loading the page. (onRoute could
+		// not act pre-connect — stores were empty — so reconcile here once.)
+		const routeSession = this.router?.current().sessionId;
 		const active =
-			remembered !== undefined && this.sessionStores.has(remembered)
-				? remembered
-				: (connected.primarySessionId ?? sessions[0]?.id);
+			routeSession !== undefined && this.sessionStores.has(routeSession)
+				? routeSession
+				: remembered !== undefined && this.sessionStores.has(remembered)
+					? remembered
+					: (connected.primarySessionId ?? sessions[0]?.id);
+		if (active !== undefined) {
+			this.setActiveSession(active);
+		}
 		if (active !== undefined) {
 			this.setActiveSession(active);
 		}

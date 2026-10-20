@@ -254,6 +254,18 @@ export function iconEl(name: IconName): SVGElement {
 	}
 	return svg;
 }
+/** Prefer below the anchor; flip above when the menu would overflow the viewport. */
+export function popoverTop(
+	anchor: { top: number; bottom: number },
+	offsetHeight: number,
+	viewportHeight: number,
+): number {
+	if (anchor.bottom + offsetHeight + 6 > viewportHeight) {
+		return Math.max(8, anchor.top - offsetHeight - 6);
+	}
+	return anchor.bottom + 6;
+}
+
 export function openAnchoredMenu(anchor: HTMLElement, build: (close: () => void) => HTMLElement): void {
 	const host = document.createElement("div");
 	host.className = "c-popover";
@@ -269,7 +281,7 @@ export function openAnchoredMenu(anchor: HTMLElement, build: (close: () => void)
 	document.body.appendChild(host);
 	const rect = anchor.getBoundingClientRect();
 	host.style.left = `${Math.max(8, Math.min(window.innerWidth - host.offsetWidth - 8, rect.left))}px`;
-	host.style.top = `${rect.bottom + 6}px`;
+	host.style.top = `${popoverTop(rect, host.offsetHeight, window.innerHeight)}px`;
 	host.tabIndex = -1;
 	host.addEventListener("keydown", (event) => {
 		if (event.key === "Escape") close();

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { barPoints, progressTone } from "../src/components/kit.ts";
+import { barPoints, popoverTop, progressTone } from "../src/components/kit.ts";
 
 test("barPoints maps values into the box, last point at right edge", () => {
 	const pts = barPoints([0, 1, 0.5], 100, 40);
@@ -23,4 +23,15 @@ test("progressTone thresholds match the spec", () => {
 
 test("barPoints handles single-value series", () => {
 	assert.equal(barPoints([0.4], 80, 20), "0,12");
+});
+
+test("popoverTop opens below when it fits and flips above the viewport bottom", () => {
+	// Fits below: anchor bottom + menu + margin stays inside the viewport.
+	assert.equal(popoverTop({ top: 800, bottom: 830 }, 60, 900), 836);
+	// Overflows: flips above the anchor, keeping a 6px gap and an 8px top clamp.
+	assert.equal(popoverTop({ top: 860, bottom: 894 }, 60, 900), 794);
+	// Degenerate flip (tiny viewport) clamps at 8px instead of going negative.
+	assert.equal(popoverTop({ top: 10, bottom: 44 }, 60, 100), 8);
+	// Bottom-of-viewport status-bar chip flips instead of opening off-screen.
+	assert.equal(popoverTop({ top: 862, bottom: 894 }, 40, 900), 816);
 });
