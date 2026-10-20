@@ -377,13 +377,20 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 			),
 		);
 
-		const container = h("div", {}); // holds the column-header row + the body
+		const container = h("div", { class: "projects-table" }); // holds the column-header row + the body
 		const header = h(
 			"div",
-			{ style: `${TABLE_GRID};padding:2px 10px 6px;border-bottom:1px solid var(--c-hairline)` },
+			{
+				class: "projects-row",
+				style: `${TABLE_GRID};padding:2px 10px 6px;border-bottom:1px solid var(--c-hairline)`,
+			},
 			h("span", {}),
 			h("span", { style: "font:700 9.5px var(--font-ui);letter-spacing:1px;color:var(--c-faint)" }, "SESSION"),
-			h("span", { style: "font:700 9.5px var(--font-ui);letter-spacing:1px;color:var(--c-faint)" }, "MSGS"),
+			h(
+				"span",
+				{ class: "col-msgs", style: "font:700 9.5px var(--font-ui);letter-spacing:1px;color:var(--c-faint)" },
+				"MSGS",
+			),
 			h("span", { style: "font:700 9.5px var(--font-ui);letter-spacing:1px;color:var(--c-faint)" }, "COST"),
 			h("span", { style: "font:700 9.5px var(--font-ui);letter-spacing:1px;color:var(--c-faint)" }, "MODIFIED"),
 			h("span", {}),
@@ -398,6 +405,7 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 			const rowEl = h(
 				"div",
 				{
+					class: "projects-row",
 					style: `${TABLE_GRID};padding:7px 10px;border-radius:8px;${checked ? "background:var(--c-raised)" : ""}`,
 				},
 				h("input", {
@@ -413,17 +421,18 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 				h(
 					"span",
 					{
+						class: "col-name",
 						style: "cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 12px var(--font-ui);color:var(--c-text-2)",
 						onclick: () => deps.onOpenSession(session.file),
 					},
 					row.name,
 				),
-				h("span", { style: "font:400 11px var(--font-mono);color:var(--c-dim)" }, row.messages),
+				h("span", { class: "col-msgs", style: "font:400 11px var(--font-mono);color:var(--c-dim)" }, row.messages),
 				h("span", { style: "font:400 11px var(--font-mono);color:var(--c-dim)" }, row.cost),
 				h("span", { style: "font:400 11px var(--font-mono);color:var(--c-dim)" }, row.modifiedText),
 				h(
 					"span",
-					{ style: "display:flex;gap:4px" },
+					{ class: "col-actions", style: "display:flex;gap:4px" },
 					actionButton("rename", `Rename ${row.name}`, () => deps.onRowAction("rename", session)),
 					actionButton("fork", `Fork ${row.name}`, () => deps.onRowAction("fork", session)),
 					actionButton("export", `Export ${row.name}`, () => deps.onRowAction("export", session)),

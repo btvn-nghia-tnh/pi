@@ -34,3 +34,15 @@ test("phone surfaces collapse per mockup 07", () => {
 	assert.ok(combined.includes(".dialog::before"), "sheet grip bar");
 	assert.ok(combined.includes("align-items: flex-end"), "sheets dock to bottom");
 });
+
+test("page stacks: usage, projects, settings, home", () => {
+	assert.ok(
+		/\.cp-stat-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*1fr\)/.test(combined),
+		"usage stat cards stack",
+	);
+	assert.ok(/\.cp-usage-grid2\s*\{[^}]*grid-template-columns:\s*1fr/.test(combined), "usage chart column");
+	assert.ok(combined.includes(".projects-table .projects-row"), "projects row grid override");
+	assert.ok(combined.includes(".col-msgs { display: none !important; }"), "projects msgs column hidden");
+	assert.ok(/\.settings-nav\s*\{[^}]*flex-direction:\s*row/.test(combined), "settings nav chips");
+	assert.ok(combined.includes(".home-hero-card"), "home hero mobile hook");
+});

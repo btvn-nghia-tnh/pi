@@ -555,3 +555,50 @@
 		background: var(--c-border);
 	}
 }
+
+/* ------------------------------------------------------------------ */
+/* Mobile page stacks (07-mobile.svg): each console page collapses to */
+/* a single scrolling column under 768px.                             */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 767px) {
+	/* Usage: 2-up stat tiles, chart/model/table full width. */
+	.cp-usage-body { padding: 12px; gap: 10px; }
+	.cp-stat-grid { grid-template-columns: repeat(2, 1fr); }
+	.cp-usage-grid2 { grid-template-columns: 1fr; }
+	.cp-usage-filters { gap: 6px; }
+	.cp-select { max-width: 44vw; }
+
+	/* Projects: sessions table rows become compact cards — MSGS column
+	 * drops, actions wrap under the name/cost/modified triple. */
+	.projects-table .projects-row {
+		grid-template-columns: 22px 1fr 64px 68px !important;
+		column-gap: 6px !important;
+	}
+	.projects-row .col-msgs { display: none !important; }
+	.projects-row .col-actions { grid-column: 2 / -1; flex-wrap: wrap; }
+	.projects-row .col-name { font-weight: 650; }
+
+	/* Settings: nav becomes a horizontal chip rail. */
+	.settings-page .settings-body { flex-direction: column; }
+	.settings-nav {
+		flex-direction: row;
+		overflow-x: auto;
+		border-right: 0;
+		border-bottom: 1px solid var(--c-hairline);
+		padding: 8px 10px;
+		gap: 4px;
+	}
+	.settings-nav-item { white-space: nowrap; padding: 6px 10px; flex: none; }
+
+	/* Home: hero full width, tight paddings (cards already stack ≤1279). */
+	.home-body { padding: 14px; }
+	.home-hero-card { padding: 10px; }
+	.home-hero-input { width: 100%; }
+	.home-hero-chips { flex-wrap: wrap; }
+
+	/* MCP + drawer columns: full-bleed cards. */
+	.mcp-page > div { padding: 12px !important; }
+	.projects-body { padding: 0; }
+	.projects-body > div:not(.chat-sidebar) { overflow-x: hidden; }
+}
