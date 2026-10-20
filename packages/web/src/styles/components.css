@@ -128,3 +128,14 @@ button .c-icon { width: 14px; height: 14px; }
 }
 .c-tool-stop:hover { background: var(--c-danger); color: #1b0d0d; }
 .c-tool-stop .c-icon { width: 10px; height: 10px; }
+
+/* Per-message usage rows (Task 9, spec §3.2.2). */
+.c-usage-row {
+	display: block; width: 100%; text-align: left; background: none; border: 0; cursor: pointer;
+	padding: 2px 0; color: var(--c-faint); font: 400 10.5px var(--font-mono);
+}
+.c-usage-row:hover { color: var(--c-dim); }
+.c-usage-row .c-usage-glyph { margin-right: 6px; }
+.c-usage-row .c-usage-caret { margin-left: 6px; opacity: 0.7; }
+.c-usage-grid { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0 0 14px; }
+.c-usage-cell { color: var(--c-dim); }

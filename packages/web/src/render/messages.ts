@@ -2,6 +2,7 @@
  * Message renderers: user, assistant (markdown + thinking blocks), custom.
  */
 
+import { buildUsageRow, type UsageShape, usageGrid } from "../components/usage-row.ts";
 import { h } from "../dom.ts";
 import { renderMarkdown } from "../markdown.ts";
 import type { TranscriptItem } from "../state.ts";
@@ -143,6 +144,26 @@ export function renderAssistantMessage(
 	}
 	flushText();
 	container.appendChild(body);
+	// Per-message usage row (design spec §3.2.2): one dim line under the
+	// body whenever the assistant message carries usage. The toggle flips
+	// the row in place (class + data-open + grid swap) — no store update, so
+	// it never triggers a transcript re-render.
+	const usage = message.usage as UsageShape | undefined;
+	if (usage) {
+		const row = buildUsageRow(usage, {
+			compact: true,
+			onToggle: () => {
+				const open = row.classList.toggle("is-open");
+				row.dataset.open = String(open);
+				const caret = row.querySelector<HTMLElement>(".c-usage-caret");
+				if (caret) caret.textContent = open ? "⌃" : "⌄";
+				const grid = row.querySelector<HTMLElement>(".c-usage-grid");
+				if (open && !grid) row.appendChild(usageGrid(usage));
+				if (!open && grid) grid.remove();
+			},
+		});
+		container.appendChild(row);
+	}
 	return container;
 }
 
