@@ -65,6 +65,8 @@ export class SessionPanel {
 	private lastWidgets: ReadonlyMap<string, unknown> | undefined;
 	private lastCollapsed: ReadonlySet<string> | undefined;
 	private widgetSlots: HTMLElement[] = [];
+	/** True after a widget-slot rebuild — caches the empty list too. */
+	private widgetSlotsMemoized = false;
 	private progress: ProgressHandle | undefined;
 
 	constructor(opts: SessionPanelOpts) {
@@ -83,6 +85,7 @@ export class SessionPanel {
 		this.lastWidgets = undefined;
 		this.lastCollapsed = undefined;
 		this.widgetSlots = [];
+		this.widgetSlotsMemoized = false;
 		this.progress = undefined;
 	}
 
@@ -127,12 +130,13 @@ export class SessionPanel {
 		return h("div", { class: "c-card" }, h("div", { class: "c-card-title" }, "Session details"), rows);
 	}
 
-	/** Structured widgets as standalone cards — same filters as footer.ts's WidgetAreaView. */
+	/** Structured widgets (widget.data present) as standalone cards. Lines-only widgets
+	 * stay docked under the editor (spec §3.2.6) — Task 12 keeps those hosts. */
 	private widgetCards(state: StoreState): HTMLElement[] {
 		if (
 			state.widgets === this.lastWidgets &&
 			state.collapsedWidgets === this.lastCollapsed &&
-			this.widgetSlots.length > 0
+			this.widgetSlotsMemoized
 		) {
 			return this.widgetSlots;
 		}
@@ -140,14 +144,15 @@ export class SessionPanel {
 		this.lastCollapsed = state.collapsedWidgets;
 		this.widgetSlots = [];
 		for (const [key, widget] of state.widgets) {
-			if (widget.data?.display === "overlay") continue;
-			if (!widget.data && (widget.lines ?? []).every((line) => line.trim().length === 0)) continue;
+			if (!widget.data) continue;
+			if (widget.data.display === "overlay") continue;
 			const panel = renderWidget(widget, key, {
 				collapsed: state.collapsedWidgets.has(key),
 				onToggle: () => this.opts.store.toggleWidgetCollapsed(key),
 			});
 			this.widgetSlots.push(h("div", { class: "c-widget-slot" }, panel));
 		}
+		this.widgetSlotsMemoized = true;
 		return this.widgetSlots;
 	}
 
