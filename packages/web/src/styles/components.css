@@ -89,3 +89,34 @@ button .c-icon { width: 14px; height: 14px; }
 .c-sb-ctx:hover .c-sb-ctx-label { color: var(--c-text-2); }
 .c-sb-right { display: flex; gap: 6px; align-items: center; }
 .c-sb-totals { color: var(--c-dim); }
+
+/* Editor toolbar + anchored popover menus (Task 7). */
+.c-popover {
+	position: fixed; z-index: 260; min-width: 240px; max-width: 380px;
+	background: var(--c-raised); border: 1px solid var(--c-border); border-radius: 10px;
+	box-shadow: 0 12px 32px rgba(1, 4, 9, 0.6); padding: 8px;
+}
+.c-popover-search {
+	width: 100%; box-sizing: border-box; margin-bottom: 6px;
+	background: var(--c-bg); border: 1px solid var(--c-hairline); border-radius: 7px;
+	color: var(--c-text); padding: 6px 9px; font: 400 12px var(--font-ui); outline: none;
+}
+.c-popover-list { max-height: 320px; overflow: auto; display: flex; flex-direction: column; }
+.c-popover-row {
+	display: flex; justify-content: space-between; gap: 12px; align-items: center;
+	background: none; border: 0; text-align: left; cursor: pointer;
+	color: var(--c-text-2); padding: 7px 9px; border-radius: 7px; font: 500 12px var(--font-mono);
+}
+.c-popover-row:hover { background: var(--c-bg); color: var(--c-text); }
+.c-popover-row.is-active { color: var(--c-accent); background: var(--c-accent-dim); }
+.c-popover-meta { color: var(--c-faint); font: 400 10.5px var(--font-ui); }
+
+.c-editor-toolbar { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.c-editor-toolbar .c-editor-primary {
+	margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
+	border: 0; border-radius: 9px; padding: 7px 16px; cursor: pointer;
+	background: var(--c-accent); color: #08161a; font: 700 12.5px var(--font-ui);
+}
+.c-editor-toolbar .c-editor-primary.is-stop { background: var(--c-danger); color: #1b0d0d; }
+.c-editor-toolbar .c-editor-primary:hover { filter: brightness(1.08); }
+.c-btn--green { border-color: var(--c-border); color: var(--c-text-2); }
