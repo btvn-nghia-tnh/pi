@@ -73,12 +73,24 @@ export interface ProjectGroup {
 	lastModified: string;
 }
 
+/**
+ * /tmp cwds are never user projects on this machine: pi's own test suites
+ * spawn piles of one-shot sessions under /tmp (vitest run dirs like
+ * /tmp/pi-<pid>-…), which used to flood the Projects list as fake
+ * "projects" (owner: exclude /tmp). Keep real home dirs untouched.
+ */
+export function isTempProjectCwd(cwd: string | undefined): boolean {
+	if (!cwd) return false;
+	return cwd === "/tmp" || cwd.startsWith("/tmp/");
+}
+
 export function projectGroups(
 	sessions: Array<RpcSessionSummary>,
 	open: Array<{ id: string; cwd: string; running: boolean }>,
 ): Array<ProjectGroup> {
 	const byCwd = new Map<string, Array<RpcSessionSummary>>();
 	for (const session of sessions) {
+		if (isTempProjectCwd(session.cwd)) continue;
 		const list = byCwd.get(session.cwd) ?? [];
 		list.push(session);
 		byCwd.set(session.cwd, list);
@@ -86,6 +98,7 @@ export function projectGroups(
 	const runningByCwd = new Map<string, number>();
 	for (const entry of open) {
 		if (!entry.running) continue;
+		if (isTempProjectCwd(entry.cwd)) continue;
 		runningByCwd.set(entry.cwd, (runningByCwd.get(entry.cwd) ?? 0) + 1);
 	}
 	const groups: Array<ProjectGroup> = [];

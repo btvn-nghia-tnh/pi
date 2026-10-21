@@ -337,6 +337,28 @@ export function transportOf(definition: Record<string, unknown>): "stdio" | "htt
 }
 
 /**
+ * Whether a configured server should offer the "Sign in" (`/mcp-auth`)
+ * action. The gate intentionally does NOT require live adapter status:
+ * the adapter publishes structured statuses only while its own `/mcp`
+ * panel is open, so most sessions have no live badge at all — and the
+ * owner must still be able to re-auth a server that answers 401. Remote
+ * http transports only; live-connected is the only state that hides it —
+ * everything else (needs-auth, failed, cached, not-connected, no data)
+ * keeps the action reachable.
+ */
+export function offersSignIn(transport: string, disabled: boolean, liveStatus: string | undefined): boolean {
+	if (transport !== "http") return false; // stdio servers have no OAuth
+	if (disabled) return false; // configure first, then authenticate
+	if (liveStatus === "connected") return false; // live and healthy
+	return true;
+}
+
+/** Whether a configured row should render a primary (warn-style) Sign in. */
+export function signInIsPrimary(liveStatus: string | undefined): boolean {
+	return liveStatus === "needs-auth" || liveStatus === "failed";
+}
+
+/**
  * Validate the dialog form into an mcp_config_add request.
  * Mirrors backend validation: name required; stdio → command required;
  * http → url required; args comma-split, trimmed, empties dropped.
@@ -917,6 +939,27 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 		}
 		row.appendChild(h("span", { style: "flex:1" }));
 		row.appendChild(testControlEl(pageTestHost, { server: entry.name, scope: section.scope, cwd: section.cwd }));
+		// Config rows keep Sign in reachable without live adapter status
+		// (see offersSignIn doc): a server answering 401 on a fresh session
+		// must still be re-authable on a page reload — owner report:
+		// "mcp auth failed vẫn không có nút để auth".
+		// Config rows keep Sign in reachable without live adapter status
+		// (see offersSignIn doc): a server answering 401 on a fresh session
+		// must still be re-authable — owner report: "mcp auth failed vẫn
+		// không có nút để auth".
+		if (offersSignIn(transportOf(entry.definition), entry.definition.disabled === true, undefined)) {
+			row.appendChild(
+				h(
+					"button",
+					{
+						class: "c-btn",
+						title: `Start the auth flow for ${entry.name} — runs /mcp-auth in the chat session`,
+						onclick: () => void runControl({ action: "start-auth", server: entry.name }),
+					},
+					"Sign in",
+				),
+			);
+		}
 		row.appendChild(
 			h(
 				"button",
@@ -970,7 +1013,7 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 						{ class: "c-usage-sub" },
 						configLoadedEmpty
 							? "statuses appear when pi-mcp-adapter registers"
-							: "statuses appear when pi-mcp-adapter pushes its next event",
+							: "statuses appear when pi-mcp-adapter pushes its next event — Test a server to check it, or Sign in to re-authenticate a remote server directly",
 					),
 				),
 			);

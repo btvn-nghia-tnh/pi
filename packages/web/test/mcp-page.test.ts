@@ -8,6 +8,8 @@ import {
 	type McpConfigEntry,
 	mcpCard,
 	mcpTiles,
+	offersSignIn,
+	signInIsPrimary,
 	testKeyOf,
 	testStatePill,
 	toolRows,
@@ -385,4 +387,23 @@ test("testKeyOf separates scopes, cwds, and server names", () => {
 	assert.equal(testKeyOf("global", undefined, "github"), "global:#github");
 	assert.notEqual(testKeyOf("project", "/w/pi", "github"), testKeyOf("project", "/w/other", "github"));
 	assert.notEqual(testKeyOf("project", "/w/pi", "github"), testKeyOf("global", undefined, "github"));
+});
+
+test("offersSignIn: remote rows keep sign-in reachable without live status", () => {
+	// Owner round 2: the adapter publishes structured statuses only while its
+	// own /mcp panel is open — a configured server answering 401 on a fresh
+	// session had NO auth path. Sign in must not depend on live state.
+	assert.equal(offersSignIn("http", false, undefined), true);
+	assert.equal(offersSignIn("http", false, "needs-auth"), true);
+	assert.equal(offersSignIn("http", false, "failed"), true);
+	assert.equal(offersSignIn("http", false, "cached"), true);
+	assert.equal(offersSignIn("http", false, "not-connected"), true);
+	assert.equal(offersSignIn("http", false, "connected"), false);
+	assert.equal(offersSignIn("http", true, undefined), false); // disabled first
+	assert.equal(offersSignIn("stdio", false, "needs-auth"), false); // no OAuth on stdio
+	assert.equal(offersSignIn("—", false, undefined), false);
+	assert.equal(signInIsPrimary("failed"), true);
+	assert.equal(signInIsPrimary("needs-auth"), true);
+	assert.equal(signInIsPrimary(undefined), false);
+	assert.equal(signInIsPrimary("connected"), false);
 });

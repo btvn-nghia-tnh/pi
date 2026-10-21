@@ -53,11 +53,18 @@ test("localMcpRows: live flag matches by name across all cwds, disabled stays in
 	assert.equal(rows[0].disabled, false);
 });
 
-test("rowOffersSignIn: needs-auth and failed both offer sign-in", () => {
-	// Owner bug: failed auth left the row without an auth affordance.
-	assert.equal(rowOffersSignIn({ status: "needs-auth", needsAuth: true }), true);
-	assert.equal(rowOffersSignIn({ status: "failed", needsAuth: false }), true);
-	assert.equal(rowOffersSignIn({ status: "connected", needsAuth: false }), false);
-	assert.equal(rowOffersSignIn({ status: "not-connected", needsAuth: false }), false);
-	assert.equal(rowOffersSignIn(undefined), false);
+test("rowOffersSignIn: needs-auth and failed offer sign-in; remote rows keep it without live status", () => {
+	// Owner bug rounds 1+2: failed auth left the row without an auth affordance;
+	// then the gate turned out to depend on adapter live status — the adapter
+	// only publishes statuses while its /mcp panel is open, so a fresh session
+	// (server answering 401) showed NO auth path at all. Remote rows now keep
+	// Sign in reachable whenever they are enabled and not live-connected.
+	const httpDef = { url: "https://srv.test/mcp" };
+	assert.equal(rowOffersSignIn({ status: "needs-auth", needsAuth: true }, httpDef), true);
+	assert.equal(rowOffersSignIn({ status: "failed", needsAuth: false }, httpDef), true);
+	assert.equal(rowOffersSignIn({ status: "connected", needsAuth: false }, httpDef), false);
+	assert.equal(rowOffersSignIn({ status: "cached", needsAuth: false }, httpDef), true);
+	assert.equal(rowOffersSignIn(undefined, httpDef), true);
+	assert.equal(rowOffersSignIn({ status: "failed", needsAuth: true }, { command: "npx", args: [] }), false);
+	assert.equal(rowOffersSignIn(undefined, { url: "https://srv.test/mcp", disabled: true }), false);
 });

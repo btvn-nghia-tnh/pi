@@ -20,6 +20,8 @@ import {
 	type McpOperation,
 	type McpTestResult,
 	type McpTestState,
+	offersSignIn,
+	signInIsPrimary,
 	type TestControlHost,
 	testControlEl,
 	testKeyOf,
@@ -165,9 +167,18 @@ export function localMcpRows(entries: McpConfigEntry[], cwd: string | undefined,
  * token expired/revoked and /mcp-auth is the remedy. Both states offer sign-in.
  * Pure — unit-tested in mcp-local-modal.test.ts.
  */
-export function rowOffersSignIn(live: { status: string; needsAuth: boolean } | undefined): boolean {
-	if (!live) return false;
-	return live.needsAuth || live.status === "failed";
+/**
+ * Whether a modal row should offer Sign in. Delegates to the shared
+ * `offersSignIn` gate: remote transports keep the action reachable even
+ * without live adapter status — the adapter publishes statuses only while
+ * its own /mcp panel is open, so a 401-auth server on a fresh session must
+ * still be re-authable (owner report).
+ */
+export function rowOffersSignIn(
+	live: { status: string; needsAuth: boolean } | undefined,
+	definition: Record<string, unknown>,
+): boolean {
+	return offersSignIn(transportOf(definition), definition.disabled === true, live?.status);
 }
 
 export class McpLocalModal {
@@ -439,13 +450,15 @@ export class McpLocalModal {
 				"Reconnect",
 			),
 		);
-		if (rowOffersSignIn(live)) {
+		if (rowOffersSignIn(live, entry.definition)) {
 			row.appendChild(
 				h(
 					"button",
 					{
-						class: "c-btn c-btn--primary",
-						title: "Start the adapter's auth flow for this server (failed usually means the token expired — re-runs /mcp-auth)",
+						// Needs-auth / failed rows shout (primary); a merely
+						// possibly-stale remote row keeps the quieter default tone.
+						class: `c-btn${signInIsPrimary(live?.status) ? " c-btn--primary" : ""}`,
+						title: "Start the auth flow for this server — runs /mcp-auth in the chat session (no live status needed)",
 						onclick: () => void this.runControl({ action: "start-auth", server: entry.name }),
 					},
 					"Sign in",

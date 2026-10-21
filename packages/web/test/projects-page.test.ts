@@ -58,6 +58,25 @@ test("projectGroups handles empty input, basename edges, and home-ish cwds", () 
 	assert.equal(rootGroups[0]?.name, "/");
 });
 
+test("projectGroups excludes /tmp cwds — test-suite noise, not projects", () => {
+	// Owner: pi's own test suites spawn one-shot sessions under /tmp which
+	// flooded the Projects list; those cwds never represent real projects.
+	const sessions = [
+		session({ cwd: "/tmp", file: "/t.jsonl", modified: new Date(NOW - MINUTE).toISOString() }),
+		session({ cwd: "/tmp/pi-2753-abc/", file: "/t2.jsonl", modified: new Date(NOW).toISOString() }),
+		session({ cwd: "/home/u/pi", file: "/real.jsonl", modified: new Date(NOW - DAY).toISOString() }),
+	];
+	const groups = projectGroups(sessions, [
+		{ id: "tmpRun", cwd: "/tmp", running: true },
+		{ id: "realRun", cwd: "/home/u/pi", running: true },
+	]);
+	assert.deepEqual(
+		groups.map((group) => group.cwd),
+		["/home/u/pi"],
+	);
+	assert.equal(groups[0]?.running, 1); // /tmp running badge không rò vào group khác
+});
+
 test("projectGroups sorts by last activity descending", () => {
 	const sessions = [
 		session({ cwd: "/old", file: "/1.jsonl", modified: new Date(NOW - 10 * DAY).toISOString() }),
