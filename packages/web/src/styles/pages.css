@@ -778,10 +778,19 @@
 .c-subagent-body {
 	max-height: 40vh;
 	overflow-y: auto;
+	overscroll-behavior: contain;
+	touch-action: pan-y;
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
 	margin-top: 8px;
+}
+/* Batch-4 B2: flex items shrink by default, so a max-height flex column
+ * compressed its rows instead of overflowing — the card then had nothing
+ * to scroll (owner report: "stuck at top, cannot scroll down"). Pin rows to
+ * their natural height so overflow-y:auto has real scroll range. */
+.c-subagent-body > * {
+	flex: 0 0 auto;
 }
 .c-subagent-empty {
 	color: var(--c-dim);
@@ -887,5 +896,245 @@
 .c-subagent-dir {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Subagent detail modal (batch-4 B4, components/session-panel.ts).   */
+/* Body-level overlay: scrim + sheet; closes on Esc/scrim click/X.     */
+/* ------------------------------------------------------------------ */
+.c-modal-scrim {
+	position: fixed;
+	inset: 0;
+	z-index: 300;
+	background: rgba(0, 0, 0, 0.55);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.c-modal-sheet {
+	z-index: 310;
+	width: min(560px, calc(100vw - 32px));
+	max-height: min(720px, 80vh);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	background: var(--c-surface);
+	border: 1px solid var(--c-border);
+	border-radius: var(--radius-card);
+	box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+	padding: 14px 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+.c-modal-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.c-modal-title {
+	flex: 1;
+	min-width: 0;
+	font: 700 13px var(--font-ui);
+	color: var(--c-text);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.c-modal-close {
+	flex: 0 0 auto;
+	border: 1px solid var(--c-hairline);
+	background: var(--c-bg);
+	color: var(--c-dim);
+	border-radius: var(--radius-chip);
+	font: 600 13px var(--font-ui);
+	cursor: pointer;
+	padding: 1px 8px;
+}
+.c-modal-close:hover {
+	color: var(--c-danger);
+	border-color: var(--c-border);
+}
+.c-modal-state {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font: 600 11px var(--font-mono);
+	color: var(--c-text-2);
+}
+.c-modal-state .c-subagent-dot {
+	flex: 0 0 7px;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+}
+.c-modal-task {
+	font: 500 11.5px var(--font-mono);
+	color: var(--c-text);
+	white-space: pre-wrap;
+	word-break: break-word;
+	background: var(--c-bg);
+	border: 1px solid var(--c-hairline);
+	border-radius: 8px;
+	padding: 8px 10px;
+	max-height: 220px;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+.c-modal-activity {
+	font: 400 10.5px var(--font-mono);
+	color: var(--c-dim);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+.c-modal-meta {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	font: 400 10.5px var(--font-mono);
+	color: var(--c-faint);
+}
+.c-modal-meta .c-subagent-dir,
+.c-modal-dir {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.c-modal-log-link {
+	background: none;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+	font: 400 10.5px var(--font-mono);
+	color: var(--c-accent);
+	text-align: left;
+}
+.c-modal-log-link:hover {
+	text-decoration: underline;
+}
+.c-modal-steering {
+	font: 400 10.5px var(--font-mono);
+	color: var(--c-dim);
+	border-top: 1px dashed var(--c-hairline);
+	padding-top: 6px;
+}
+.c-modal-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	border-top: 1px dashed var(--c-hairline);
+	padding-top: 8px;
+}
+.c-modal-row-buttons {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+.c-modal-steer-form {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.c-modal-steer-textarea {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 60px;
+	resize: vertical;
+	background: var(--c-bg);
+	border: 1px solid var(--c-border);
+	border-radius: 8px;
+	padding: 7px 9px;
+	font: 400 11.5px var(--font-mono);
+	color: var(--c-text);
+}
+.c-modal-steer-textarea:focus-visible {
+	outline: 1px solid var(--c-accent);
+}
+.c-modal-steer-controls {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+.c-modal-steer-mode {
+	background: var(--c-bg);
+	border: 1px solid var(--c-border);
+	border-radius: var(--radius-chip);
+	font: 500 10.5px var(--font-mono);
+	color: var(--c-text-2);
+	padding: 3px 6px;
+}
+.c-modal-status-line {
+	font: 500 10.5px var(--font-mono);
+	color: var(--c-text-2);
+	min-height: 14px;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+.c-modal-status-line.is-error {
+	color: var(--c-danger);
+}
+.c-modal-status-line.is-ok {
+	color: var(--c-ok);
+}
+
+/* ------------------------------------------------------------------ */
+/* Batch-4 B8 — chat sidebar restyle (projects-page parity). Scoped   */
+/* under .chat-page: the sidebar is chat-only, and the scope outranks   */
+/* the legacy `.sidebar-*` rules in main.css (which loads last but        */
+/* loses on specificity).                                              */
+/* ------------------------------------------------------------------ */
+.chat-page .sidebar-chrome {
+	gap: 4px;
+}
+/* The ＋ New button inherits .c-btn; keep it compact inside the header. */
+.chat-page .sidebar-chrome .c-btn {
+	flex: 0 0 auto;
+	padding: 3px 9px;
+	font: 600 11px var(--font-ui);
+	white-space: nowrap;
+}
+.chat-page .sidebar.collapsed .sidebar-chrome .c-btn {
+	display: none;
+}
+/* Session filter input (B8) — reuses the popover-search field look. */
+.chat-page .sidebar-filter {
+	flex: 0 0 auto;
+	padding: 6px 8px 2px;
+}
+.chat-page .sidebar-filter input {
+	font: 400 11.5px var(--font-ui);
+}
+.chat-page .sidebar.collapsed .sidebar-filter {
+	display: none;
+}
+/* Two-line session rows with a right meta column (projects parity). */
+.chat-page .sidebar-row {
+	padding: 6px 8px 6px 10px;
+}
+.chat-page .sidebar-row-main {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+.chat-page .sidebar-row .sidebar-session-name {
+	font: 600 12.5px var(--font-ui);
+	color: var(--c-text-2);
+	line-height: 1.25;
+}
+.chat-page .sidebar-row-sub {
+	font: 400 9.5px var(--font-mono);
+	color: var(--c-dim);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.chat-page .sidebar-row-meta {
+	flex: 0 0 auto;
+	text-align: right;
+	font: 400 9.5px var(--font-ui);
+	color: var(--c-dim);
 	white-space: nowrap;
 }

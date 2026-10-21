@@ -38,6 +38,27 @@ export interface SubagentRun {
 	/** ≤120 chars: last meaningful log line; re-clamped defensively. */
 	activity?: string;
 	lines?: number;
+	/** Batch-4 (backend T3): steering bookkeeping straight from status.json. */
+	steering?: SubagentSteeringBlock;
+}
+
+/** Steering counters block (mirrors status.json `steering`). */
+export interface SubagentSteeringBlock {
+	requested?: number;
+	scheduled?: number;
+	pending?: number;
+	delivered?: number;
+	failed?: number;
+	recovered?: number;
+	recent?: SubagentSteeringRecent[];
+}
+
+/** One recent steering request as the backend records it. */
+export interface SubagentSteeringRecent {
+	id?: string;
+	requestedAt?: number;
+	/** ≤160-char preview of the steered message. */
+	messagePreview?: string;
 }
 
 export interface SubagentStatusResponse {
@@ -45,9 +66,15 @@ export interface SubagentStatusResponse {
 	runs: SubagentRun[];
 }
 
-/** Minimal structural slice of PiConnection the poll uses. */
+/** Commands the Subagents card can send (batch-4: status poll + steer/stop). */
+export type SubagentStatusCommand =
+	| { type: "subagent_status" }
+	| { type: "subagent_steer"; runId: string; message: string; mode?: SteerMode }
+	| { type: "subagent_stop"; runId: string; reason?: string };
+
+/** Minimal structural slice of PiConnection the poll + modal use. */
 export interface SubagentStatusConnection {
-	request<T = unknown>(command: { type: "subagent_status" }): Promise<T>;
+	request<T = unknown>(command: SubagentStatusCommand): Promise<T>;
 }
 
 /** ``undefined`` timestamps → ""; epoch numbers → ISO; strings pass through. */
@@ -134,6 +161,303 @@ export function subagentRows(runs: SubagentRun[] | undefined, now: number): Suba
 }
 
 // ------------------------------------------------------------------
+// Subagent detail modal — pure helpers (batch-4 B4)
+// ------------------------------------------------------------------
+
+/** Steer delivery mode, mirroring the pi-subagents control protocol. */
+export type SteerMode = "steer" | "follow_up" | "auto";
+
+/** Byte cap from the pi-subagents steer protocol (128 KB). */
+export const MAX_STEER_MESSAGE_BYTES = 128 * 1024;
+
+/** Message preview cap for the steering summary line. */
+const STEERING_PREVIEW_CLAMP = 48;
+
+/** Trimmed steer message or `undefined` when unusable (empty/whitespace/oversize). */
+export function validSteerMessage(message: string): string | undefined {
+	const value = message.trim();
+	if (!value) return undefined;
+	if (new TextEncoder().encode(value).byteLength > MAX_STEER_MESSAGE_BYTES) return undefined;
+	return value;
+}
+
+/** First uuid segment or the whole id when it is already short. */
+export function shortRunId(id: string): string {
+	return id.split("-")[0] ?? id;
+}
+
+/** Human line for the steer response (server T3: {delivered, requestId?, reason?}). */
+export function steerOutcomeText(response: unknown): string {
+	const data = (response ?? {}) as { delivered?: string; requestId?: string; reason?: string };
+	if (data.delivered === "failed") {
+		return `Steer failed${data.reason ? `: ${data.reason}` : ""}.`;
+	}
+	if (data.delivered === "queued") {
+		return `Steer queued${data.requestId ? ` (request ${shortRunId(data.requestId)})` : ""} — watch the steering line.`;
+	}
+	return "Steer sent.";
+}
+
+/** Human line for the stop response ({delivered: "requested" | "failed"}). */
+export function stopOutcomeText(response: unknown): string {
+	const data = (response ?? {}) as { delivered?: string };
+	if (data.delivered === "failed") return "Stop failed — the run may have already ended.";
+	return "Stop requested — the run halts at its next step boundary.";
+}
+
+/** Compact steering bookkeeping line; `undefined` when nothing to show. */
+export function steeringSummary(steering: SubagentSteeringBlock | undefined): string | undefined {
+	if (!steering) return undefined;
+	const delivered = steering.delivered ?? 0;
+	const failed = steering.failed ?? 0;
+	if (delivered === 0 && failed === 0 && (steering.recent?.length ?? 0) === 0) return undefined;
+	const parts = ["steering:"];
+	if (delivered > 0) parts.push(`${delivered} delivered`);
+	if (failed > 0) parts.push(`${failed} failed`);
+	const recent = steering.recent?.[steering.recent.length - 1];
+	if (recent?.messagePreview) {
+		parts.push(`last: ${clampText(recent.messagePreview, STEERING_PREVIEW_CLAMP)}`);
+	} else if (parts.length === 1) {
+		parts.push("requested");
+	}
+	return parts.join(" ");
+}
+
+// ------------------------------------------------------------------
+// Subagent detail modal (batch-4 B4) — overlay, body-level
+// ------------------------------------------------------------------
+
+export interface SubagentDetailModalOpts {
+	row: SubagentRowView;
+	/** Raw poll payload (un-clamped fields the card view trims). */
+	raw: SubagentRun | undefined;
+	/** Steer sender — rejects when the server build lacks the command. */
+	sendSteer: (runId: string, message: string, mode: SteerMode) => Promise<unknown>;
+	/** Stop sender with the same contract as steer. */
+	sendStop: (runId: string) => Promise<unknown>;
+	pushToast: (message: string, level: "info" | "warning" | "error") => void;
+	/** When provided, "Open output log" links here (app wires preview). */
+	openLog?: (path: string) => void;
+}
+
+/**`true` when a run is still alive and steerable (stop/steer make sense). */
+export function isSteerableState(state: string): boolean {
+	return state === "running" || state === "needs-attention";
+}
+
+/** Full-detail overlay for one subagent run. Closes on Esc/scrim/X. */
+export class SubagentDetailModal {
+	private readonly scrim: HTMLElement;
+	private readonly sheet: HTMLElement;
+	private readonly statusLine: HTMLElement;
+	private readonly escHandler: (event: KeyboardEvent) => void;
+	private readonly opts: SubagentDetailModalOpts;
+	private readonly shownRunId: string;
+	private stopArmed = false;
+	private stopRevertTimer: ReturnType<typeof setTimeout> | undefined;
+	private stopButton: HTMLButtonElement | undefined;
+	private busy = false;
+
+	constructor(opts: SubagentDetailModalOpts) {
+		this.opts = opts;
+		const { row, raw } = opts;
+		this.shownRunId = row.id;
+		const stateParts: HTMLElement[] = [
+			h("span", { class: `c-subagent-dot tone-${row.tone}${row.state === "running" ? " is-pulsing" : ""}` }),
+			h("span", {}, row.state),
+		];
+		if (row.model) stateParts.push(h("span", { class: "c-subagent-model", style: "max-width:60%" }, row.model));
+
+		const metaBits: HTMLElement[] = [
+			h("div", {}, `started: ${row.startedText}`),
+			h("div", {}, `updated: ${row.updatedText}`),
+		];
+		if (typeof raw?.lines === "number") metaBits.push(h("div", {}, `${raw.lines} log lines`));
+		if (raw?.dir) {
+			metaBits.push(h("div", { class: "c-modal-dir", title: raw.dir }, raw.dir));
+			if (opts.openLog) {
+				const logPath = `${raw.dir.replace(/\/$/, "")}/output-0.log`;
+				metaBits.push(
+					h(
+						"button",
+						{ class: "c-modal-log-link", title: logPath, onclick: () => opts.openLog?.(logPath) },
+						"open output log",
+					),
+				);
+			}
+		}
+
+		this.statusLine = h("div", { class: "c-modal-status-line" });
+		const closeEl = h("button", { class: "c-modal-close", title: "Close (Esc)", "aria-label": "Close" }, "×");
+		closeEl.addEventListener("click", () => this.close());
+
+		this.sheet = h(
+			"div",
+			{ class: "c-modal-sheet", role: "dialog", "aria-label": "Subagent detail" },
+			h(
+				"div",
+				{ class: "c-modal-head" },
+				h("span", { class: "c-modal-title", title: row.id }, `Subagent ${shortRunId(row.id)}`),
+				closeEl,
+			),
+			h("div", { class: "c-modal-state" }, ...stateParts),
+			h("div", { class: "c-modal-task", title: raw?.task ?? row.task }, raw?.task ?? row.task ?? "(no task text)"),
+			row.activity
+				? h(
+						"div",
+						{ class: "c-modal-activity", title: raw?.activity ?? row.activity },
+						raw?.activity ?? row.activity,
+					)
+				: undefined,
+			h("div", { class: "c-modal-meta" }, ...metaBits),
+			steeringSummary(raw?.steering)
+				? h("div", { class: "c-modal-steering" }, steeringSummary(raw?.steering) ?? "")
+				: undefined,
+			isSteerableState(row.state) ? this.buildActions(row.id) : undefined,
+			this.statusLine,
+		);
+		this.scrim = h("div", { class: "c-modal-scrim" }, this.sheet);
+		this.scrim.addEventListener("click", (event) => {
+			if (event.target === this.scrim) this.close();
+		});
+		this.escHandler = (event) => {
+			if (event.key === "Escape") {
+				event.preventDefault();
+				this.close();
+			}
+		};
+		window.addEventListener("keydown", this.escHandler);
+		document.body.appendChild(this.scrim);
+	}
+
+	/** Steer form + inline-confirm Stop; only for live runs. */
+	private buildActions(runId: string): HTMLElement {
+		const textarea = h("textarea", {
+			class: "c-modal-steer-textarea",
+			placeholder: "Message to steer this subagent mid-run…",
+		}) as HTMLTextAreaElement;
+		const modeSelect = h("select", {
+			class: "c-modal-steer-mode",
+			title: "Delivery mode",
+			"aria-label": "Steer mode",
+		}) as HTMLSelectElement;
+		for (const mode of ["steer", "follow_up", "auto"] as const) {
+			const option = h("option", { value: mode }, mode) as HTMLOptionElement;
+			option.selected = mode === "steer";
+			modeSelect.add(option);
+		}
+		const sendButton = h("button", { class: "c-btn c-btn--primary" }, "Send steer") as HTMLButtonElement;
+		this.stopButton = h("button", { class: "c-btn c-btn--danger" }, "Stop") as HTMLButtonElement;
+
+		sendButton.addEventListener("click", () => void this.submitSteer(runId, textarea, modeSelect));
+		textarea.addEventListener("keydown", (event) => {
+			if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+				event.preventDefault();
+				void this.submitSteer(runId, textarea, modeSelect);
+			}
+		});
+		this.stopButton.addEventListener("click", () => void this.confirmStop(runId));
+
+		return h(
+			"div",
+			{ class: "c-modal-actions" },
+			h(
+				"div",
+				{ class: "c-modal-steer-form" },
+				textarea,
+				h("div", { class: "c-modal-steer-controls" }, modeSelect, sendButton, this.stopButton),
+			),
+		);
+	}
+
+	private setBusy(next: boolean): void {
+		this.busy = next;
+	}
+
+	private setStatus(text: string, tone: "" | " is-ok" | " is-error" = ""): void {
+		this.statusLine.className = `c-modal-status-line${tone}`;
+		this.statusLine.textContent = text;
+	}
+
+	private async submitSteer(
+		runId: string,
+		textarea: HTMLTextAreaElement,
+		modeSelect: HTMLSelectElement,
+	): Promise<void> {
+		if (this.busy) return;
+		const message = validSteerMessage(textarea.value);
+		if (!message) {
+			this.setStatus("Steer message cannot be empty.", " is-error");
+			return;
+		}
+		const mode = (
+			modeSelect.value === "follow_up" || modeSelect.value === "auto" ? modeSelect.value : "steer"
+		) as SteerMode;
+		this.setBusy(true);
+		this.setStatus("Sending steer…");
+		try {
+			const response = await this.opts.sendSteer(runId, message, mode);
+			const text = steerOutcomeText(response);
+			const failed = (response as { delivered?: string } | undefined)?.delivered === "failed";
+			this.setStatus(text, failed ? " is-error" : " is-ok");
+			this.opts.pushToast(text, failed ? "warning" : "info");
+			if (!failed) textarea.value = "";
+		} catch (error) {
+			const text = `Subagent steering unavailable on this server build (${(error as Error).message})`;
+			this.setStatus(text, " is-error");
+			this.opts.pushToast("Subagent steering unavailable on this server build", "warning");
+		} finally {
+			this.setBusy(false);
+		}
+	}
+
+	/** First click arms (label flips); second click within 3s fires the stop. */
+	private async confirmStop(runId: string): Promise<void> {
+		const button = this.stopButton;
+		if (!button || this.busy) return;
+		if (!this.stopArmed) {
+			this.stopArmed = true;
+			button.textContent = "Confirm stop";
+			this.stopRevertTimer = setTimeout(() => {
+				this.stopArmed = false;
+				if (button.isConnected) button.textContent = "Stop";
+			}, 3000);
+			return;
+		}
+		if (this.stopRevertTimer) clearTimeout(this.stopRevertTimer);
+		this.stopArmed = false;
+		this.setBusy(true);
+		this.setStatus("Sending stop…");
+		try {
+			const response = await this.opts.sendStop(runId);
+			const text = stopOutcomeText(response);
+			const failed = (response as { delivered?: string } | undefined)?.delivered === "failed";
+			this.setStatus(text, failed ? " is-error" : " is-ok");
+			this.opts.pushToast(text, failed ? "warning" : "info");
+		} catch (error) {
+			this.setStatus(`Stop failed (${(error as Error).message}).`, " is-error");
+			this.opts.pushToast("Subagent stop unavailable on this server build", "warning");
+		} finally {
+			this.setBusy(false);
+			if (button.isConnected) button.textContent = "Stop";
+		}
+	}
+
+	/** Idempotent close: removes the overlay + Esc listener + pending timers. */
+	close(): void {
+		if (this.stopRevertTimer) clearTimeout(this.stopRevertTimer);
+		this.stopRevertTimer = undefined;
+		window.removeEventListener("keydown", this.escHandler);
+		this.scrim.remove();
+	}
+
+	/** Whether this instance was opened for the given run id. */
+	isShownFor(runId: string): boolean {
+		return this.shownRunId === runId;
+	}
+}
+
+// ------------------------------------------------------------------
 // Panel
 // ------------------------------------------------------------------
 
@@ -164,6 +488,9 @@ export interface SessionPanelOpts {
 	connection?: PiConnection | SubagentStatusConnection;
 	/** Poll cadence in ms; overridable for tests. Default 3000. */
 	subagentPollMs?: number;
+	/** Batch-4 (B4): optional file-preview opener the run modal can use —
+	 * app wires its existing preview column here (app.ts integration). */
+	openPreview?: (path: string) => void;
 }
 
 const DEFAULT_POLL_MS = 3000;
@@ -186,7 +513,10 @@ export class SessionPanel {
 	private subagentRows: SubagentRowView[] = [];
 	private subagentFirstErrorHintShown = false;
 	private subagentInitialFetchDone = false;
-	private expandedRuns = new Set<string>();
+	/** Raw poll payloads by run id — the modal shows un-clamped fields (batch-4 B4). */
+	private subagentRawRuns: ReadonlyMap<string, SubagentRun> = new Map();
+	/** The open detail modal, if any — single instance per panel (batch-4 B4). */
+	private subagentModal: SubagentDetailModal | undefined;
 
 	constructor(opts: SessionPanelOpts) {
 		this.opts = opts;
@@ -216,9 +546,11 @@ export class SessionPanel {
 		this.pollInFlight = false;
 		this.subagentCardEl = undefined;
 		this.subagentRows = [];
+		this.subagentRawRuns = new Map();
+		this.subagentModal?.close();
+		this.subagentModal = undefined;
 		this.subagentFirstErrorHintShown = false;
 		this.subagentInitialFetchDone = false;
-		this.expandedRuns.clear();
 		this.lastWidgets = undefined;
 		this.lastCollapsed = undefined;
 		this.widgetSlots = [];
@@ -245,6 +577,9 @@ export class SessionPanel {
 		try {
 			const data = (await connection.request({ type: "subagent_status" })) as SubagentStatusResponse;
 			this.subagentRows = subagentRows(data?.runs, Date.now());
+			this.subagentRawRuns = new Map(
+				(data?.runs ?? []).filter((run) => run?.id).map((run) => [String(run.id), run]),
+			);
 			this.subagentInitialFetchDone = true;
 			this.subagentFirstErrorHintShown = false; // a good poll clears the hint
 			this.render();
@@ -338,7 +673,6 @@ export class SessionPanel {
 	}
 
 	private subagentRowEl(row: SubagentRowView): HTMLElement {
-		const expanded = this.expandedRuns.has(row.id);
 		const head = h(
 			"div",
 			{ class: "c-subagent-row-head" },
@@ -352,8 +686,9 @@ export class SessionPanel {
 		const el = h(
 			"div",
 			{
-				class: `c-subagent-row${expanded ? " is-expanded" : ""}`,
-				// Click a row to toggle the expanded detail (dir + activity + times).
+				// Click a row to open the full-detail modal (batch-4 B4): task,
+				// timing, steering state, and steer/stop controls for live runs.
+				class: "c-subagent-row",
 				role: "button",
 				tabindex: "0",
 			},
@@ -363,33 +698,50 @@ export class SessionPanel {
 		if (row.activity) {
 			el.appendChild(h("div", { class: "c-subagent-activity" }, row.activity));
 		}
-		if (expanded) {
-			const detail = h(
-				"div",
-				{ class: "c-subagent-detail" },
-				h("div", {}, `started: ${row.startedText}`),
-				h("div", {}, `updated: ${row.updatedText}`),
-				row.dir ? h("div", { class: "c-subagent-dir", title: row.dir }, row.dir) : undefined,
-				typeof row.lines === "number" ? h("div", {}, `${row.lines} log lines`) : undefined,
-			);
-			el.appendChild(detail);
-		}
-		const toggle = (): void => {
-			if (this.expandedRuns.has(row.id)) {
-				this.expandedRuns.delete(row.id);
-			} else {
-				this.expandedRuns.add(row.id);
-			}
-			this.render();
-		};
-		el.addEventListener("click", toggle);
+		el.addEventListener("click", () => this.openSubagentModal(row.id));
 		el.addEventListener("keydown", (event) => {
 			if (event.key === "Enter" || event.key === " ") {
 				event.preventDefault();
-				toggle();
+				this.openSubagentModal(row.id);
 			}
 		});
 		return el;
+	}
+
+	/** Open (or replace) the detail modal for a run id from the latest poll. */
+	private openSubagentModal(runId: string): void {
+		const row = this.subagentRows.find((candidate) => candidate.id === runId);
+		if (!row) return;
+		if (this.subagentModal) {
+			// Same-run click on an open modal keeps it (no close-reopen flicker);
+			// a different run replaces the open modal — single instance.
+			if (this.subagentModal.isShownFor(runId)) return;
+			this.subagentModal.close();
+		}
+		this.subagentModal = new SubagentDetailModal({
+			row,
+			raw: this.subagentRawRuns.get(runId),
+			sendSteer: (id, message, mode) => this.sendSubagentCommand(id, { type: "subagent_steer", message, mode }),
+			sendStop: (id) => this.sendSubagentCommand(id, { type: "subagent_stop" }),
+			pushToast: (message, level) => this.opts.store.pushNotification(message, level),
+			openLog: this.opts.openPreview,
+		});
+	}
+
+	/** Request helper for the steer/stop commands (server contract, batch-4 T3). */
+	private sendSubagentCommand(
+		runId: string,
+		payload: { type: "subagent_steer"; message: string; mode: SteerMode } | { type: "subagent_stop" },
+	): Promise<unknown> {
+		const connection = this.opts.connection;
+		if (!connection) return Promise.reject(new Error("not connected"));
+		// The request union widens server-side (T3); the panel-level slice accepts it.
+		const request = connection.request.bind(connection) as (command: SubagentStatusCommand) => Promise<unknown>;
+		const mode = payload.type === "subagent_steer" ? payload.mode : undefined;
+		const reason = payload.type === "subagent_stop" ? "requested from the web console" : undefined;
+		return payload.type === "subagent_steer"
+			? request({ type: "subagent_steer", runId, message: payload.message, mode })
+			: request({ type: "subagent_stop", runId, reason });
 	}
 
 	// ------------------------------------------------------------------

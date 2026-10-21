@@ -139,3 +139,104 @@ test("subagentRows: empty/undefined run lists return an empty array", async () =
 	assert.deepEqual(subagentRows([], 0), []);
 	assert.deepEqual(subagentRows(undefined, 0), []);
 });
+
+// ---------------------------------------------------------------------
+// Batch-4 T2: steer/stop helpers + modal pure projections + CSS pins
+// ---------------------------------------------------------------------
+
+test("validSteerMessage: trim, empties, and the 128 KB protocol cap", async () => {
+	const { validSteerMessage, MAX_STEER_MESSAGE_BYTES } = await import("../src/components/session-panel.ts");
+	assert.equal(validSteerMessage(""), undefined);
+	assert.equal(validSteerMessage("   \n\t "), undefined);
+	assert.equal(validSteerMessage("  hold on  "), "hold on");
+	// Byte cap: 1 byte over → invalid; exactly at the cap → valid.
+	assert.equal(validSteerMessage("a".repeat(MAX_STEER_MESSAGE_BYTES + 1)), undefined);
+	assert.equal(validSteerMessage("a".repeat(MAX_STEER_MESSAGE_BYTES)), "a".repeat(MAX_STEER_MESSAGE_BYTES));
+	// Multibyte chars count as bytes, not code points.
+	const twoByteChars = "é".repeat(Math.ceil(MAX_STEER_MESSAGE_BYTES / 2) + 1);
+	assert.equal(validSteerMessage(twoByteChars), undefined);
+});
+
+test("shortRunId: first uuid segment, short strings pass through", async () => {
+	const { shortRunId } = await import("../src/components/session-panel.ts");
+	assert.equal(shortRunId("e379a374-6d9c-4054-b901-2dd26d20193b"), "e379a374");
+	assert.equal(shortRunId("abc"), "abc");
+	assert.equal(shortRunId(""), "");
+});
+
+test("steerOutcomeText: queued/failed/fallback lines", async () => {
+	const { steerOutcomeText } = await import("../src/components/session-panel.ts");
+	assert.equal(
+		steerOutcomeText({ delivered: "queued", requestId: "web-01Ab-xyz" }),
+		"Steer queued (request web) — watch the steering line.",
+	);
+	assert.equal(steerOutcomeText({ delivered: "failed", reason: "inbox-closed" }), "Steer failed: inbox-closed.");
+	assert.equal(steerOutcomeText({ delivered: "failed" }), "Steer failed.");
+	assert.equal(steerOutcomeText(undefined), "Steer sent.");
+	assert.equal(steerOutcomeText({ something: "else" }), "Steer sent.");
+});
+
+test("stopOutcomeText: requested/failed lines", async () => {
+	const { stopOutcomeText } = await import("../src/components/session-panel.ts");
+	assert.equal(
+		stopOutcomeText({ delivered: "requested" }),
+		"Stop requested — the run halts at its next step boundary.",
+	);
+	assert.equal(stopOutcomeText({ delivered: "failed" }), "Stop failed — the run may have already ended.");
+	assert.equal(stopOutcomeText(undefined), "Stop requested — the run halts at its next step boundary.");
+});
+
+test("steeringSummary: counters + newest recent preview", async () => {
+	const { steeringSummary } = await import("../src/components/session-panel.ts");
+	assert.equal(steeringSummary(undefined), undefined);
+	assert.equal(steeringSummary({}), undefined);
+	assert.equal(steeringSummary({ delivered: 0, failed: 0, recent: [] }), undefined);
+	assert.equal(steeringSummary({ delivered: 2 }), "steering: 2 delivered");
+	assert.equal(steeringSummary({ failed: 1 }), "steering: 1 failed");
+	assert.equal(steeringSummary({ delivered: 3, failed: 1 }), "steering: 3 delivered 1 failed");
+	assert.equal(
+		steeringSummary({ delivered: 1, recent: [{ id: "r1", messagePreview: "finish the report" }] }),
+		"steering: 1 delivered last: finish the report",
+	);
+	// Newest recent entry wins; long previews clamp with an ellipsis.
+	assert.equal(
+		steeringSummary({
+			delivered: 2,
+			recent: [
+				{ id: "old", messagePreview: "stale" },
+				{ id: "new", messagePreview: "x".repeat(60) },
+			],
+		}),
+		`steering: 2 delivered last: ${"x".repeat(47)}…`,
+	);
+	// Recent without a preview still surfaces "requested" when no counters.
+	assert.equal(steeringSummary({ recent: [{ id: "r" }] }), "steering: requested");
+});
+
+test("isSteerableState: running and needs-attention only", async () => {
+	const { isSteerableState } = await import("../src/components/session-panel.ts");
+	assert.equal(isSteerableState("running"), true);
+	assert.equal(isSteerableState("needs-attention"), true);
+	assert.equal(isSteerableState("complete"), false);
+	assert.equal(isSteerableState("failed"), false);
+	assert.equal(isSteerableState("unknown"), false);
+});
+
+test("subagent card scroll fix + modal CSS pins (batch-4 B2/B4)", async () => {
+	const { readFileSync } = await import("node:fs");
+	const css = readFileSync(new URL("../src/styles/pages.css", import.meta.url), "utf8");
+	// B2 root cause: flex rows must pin to natural height so overflow is real.
+	assert.ok(
+		/\.c-subagent-body\s*>\s*\*\s*\{[^}]*flex:\s*0 0 auto/.test(css),
+		"subagent rows pin to natural height (no shrink)",
+	);
+	assert.ok(
+		/\.c-subagent-body\s*\{[^}]*overscroll-behavior:\s*contain/.test(css),
+		"subagent body keeps wheel events contained",
+	);
+	// B4 modal chrome.
+	assert.ok(css.includes(".c-modal-scrim"), "modal scrim exists");
+	assert.ok(css.includes(".c-modal-sheet"), "modal sheet exists");
+	assert.ok(/\.c-modal-sheet\s*\{[^}]*max-height:\s*min\(720px,\s*80vh\)/.test(css), "modal sheet capped at 80vh");
+	assert.ok(css.includes(".c-modal-steer-textarea"), "steer textarea style exists");
+});
