@@ -261,25 +261,30 @@ export class SidebarView {
 	}
 
 	private buildChrome(): HTMLElement {
-		// B8 projects parity: [Sessions title] [＋ New] [⟳ reload] [◀ collapse].
-		// New opens a session in the active project's scope (the same flow the
-		// old bottom "+ New session" button — and every block before it — used).
+		// Batch-5: projects-header parity — [Sessions] [＋ New] [⟳ Refresh] —
+		// New is a primary (accent) button, Reload carries icon + label, and the
+		// old "◀" collapse button is gone (owner: "không còn nút collapse <| nữa").
+		// The setCollapsed machinery stays wired to the Ctrl+B keybinding.
 		const newSession = h(
 			"button",
-			{ class: "c-btn", title: "New session in this project", onclick: () => this.handlers.onNew(this.activeCwd()) },
+			{
+				class: "c-btn c-btn--primary",
+				title: "New session in this project",
+				onclick: () => this.handlers.onNew(this.activeCwd()),
+			},
 			"＋ New",
 		);
-		const toggle = h("button", { class: "sidebar-toggle", title: "Toggle sidebar (Ctrl+B)" }, "◀");
-		toggle.addEventListener("click", () => this.setCollapsed(!this.collapsed));
-		const reload = h("button", { class: "sidebar-toggle", title: "Reload session list" }, "⟳");
-		reload.addEventListener("click", () => this.handlers.onReload());
+		const reload = h(
+			"button",
+			{ class: "c-btn", title: "Reload session list", onclick: () => this.handlers.onReload() },
+			"⟳ Refresh",
+		);
 		return h(
 			"div",
 			{ class: "sidebar-chrome" },
 			h("span", { class: "sidebar-title" }, "Sessions"),
 			newSession,
 			reload,
-			toggle,
 		);
 	}
 
