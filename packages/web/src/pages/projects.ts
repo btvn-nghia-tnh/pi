@@ -198,10 +198,16 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 	// ---- static chrome ------------------------------------------------
 	// Inline flex-basis overrides the .chat-sidebar class var (which the chat
 	// page owns); the resizer below drives this variable, persisted per user.
+	// (batch-4 B1) The column is assembled ONCE here: search box, a rows host,
+	// then the drag resizer. `renderProjectList()` clears only the rows host so
+	// the search box and the resizer survive every re-render — the old code
+	// cleared the whole column, wiping the resizer handle (the "projects drag
+	// disappears once the list scrolls" owner report).
 	const leftColumn = h("div", {
 		class: "chat-sidebar",
 		style: "display:flex;flex-direction:column;overflow-y:auto;padding:12px;gap:10px;flex:0 0 var(--projects-list-w,308px)",
 	});
+	const projectRowsHost = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
 	const rightColumn = h("div", { style: "flex:1;min-width:0;overflow-y:auto;padding:16px 20px" });
 
 	const searchInput = h("input", {
@@ -294,8 +300,10 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 		h("div", { style: "flex:1;min-height:0;display:flex", class: "projects-body" }, leftColumn, rightColumn),
 		scrim,
 	);
-	// The resizer rides INSIDE the list panel so drags anchor on its edge.
-	leftColumn.appendChild(resizer.el);
+	// Column assembly (batch-4 B1): search box + rows host + resizer are
+	// appended ONCE — renderProjectList() only ever clears projectRowsHost,
+	// so the drag handle can never be swept by a re-render.
+	leftColumn.append(searchInput, projectRowsHost, resizer.el);
 	// Boot restore: re-apply a persisted width (parity with the chat sidebar).
 	const storedListWidth = readStoredPanelWidth(PROJECTS_LIST_KEY, PROJECTS_LIST_MIN, PROJECTS_LIST_MAX);
 	if (storedListWidth !== undefined) applyListWidth(storedListWidth);
@@ -381,11 +389,11 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 
 	// ---- left column --------------------------------------------------
 	function renderProjectList(): void {
-		clearElement(leftColumn);
-		leftColumn.append(searchInput);
+		// Only the rows host is rebuilt; search box + resizer persist above.
+		clearElement(projectRowsHost);
 		const visible = visibleGroups();
 		if (visible.length === 0) {
-			leftColumn.appendChild(
+			projectRowsHost.appendChild(
 				h(
 					"div",
 					{ class: "c-card", style: "padding:14px;color:var(--c-dim)" },
@@ -441,7 +449,7 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 			if (group.running > 0) {
 				row.appendChild(pillEl(`${group.running} running`, "ok"));
 			}
-			leftColumn.appendChild(row);
+			projectRowsHost.appendChild(row);
 		}
 	}
 
