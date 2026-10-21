@@ -56,16 +56,18 @@ export class ToastsView {
 }
 
 /**
- * Docked-widget blocklist (batch-4 B3): widget keys whose lines-only docked
- * copy renders as noise above the composer. "pi-modes" (pi-agent-modes
- * extension) pushes the active mode name (e.g. "ask") as a one-line widget
- * right on top of the chat input while the status bar already renders the
- * mode chip (`Ⓜ ask 🔒`) — the owner asked for the docked copy gone (DOM
- * evidence: `<div class="widget-panel widget-registered" title="pi-modes">ask</div>`);
- * every other surface keeps showing mode state. Extend the set if more line
- * widgets prove noisy on the composer.
+ * Docked-widget blocklist (batch-4 B3 + batch-6): widget keys whose lines-only
+ * docked copy renders as noise above the composer.
+ * - "pi-modes" (pi-agent-modes extension) pushes the active mode name (e.g.
+ *   "ask") as a one-line widget right on top of the chat input while the
+ *   status bar already renders the mode chip (`Ⓜ ask 🔒`).
+ * - "subagent-async" (pi-subagents extension) pushes the raw
+ *   `PI_SUBAGENT_ASYNC_JSON:{…}` snapshot line — machine-readable JSON is not
+ *   UI. The right-panel Subagents card renders the same state session-scoped
+ *   (components/session-panel.ts).
+ * Extend the set if more line widgets prove noisy on the composer.
  */
-export const DOCK_WIDGET_BLOCKLIST: ReadonlySet<string> = new Set(["pi-modes"]);
+export const DOCK_WIDGET_BLOCKLIST: ReadonlySet<string> = new Set(["pi-modes", "subagent-async"]);
 
 export class WidgetAreaView {
 	readonly element: HTMLElement;

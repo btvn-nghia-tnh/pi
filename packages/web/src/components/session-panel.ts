@@ -6,15 +6,21 @@
  * entirely while nothing renders (`.chat-right.is-empty`).
  *
  * The Subagents card polls the backend `subagent_status` command (Lane-A
- * contract) while the panel is visible, so the user can watch every
- * delegated run: state, task, recent activity, model, and timing.
+ * contract) while the panel is visible, SCOPED to the active session: each
+ * run records the master session file that spawned it, and the card asks for
+ * `sessionPath` so switching sessions swaps the list instead of showing every
+ * run on the machine. The pi-subagents widget snapshot ("subagent-async",
+ * its raw `PI_SUBAGENT_ASYNC_JSON:` line is blocklisted from the composer)
+ * enriches the card live: workflow labels + running-step counts between polls.
  */
 
 import type { PiConnection } from "../connection.ts";
 import { clearElement, h } from "../dom.ts";
+import { renderAssistantMessage, renderUserMessage } from "../render/messages.ts";
+import { renderToolCard } from "../render/tools.ts";
 import { renderWidget } from "../render/widget-data.ts";
-import type { AppState, Store } from "../state.ts";
-import type { ReadFileData } from "../types.ts";
+import type { AppState, Store, ToolCardState, TranscriptItem } from "../state.ts";
+import type { AgentMessage, SubagentTranscriptResponse } from "../types.ts";
 import { relativeTime } from "../usage-text.ts";
 
 /** Alias for the store state shape (mirrors status-bar.ts). */
@@ -41,6 +47,11 @@ export interface SubagentRun {
 	/** ≤120 chars: last meaningful log line; re-clamped defensively. */
 	activity?: string;
 	lines?: number;
+	/**
+	 * Master session file that spawned the run (status.json `sessionId`) — the
+	 * key the card filters on so the list follows the ACTIVE session.
+	 */
+	sessionId?: string;
 	/** Batch-4 (backend T3): steering bookkeeping straight from status.json. */
 	steering?: SubagentSteeringBlock;
 }
@@ -156,6 +167,72 @@ export function subagentRows(runs: SubagentRun[] | undefined, now: number): Suba
 }
 
 // ------------------------------------------------------------------
+// Session scoping + live snapshot + card re-render signature
+// ------------------------------------------------------------------
+
+/**
+ * Keep only the runs spawned by the given master session file. When the
+ * caller has no session path yet (pre-connect), everything passes through;
+ * runs without a recorded `sessionId` are dropped while filtering — they
+ * cannot be attributed to the open session.
+ */
+export function filterRunsForSession(runs: SubagentRun[] | undefined, sessionFile: string | undefined): SubagentRun[] {
+	const list = runs ?? [];
+	if (!sessionFile) return list;
+	return list.filter((run) => run?.sessionId === sessionFile);
+}
+
+/** Widget key pi-subagents uses for its async-status snapshot lines. */
+export const ASYNC_SNAPSHOT_WIDGET_KEY = "subagent-async";
+/** Line prefix of the encoded snapshot (first line only, JSON payload after). */
+export const ASYNC_SNAPSHOT_PREFIX = "PI_SUBAGENT_ASYNC_JSON:";
+
+/** One async job as the pi-subagents snapshot reports it (subset we render). */
+export interface AsyncSnapshotRun {
+	id?: string;
+	label?: string;
+	state?: string;
+	updatedAt?: number;
+	activity?: { turnCount?: number; toolCount?: number };
+	children?: Array<{ id?: string; label?: string; state?: string }>;
+}
+
+/**
+ * Decode the pi-subagents async-status widget into the fields the card uses.
+ * Tolerant by contract: the widget is an extension-private payload — any
+ * missing prefix / bad JSON degrades to `undefined` (no card enrichment).
+ */
+export function parseAsyncSnapshot(lines: string[] | undefined): { runs: AsyncSnapshotRun[] } | undefined {
+	for (const line of lines ?? []) {
+		if (typeof line !== "string" || !line.startsWith(ASYNC_SNAPSHOT_PREFIX)) continue;
+		try {
+			const parsed = JSON.parse(line.slice(ASYNC_SNAPSHOT_PREFIX.length)) as unknown;
+			if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+			const runs = (parsed as { runs?: unknown }).runs;
+			return { runs: Array.isArray(runs) ? (runs as AsyncSnapshotRun[]) : [] };
+		} catch {
+			return undefined;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Identity of the rendered card body. The 3s poll (and every streaming store
+ * tick) calls back into the card; rebuilding equal data would reset the scroll
+ * offset — an owner-reported "list jumps back to the top" bug. The signature
+ * covers every field the rows display (labels included, so snapshot arrivals
+ * repaint).
+ */
+export function subagentRowsSignature(rows: SubagentRowView[], labels?: ReadonlyMap<string, string>): string {
+	return rows
+		.map(
+			(row) => `${row.id}:${row.state}:${row.updatedText}:${row.task}:${row.activity}:${labels?.get(row.id) ?? ""}`,
+		)
+		.join("|");
+}
+
+// ------------------------------------------------------------------
 // Subagent detail modal — pure helpers (batch-4 B4)
 // ------------------------------------------------------------------
 
@@ -248,24 +325,70 @@ export interface SubagentDetailModalOpts {
 	/** Stop sender with the same contract as steer. */
 	sendStop: (runId: string) => Promise<unknown>;
 	pushToast: (message: string, level: "info" | "warning" | "error") => void;
-	/** When provided, "Open output log" links here (app wires preview). */
+	/** "open raw log" link — app wires its preview column here (debug escape hatch). */
 	openLog?: (path: string) => void;
 	/**
-	 * Loads the run's raw transcript (batch-5: the modal renders it inline like
-	 * a chat instead of linking out). Rejects → the modal shows the error line.
+	 * Loads the run's projected chat transcript (`subagent_transcript`): the
+	 * modal renders it like the real chat — user bubbles, assistant markdown +
+	 * thinking, tool cards — instead of dumping output-0.log. Rejects → inline
+	 * error line, card details stay usable.
 	 */
-	loadLog?: (path: string) => Promise<string>;
+	loadTranscript: (runId: string) => Promise<SubagentTranscriptResponse>;
 }
 
-/**`true` when a run is still alive and steerable (stop/steer make sense). */
+export interface SubagentTranscriptItemView extends TranscriptItem {
+	kind: "user" | "assistant";
+}
+
+/**
+ * Project the backend `subagent_transcript` payload into the SAME item shape
+ * the main chat transcript renders (message + toolCards map), so the modal
+ * reuses renderUserMessage / renderAssistantMessage / renderToolCard verbatim.
+ * Pure — unit-tested.
+ */
+export function buildTranscriptItemView(result: SubagentTranscriptResponse): SubagentTranscriptItemView[] {
+	const views: SubagentTranscriptItemView[] = [];
+	for (const item of result.items ?? []) {
+		const toolCards = new Map<string, ToolCardState>();
+		for (const card of item.toolCards ?? []) {
+			if (!card?.toolCallId) continue;
+			toolCards.set(card.toolCallId, {
+				toolCallId: card.toolCallId,
+				toolName: card.toolName,
+				args: card.args,
+				result: card.result,
+				isError: card.isError === true,
+				expanded: false,
+				running: card.running === true,
+			});
+		}
+		views.push({
+			kind: item.kind === "user" ? "user" : "assistant",
+			id: item.id,
+			// The backend message is the agent message record verbatim (role +
+			// content blocks); the renderers narrow it themselves.
+			message: item.message as unknown as AgentMessage,
+			streaming: false,
+			toolCards,
+		});
+	}
+	return views;
+}
+
+/**
+ * Cheap change detector for transcript re-renders: the poll re-fetches a live
+ * run every 3s, and rebuilding an unchanged transcript would fight the user's
+ * scroll position. Pure — unit-tested.
+ */
+export function transcriptSignature(result: SubagentTranscriptResponse | undefined): string {
+	if (!result) return "";
+	const last = result.items[result.items.length - 1];
+	return `${result.state}|${result.lineCount}|${result.items.length}|${last?.id ?? ""}|${result.truncated ? 1 : 0}`;
+}
+
+/** `true` when a run is still alive and steerable (stop/steer make sense). */
 export function isSteerableState(state: string): boolean {
 	return state === "running" || state === "needs-attention";
-}
-
-/** Inline transcript body; placeholder for runs that haven't emitted output yet. */
-export function modalLogText(raw: string): string {
-	const trimmed = raw.trimEnd();
-	return trimmed.trim() === "" ? "(transcript empty — the runner hasn't emitted output yet)" : trimmed;
 }
 
 /** Full-detail overlay for one subagent run. Closes on Esc/scrim/X. */
@@ -276,11 +399,17 @@ export class SubagentDetailModal {
 	private readonly escHandler: (event: KeyboardEvent) => void;
 	private readonly opts: SubagentDetailModalOpts;
 	private readonly shownRunId: string;
-	private readonly logEl: HTMLElement;
-	private readonly logPath: string | undefined;
-	private logPollTimer: ReturnType<typeof setInterval> | undefined;
-	private logInFlight = false;
-	private logFirstLoad = true;
+	/** Chat-like run transcript container (placeholder until the first paint). */
+	private readonly chatEl: HTMLElement;
+	/** Full-prompt box — dropped once the transcript's first user bubble shows it. */
+	private taskEl: HTMLElement | undefined;
+	/** Rendered tool cards by toolCallId (a toggle replaces just that node). */
+	private readonly toolCardEls = new Map<string, HTMLElement>();
+	private readonly toolCards = new Map<string, ToolCardState>();
+	private transcriptPollTimer: ReturnType<typeof setInterval> | undefined;
+	private transcriptInFlight = false;
+	private transcriptFirstLoad = true;
+	private transcriptSig: string | undefined;
 	private stopArmed = false;
 	private stopRevertTimer: ReturnType<typeof setTimeout> | undefined;
 	private stopButton: HTMLButtonElement | undefined;
@@ -303,19 +432,36 @@ export class SubagentDetailModal {
 		if (typeof raw?.lines === "number") metaBits.push(h("div", {}, `${raw.lines} log lines`));
 		if (raw?.dir) metaBits.push(h("div", { class: "c-modal-dir", title: raw.dir }, raw.dir));
 
-		// Batch-5: the raw run transcript renders INLINE like a chat — the old
-		// "open output log" preview link is gone (owner: load the log here).
-		this.logEl = h("pre", { class: "c-modal-log" });
-		const logRegion =
-			raw?.dir && opts.loadLog
+		// Batch-6: the run's own event stream, projected into chat items, renders
+		// INLINE with the main transcript renderers (thinking blocks, markdown,
+		// tool cards) — the old raw output-0.log <pre> is gone. The router keeps
+		// "open raw log" as a debug escape hatch.
+		this.chatEl = h("div", { class: "c-modal-chat" }, h("div", { class: "c-subagent-empty" }, "loading transcript…"));
+		this.chatEl.addEventListener("toggle-tool", (event) => {
+			const toolCallId = String((event as CustomEvent).detail ?? "");
+			const card = this.toolCards.get(toolCallId);
+			const previous = this.toolCardEls.get(toolCallId);
+			if (!card || !previous) return;
+			// renderToolCard already flipped card.expanded on the header click; swap
+			// the single card node so the transcript (and its scroll) stays put.
+			const next = renderToolCard(card, MODAL_TOOL_CARD_OPTIONS);
+			this.toolCardEls.set(toolCallId, next);
+			previous.replaceWith(next);
+		});
+		this.taskEl = h(
+			"div",
+			{ class: "c-modal-task", title: row.taskFull },
+			row.taskFull || row.task || "(no task text)",
+		);
+		const rawLogPath = raw?.dir ? `${raw.dir.replace(/\/$/, "")}/output-0.log` : undefined;
+		const rawLogLink =
+			rawLogPath && opts.openLog
 				? h(
-						"div",
-						{ class: "c-modal-log-wrap" },
-						h("div", { class: "c-modal-log-head" }, `transcript · ${raw.dir.replace(/\/$/, "")}/output-0.log`),
-						this.logEl,
+						"button",
+						{ class: "c-btn", title: rawLogPath, onclick: () => opts.openLog?.(rawLogPath) },
+						"open raw log →",
 					)
 				: undefined;
-		this.logPath = raw?.dir && opts.loadLog ? `${raw.dir.replace(/\/$/, "")}/output-0.log` : undefined;
 
 		this.statusLine = h("div", { class: "c-modal-status-line" });
 		const closeEl = h("button", { class: "c-modal-close", title: "Close (Esc)", "aria-label": "Close" }, "×");
@@ -331,11 +477,7 @@ export class SubagentDetailModal {
 				closeEl,
 			),
 			h("div", { class: "c-modal-state" }, ...stateParts),
-			h(
-				"div",
-				{ class: "c-modal-task", title: row.taskFull },
-				row.taskFull || row.task || "(no task text)",
-			),
+			this.taskEl,
 			row.activity
 				? h(
 						"div",
@@ -347,7 +489,8 @@ export class SubagentDetailModal {
 			steeringSummary(raw?.steering)
 				? h("div", { class: "c-modal-steering" }, steeringSummary(raw?.steering) ?? "")
 				: undefined,
-			logRegion,
+			this.chatEl,
+			rawLogLink,
 			isSteerableState(row.state) ? this.buildActions(row.id) : undefined,
 			this.statusLine,
 		);
@@ -363,30 +506,72 @@ export class SubagentDetailModal {
 		};
 		window.addEventListener("keydown", this.escHandler);
 		document.body.appendChild(this.scrim);
-		if (this.logPath) {
-			void this.refreshLog();
-			if (isSteerableState(row.state)) {
-				this.logPollTimer = setInterval(() => void this.refreshLog(), LOG_POLL_MS);
-			}
+		void this.refreshTranscript();
+		if (isSteerableState(row.state)) {
+			this.transcriptPollTimer = setInterval(() => void this.refreshTranscript(), LOG_POLL_MS);
 		}
 	}
 
-	/** Fetch the raw transcript; pin to the bottom while the user stays there. */
-	private async refreshLog(): Promise<void> {
-		if (!this.logPath || !this.opts.loadLog || this.logInFlight) return;
-		this.logInFlight = true;
+	/** Fetch the projected transcript; keep the view pinned while the user stays at the bottom. */
+	private async refreshTranscript(): Promise<void> {
+		if (this.transcriptInFlight) return;
+		this.transcriptInFlight = true;
 		const pinned =
-			this.logFirstLoad ||
-			this.logEl.scrollTop + this.logEl.clientHeight >= this.logEl.scrollHeight - LOG_PIN_SLACK_PX;
+			this.transcriptFirstLoad ||
+			this.chatEl.scrollTop + this.chatEl.clientHeight >= this.chatEl.scrollHeight - LOG_PIN_SLACK_PX;
 		try {
-			const text = modalLogText(await this.opts.loadLog(this.logPath));
-			if (this.logEl.textContent !== text) this.logEl.textContent = text;
+			this.renderTranscript(await this.opts.loadTranscript(this.shownRunId));
 		} catch (error) {
-			this.logEl.textContent = `transcript unavailable: ${(error as Error).message}`;
+			this.transcriptSig = undefined; // let the next successful poll repaint
+			this.chatEl.replaceChildren(
+				h("div", { class: "c-subagent-empty" }, `transcript unavailable: ${(error as Error).message}`),
+			);
 		} finally {
-			if (pinned) this.logEl.scrollTop = this.logEl.scrollHeight;
-			this.logFirstLoad = false;
-			this.logInFlight = false;
+			if (pinned) this.chatEl.scrollTop = this.chatEl.scrollHeight;
+			this.transcriptFirstLoad = false;
+			this.transcriptInFlight = false;
+		}
+	}
+
+	/** Paint the chat items (skipped when the payload is unchanged). */
+	private renderTranscript(result: SubagentTranscriptResponse): void {
+		const signature = transcriptSignature(result);
+		if (signature === this.transcriptSig) return;
+		this.transcriptSig = signature;
+		this.toolCardEls.clear();
+		this.toolCards.clear();
+		const views = buildTranscriptItemView(result);
+		if (views.length === 0) {
+			this.chatEl.replaceChildren(
+				h("div", { class: "c-subagent-empty" }, "(no messages yet — the runner hasn't emitted output)"),
+			);
+			return;
+		}
+		const nodes: HTMLElement[] = [];
+		for (const view of views) {
+			const wrap = h("div", { class: `transcript-item item-${view.kind}` });
+			if (view.kind === "user") {
+				wrap.appendChild(renderUserMessage(view));
+			} else {
+				wrap.appendChild(renderAssistantMessage(view, MODAL_ASSISTANT_OPTIONS));
+				for (const card of view.toolCards.values()) {
+					const el = renderToolCard(card, MODAL_TOOL_CARD_OPTIONS);
+					this.toolCards.set(card.toolCallId, card);
+					this.toolCardEls.set(card.toolCallId, el);
+					wrap.appendChild(el);
+				}
+			}
+			nodes.push(wrap);
+		}
+		if (result.truncated) {
+			nodes.push(h("div", { class: "c-subagent-empty" }, "… transcript truncated (long run or large blocks)"));
+		}
+		this.chatEl.replaceChildren(...nodes);
+		// The first user bubble IS the full prompt the master sent — the header
+		// box duplicating it can go once the transcript is on screen.
+		if (views.some((view) => view.kind === "user")) {
+			this.taskEl?.remove();
+			this.taskEl = undefined;
 		}
 	}
 
@@ -507,8 +692,8 @@ export class SubagentDetailModal {
 	close(): void {
 		if (this.stopRevertTimer) clearTimeout(this.stopRevertTimer);
 		this.stopRevertTimer = undefined;
-		if (this.logPollTimer) clearInterval(this.logPollTimer);
-		this.logPollTimer = undefined;
+		if (this.transcriptPollTimer) clearInterval(this.transcriptPollTimer);
+		this.transcriptPollTimer = undefined;
 		window.removeEventListener("keydown", this.escHandler);
 		this.scrim.remove();
 	}
@@ -560,6 +745,10 @@ const DEFAULT_POLL_MS = 3000;
 const LOG_POLL_MS = 3000;
 /** Bottom-distance under which the transcript view is considered "pinned". */
 const LOG_PIN_SLACK_PX = 24;
+/** Modal tool cards are read-only: no image lightbox, no bash-stop wiring. */
+const MODAL_TOOL_CARD_OPTIONS = { showImages: false } as const;
+/** Assistant bubbles default to collapsed thinking (the main transcript's default). */
+const MODAL_ASSISTANT_OPTIONS = { thinkingLevel: "medium", thinkingVisible: false, hideThinkingBlock: false } as const;
 
 export class SessionPanel {
 	readonly element: HTMLElement;
@@ -579,6 +768,8 @@ export class SessionPanel {
 	private subagentRows: SubagentRowView[] = [];
 	private subagentFirstErrorHintShown = false;
 	private subagentInitialFetchDone = false;
+	/** Signature of the last painted rows — polls skip equal repaints (scroll). */
+	private subagentBodySignature: string | undefined;
 	/** Raw poll payloads by run id — the modal shows un-clamped fields (batch-4 B4). */
 	private subagentRawRuns: ReadonlyMap<string, SubagentRun> = new Map();
 	/** The open detail modal, if any — single instance per panel (batch-4 B4). */
@@ -612,6 +803,7 @@ export class SessionPanel {
 		this.pollInFlight = false;
 		this.subagentCardEl = undefined;
 		this.subagentRows = [];
+		this.subagentBodySignature = undefined;
 		this.subagentRawRuns = new Map();
 		this.subagentModal?.close();
 		this.subagentModal = undefined;
@@ -641,11 +833,16 @@ export class SessionPanel {
 		if (!this.panelVisible()) return; // save requests while hidden
 		this.pollInFlight = true;
 		try {
-			const data = (await connection.request({ type: "subagent_status" })) as SubagentStatusResponse;
-			this.subagentRows = subagentRows(data?.runs, Date.now());
-			this.subagentRawRuns = new Map(
-				(data?.runs ?? []).filter((run) => run?.id).map((run) => [String(run.id), run]),
-			);
+			// Session scope: the panel follows the ACTIVE session, so switching
+			// sessions swaps the list instead of keeping every run on the machine.
+			const sessionFile = this.opts.store.getState().sessionState?.sessionFile;
+			const data = (await connection.request({
+				type: "subagent_status",
+				...(sessionFile ? { sessionPath: sessionFile } : {}),
+			})) as SubagentStatusResponse;
+			const runs = filterRunsForSession(data?.runs, sessionFile);
+			this.subagentRows = subagentRows(runs, Date.now());
+			this.subagentRawRuns = new Map(runs.filter((run) => run?.id).map((run) => [String(run.id), run]));
 			this.subagentInitialFetchDone = true;
 			this.subagentFirstErrorHintShown = false; // a good poll clears the hint
 			this.render();
@@ -675,8 +872,20 @@ export class SessionPanel {
 		const column = this.element.closest(".chat-right");
 		column?.classList.toggle("is-empty", empty);
 		column?.parentElement?.classList.toggle("is-panel-empty", empty);
+		// Scroll-preservation at the PANEL level: clearElement below detaches
+		// the reused card node, and detaching a scroll container resets its
+		// scrollTop in every engine — signature-gating the body rows is not
+		// enough (owner: "list jumps back to the top" every few seconds).
+		// Capture the body offset before the detach and restore it after the
+		// re-attach; widget cards have no scrollable bodies of their own.
+		const cardBody = this.subagentCardEl?.querySelector<HTMLElement>(".c-subagent-body");
+		const bodyScroll = cardBody?.isConnected ? cardBody.scrollTop : 0;
 		clearElement(this.element);
 		this.element.append(...cards);
+		if (bodyScroll > 0) {
+			const restored = this.subagentCardEl?.querySelector<HTMLElement>(".c-subagent-body");
+			if (restored) restored.scrollTop = bodyScroll;
+		}
 	}
 
 	// ------------------------------------------------------------------
@@ -689,25 +898,49 @@ export class SessionPanel {
 		const oneTimeHint =
 			this.subagentFirstErrorHintShown && this.subagentRows.length === 0 ? this.buildSubagentHint() : undefined;
 		if (this.subagentRows.length === 0) return oneTimeHint;
+		const snapshot = this.snapshotLabels();
 		if (this.subagentCardEl?.isConnected) {
 			// Re-render in place: keep the card node, refresh its body so
 			// expanded-detail toggles survive poll refreshes.
-			this.fillSubagentBody(this.subagentCardEl);
+			this.fillSubagentBody(this.subagentCardEl, snapshot.byRunId);
+			this.updateSubagentBadge(this.subagentCardEl, snapshot.childrenRunning);
 			return this.subagentCardEl;
 		}
 		const card = h("div", { class: "c-card c-subagent-card" });
-		const runningCount = this.subagentRows.filter((row) => row.state === "running").length;
-		card.appendChild(
-			h(
-				"div",
-				{ class: "c-card-title" },
-				"Subagents",
-				h("span", { class: `c-subagent-count${runningCount > 0 ? " is-running" : ""}` }, String(runningCount)),
-			),
-		);
-		this.fillSubagentBody(card);
+		card.appendChild(h("div", { class: "c-card-title" }, "Subagents", h("span", { class: "c-subagent-count" }, "0")));
+		this.fillSubagentBody(card, snapshot.byRunId);
+		this.updateSubagentBadge(card, snapshot.childrenRunning);
 		this.subagentCardEl = card;
 		return card;
+	}
+
+	/**
+	 * Live-step count for the card badge: the disk poll reports per-RUN states,
+	 * while the extension snapshot counts the running workflow CHILDREN — the
+	 * higher of the two tells the owner how much work is actually in flight.
+	 */
+	private updateSubagentBadge(card: HTMLElement, childrenRunning: number): void {
+		const badge = card.querySelector<HTMLElement>(".c-subagent-count");
+		if (!badge) return;
+		const runsRunning = this.subagentRows.filter((row) => row.state === "running").length;
+		const running = Math.max(runsRunning, childrenRunning);
+		badge.textContent = String(running);
+		badge.classList.toggle("is-running", running > 0);
+	}
+
+	/** Snapshot enrichment: workflow labels + running-child count (live between polls). */
+	private snapshotLabels(): { byRunId: ReadonlyMap<string, string>; childrenRunning: number } {
+		const byRunId = new Map<string, string>();
+		let childrenRunning = 0;
+		const widget = this.opts.store.getState().widgets.get(ASYNC_SNAPSHOT_WIDGET_KEY);
+		const snapshot = parseAsyncSnapshot(widget?.lines);
+		for (const run of snapshot?.runs ?? []) {
+			if (run?.id && run.label) byRunId.set(run.id, run.label);
+			for (const child of run?.children ?? []) {
+				if (child?.state === "running") childrenRunning += 1;
+			}
+		}
+		return { byRunId, childrenRunning };
 	}
 
 	private buildSubagentHint(): HTMLElement {
@@ -719,26 +952,36 @@ export class SessionPanel {
 		);
 	}
 
-	/** The scrollable rows body (rebuilt on every render — rows are cheap). */
-	private fillSubagentBody(card: HTMLElement): void {
+	/**
+	 * The scrollable rows body. Polls arrive every 3s and every agent event
+	 * re-renders the panel; rebuilding equal rows would reset `scrollTop` each
+	 * time (owner: "list jumps back to the top"). The signature skips equal
+	 * repaints and the scroll offset survives real ones.
+	 */
+	private fillSubagentBody(card: HTMLElement, labels: ReadonlyMap<string, string>): void {
 		const body = card.querySelector<HTMLElement>(".c-subagent-body");
 		if (!body) {
 			const created = h("div", { class: "c-subagent-body" });
 			card.appendChild(created);
-			this.fillSubagentBody(card);
+			this.fillSubagentBody(card, labels);
 			return;
 		}
+		const signature = subagentRowsSignature(this.subagentRows, labels);
+		if (signature === this.subagentBodySignature && body.childElementCount > 0) return;
+		this.subagentBodySignature = signature;
+		const scrollTop = body.scrollTop;
 		clearElement(body);
 		if (this.subagentRows.length === 0) {
-			body.appendChild(h("div", { class: "c-subagent-empty" }, "No subagent runs in this machine's workspaces."));
+			body.appendChild(h("div", { class: "c-subagent-empty" }, "No subagents in this session."));
 			return;
 		}
 		for (const row of this.subagentRows) {
-			body.appendChild(this.subagentRowEl(row));
+			body.appendChild(this.subagentRowEl(row, labels.get(row.id)));
 		}
+		body.scrollTop = scrollTop;
 	}
 
-	private subagentRowEl(row: SubagentRowView): HTMLElement {
+	private subagentRowEl(row: SubagentRowView, label?: string): HTMLElement {
 		const head = h(
 			"div",
 			{ class: "c-subagent-row-head" },
@@ -761,8 +1004,11 @@ export class SessionPanel {
 			head,
 			meta,
 		);
-		if (row.activity) {
-			el.appendChild(h("div", { class: "c-subagent-activity" }, row.activity));
+		// The status.json activity line is often blank for workflows; the extension
+		// snapshot's label ("reviewer, reviewer, reviewer, +1 more") fills the gap.
+		const activity = row.activity || label;
+		if (activity) {
+			el.appendChild(h("div", { class: "c-subagent-activity" }, activity));
 		}
 		el.addEventListener("click", () => this.openSubagentModal(row.id));
 		el.addEventListener("keydown", (event) => {
@@ -791,21 +1037,15 @@ export class SessionPanel {
 			sendStop: (id) => this.sendSubagentCommand(id, { type: "subagent_stop" }),
 			pushToast: (message, level) => this.opts.store.pushNotification(message, level),
 			openLog: this.opts.openPreview,
-			loadLog: (path) => this.loadRunLog(path),
+			loadTranscript: (id) => this.loadTranscript(id),
 		});
 	}
 
-	/** Raw transcript read (web `read_file` command, text kind). */
-	private async loadRunLog(path: string): Promise<string> {
+	/** Chat transcript for the modal (projected from the run's event stream). */
+	private async loadTranscript(runId: string): Promise<SubagentTranscriptResponse> {
 		const connection = this.opts.connection;
 		if (!connection) throw new Error("not connected");
-		const data = (await connection.request({ type: "read_file", path })) as ReadFileData;
-		if (data?.kind !== "text") throw new Error(`unexpected log format: ${data?.kind ?? "unknown"}`);
-		const text = data.text ?? "";
-		if (data.truncated === true) {
-			return `${text}\n… (truncated — ${data.shownLines ?? "?"}/${data.totalLines ?? "?"} lines shown)`;
-		}
-		return text;
+		return (await connection.request({ type: "subagent_transcript", runId })) as SubagentTranscriptResponse;
 	}
 
 	/** Request helper for the steer/stop commands (server contract, batch-4 T3). */

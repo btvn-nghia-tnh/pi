@@ -38,8 +38,14 @@ export interface McpLocalModalDeps {
 	/** File preview (config on-disk reveal). */
 	openPreview(path: string): void;
 	pushToast(message: string, level: "info" | "warning" | "error"): void;
-	/** /mcp-auth fallback: drafts the command into the chat editor. */
+	/** /mcp-auth legacy fallback: drafts the command into the chat editor. */
 	promptDraft?(text: string): void;
+	/**
+	 * Preferred /mcp-auth fallback: auto-runs the command in the active chat
+	 * session (host navigates to Chat + sends the prompt). Falls back to
+	 * promptDraft when absent.
+	 */
+	runCommand?(commandText: string): void;
 }
 
 let stylesInjected = false;
@@ -151,6 +157,17 @@ export function localMcpRows(entries: McpConfigEntry[], cwd: string | undefined,
 		.filter((entry) => entry.scope === "project" && entry.cwd === cwd)
 		.map((entry) => localMcpRow(entry, liveNames))
 		.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Auth affordance gate (owner bug): "needs-auth" is the pre-auth state, but a
+ * remote server that failed after an auth attempt shows "failed" — the OAuth
+ * token expired/revoked and /mcp-auth is the remedy. Both states offer sign-in.
+ * Pure — unit-tested in mcp-local-modal.test.ts.
+ */
+export function rowOffersSignIn(live: { status: string; needsAuth: boolean } | undefined): boolean {
+	if (!live) return false;
+	return live.needsAuth || live.status === "failed";
 }
 
 export class McpLocalModal {
@@ -331,10 +348,24 @@ export class McpLocalModal {
 			return;
 		}
 		this.deps.pushToast(outcome.banner, "warning");
-		if (operation.action === "start-auth" && this.deps.promptDraft) {
-			this.close();
-			this.deps.promptDraft(`/mcp-auth ${operation.server}`);
-			this.deps.pushToast("Drafted /mcp-auth in chat — press Enter to run it.", "info");
+		if (operation.action === "start-auth") {
+			// The installed adapter has no widget_response handler — auto-run
+			// `/mcp-auth <server>` in chat (its slash command drives the OAuth
+			// flow); the editor draft stays only for hosts without runCommand.
+			if (this.deps.runCommand) {
+				this.close();
+				this.deps.runCommand(`/mcp-auth ${operation.server}`);
+				this.deps.pushToast(
+					`Running /mcp-auth ${operation.server} in chat — check the chat page for the OAuth link.`,
+					"info",
+				);
+				return;
+			}
+			if (this.deps.promptDraft) {
+				this.close();
+				this.deps.promptDraft(`/mcp-auth ${operation.server}`);
+				this.deps.pushToast("Drafted /mcp-auth in chat — press Enter to run it.", "info");
+			}
 		}
 	}
 
@@ -408,13 +439,13 @@ export class McpLocalModal {
 				"Reconnect",
 			),
 		);
-		if (live?.needsAuth) {
+		if (rowOffersSignIn(live)) {
 			row.appendChild(
 				h(
 					"button",
 					{
 						class: "c-btn c-btn--primary",
-						title: "Start the adapter's auth flow for this server",
+						title: "Start the adapter's auth flow for this server (failed usually means the token expired — re-runs /mcp-auth)",
 						onclick: () => void this.runControl({ action: "start-auth", server: entry.name }),
 					},
 					"Sign in",

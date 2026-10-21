@@ -124,7 +124,11 @@ export function mcpCard(
 		);
 	}
 	const actions: McpCardData["actionsAvailable"] = ["reconnect", "set-enabled"];
-	if (status === "needs-auth") actions.push("sign-in");
+	// Auth is also the remedy for "failed" servers: a remote server that fails
+	// right after an auth attempt landed there from an expired/revoked OAuth
+	// token, and /mcp-auth re-runs the same flow — without the button the only
+	// path left was typing /mcp-auth by hand (owner bug report).
+	if (status === "needs-auth" || status === "failed") actions.push("sign-in");
 	return {
 		name: server.name,
 		transport: opts.transport ?? "—",
@@ -577,10 +581,17 @@ export interface McpPageDeps {
 	pushToast(message: string, level: "info" | "warning" | "error"): void;
 	/**
 	 * Optional (Lane F): drafts text into the chat editor (focused) and
-	 * switches to Chat. Used as the /mcp-auth OAuth fallback when the
-	 * adapter lacks a widget_response handler. Absent → banner-only degrade.
+	 * switches to Chat. Legacy /mcp-auth fallback when the adapter lacks a
+	 * widget_response handler — only used when `runCommand` is absent.
 	 */
 	promptDraft?(text: string): void;
+	/**
+	 * Optional: auto-runs a slash command in the active chat session (the host
+	 * navigates to Chat and sends the command as a prompt). Preferred /mcp-auth
+	 * fallback: one click starts the OAuth flow instead of leaving a draft the
+	 * user must submit. Absent → legacy promptDraft, else banner-only degrade.
+	 */
+	runCommand?(commandText: string): void;
 }
 
 export function createMcpPage(deps: McpPageDeps): ShellPage {
@@ -657,15 +668,32 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 			return;
 		}
 		degradedBanner = outcome.banner;
-		degradedHint = operation.action === "start-auth" ? "hint: run /mcp-auth in chat to sign in now" : undefined;
+		degradedHint =
+			operation.action === "start-auth"
+				? deps.runCommand
+					? `auto-running /mcp-auth ${operation.server} in the chat session`
+					: "hint: run /mcp-auth in chat to sign in now"
+				: undefined;
 		render();
 		// Lane F OAuth fallback: the installed adapter has no widget_response
-		// handler — draft `/mcp-auth <server>` in the chat editor (the adapter's
-		// own slash command then drives the browser OAuth flow).
-		if (operation.action === "start-auth" && deps.promptDraft) {
-			deps.promptDraft(`/mcp-auth ${operation.server}`);
-			deps.onNavigate("chat");
-			deps.pushToast("Drafted /mcp-auth in chat — press Enter to run it.", "info");
+		// handler — run `/mcp-auth <server>` as a chat prompt (the adapter's own
+		// slash command then drives the browser OAuth flow). Auto-run is the
+		// primary path; the editor draft remains for hosts without runCommand.
+		if (operation.action === "start-auth") {
+			if (deps.runCommand) {
+				deps.onNavigate("chat");
+				deps.runCommand(`/mcp-auth ${operation.server}`);
+				deps.pushToast(
+					`Running /mcp-auth ${operation.server} in chat — check the chat page for the OAuth link.`,
+					"info",
+				);
+				return;
+			}
+			if (deps.promptDraft) {
+				deps.promptDraft(`/mcp-auth ${operation.server}`);
+				deps.onNavigate("chat");
+				deps.pushToast("Drafted /mcp-auth in chat — press Enter to run it.", "info");
+			}
 		}
 	}
 

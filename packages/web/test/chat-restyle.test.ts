@@ -15,10 +15,14 @@ import { sessionRowMatches } from "../src/render/sidebar.ts";
  *   empty query.
  */
 
-test("DOCK_WIDGET_BLOCKLIST blocks pi-modes and nothing else yet (B3)", () => {
+test("DOCK_WIDGET_BLOCKLIST blocks pi-modes + subagent-async only (B3, batch-6)", () => {
 	assert.equal(DOCK_WIDGET_BLOCKLIST.has("pi-modes"), true);
+	// Batch-6: the pi-subagents async snapshot is a raw JSON line — the
+	// right-panel Subagents card is its UI now, not the composer.
+	assert.equal(DOCK_WIDGET_BLOCKLIST.has("subagent-async"), true);
 	assert.equal(DOCK_WIDGET_BLOCKLIST.has("rpiv-todo"), false);
-	assert.equal(DOCK_WIDGET_BLOCKLIST.size, 1);
+	assert.equal(DOCK_WIDGET_BLOCKLIST.has("pi-mcp-status"), false);
+	assert.equal(DOCK_WIDGET_BLOCKLIST.size, 2);
 });
 
 test("clampPanelWidth clamps NaN to min and honors the chat right panel range (B7)", () => {

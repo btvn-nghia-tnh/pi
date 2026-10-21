@@ -73,7 +73,14 @@ export type RpcCommand =
 	| { id?: string; type: "mcp_config_write"; server: string; enabled: boolean }
 	| { id?: string; type: "mcp_config_list"; cwds: string[] }
 	| { id?: string; type: "mcp_test"; server: string; scope: "project" | "global"; cwd?: string }
-	| { id?: string; type: "subagent_status" }
+	| { id?: string; type: "subagent_status"; sessionPath?: string }
+	| {
+			id?: string;
+			type: "subagent_transcript";
+			runId: string;
+			/** Optional scan roots — production callers omit (machine scan). */
+			roots?: string[];
+	  }
 	| {
 			id?: string;
 			type: "subagent_steer";
@@ -318,6 +325,13 @@ export type RpcResponse =
 	| { id?: string; type: "response"; command: "mcp_config_list"; success: true; data: RpcMcpConfigListResult }
 	| { id?: string; type: "response"; command: "mcp_test"; success: true; data: RpcMcpTestResult }
 	| { id?: string; type: "response"; command: "subagent_status"; success: true; data: RpcSubagentStatusResult }
+	| {
+			id?: string;
+			type: "response";
+			command: "subagent_transcript";
+			success: true;
+			data: RpcSubagentTranscriptResult;
+	  }
 	| { id?: string; type: "response"; command: "subagent_steer"; success: true; data: RpcSubagentSteerResult }
 	| { id?: string; type: "response"; command: "subagent_stop"; success: true; data: RpcSubagentStopResult }
 	| { id?: string; type: "response"; command: "export_html"; success: true; data: { path: string } }
@@ -666,6 +680,8 @@ export interface RpcSubagentStatusRun {
 	id: string;
 	dir: string;
 	state: string;
+	/** Absolute path of the master session .jsonl that spawned this run. */
+	sessionId?: string;
 	agent?: string;
 	task?: string;
 	model?: string;
@@ -719,6 +735,44 @@ export interface RpcSubagentStopResult {
 export interface RpcSubagentStatusResult {
 	roots: string[];
 	runs: RpcSubagentStatusRun[];
+}
+
+/**
+ * One tool card of a subagent transcript item (subagent_transcript). Mirrors
+ * the scan-side contract in `modes/web/subagent-transcript.ts`.
+ */
+export interface RpcSubagentTranscriptToolCard {
+	toolCallId: string;
+	toolName: string;
+	args: unknown;
+	/** Full toolResult message (or the execution_end result) once resolved. */
+	result?: unknown;
+	isError: boolean;
+	/** True between tool_execution_start and its end/toolResult event. */
+	running: boolean;
+}
+
+/** One chat-renderable transcript item (subagent_transcript). */
+export interface RpcSubagentTranscriptItem {
+	kind: "user" | "assistant";
+	id: string;
+	/** Agent message record (role, content blocks, usage, model, …) passthrough. */
+	message: Record<string, unknown>;
+	toolCards: RpcSubagentTranscriptToolCard[];
+}
+
+/** Result of subagent_transcript: a run's events.jsonl projected to chat items. */
+export interface RpcSubagentTranscriptResult {
+	runId: string;
+	dir: string;
+	state: string;
+	/** Absolute path of the master session .jsonl (status.json sessionId). */
+	sessionFile?: string;
+	items: RpcSubagentTranscriptItem[];
+	/** True when any clip/omit/cap limit hit while projecting. */
+	truncated: boolean;
+	/** Parsed JSONL lines actually read from events.jsonl. */
+	lineCount: number;
 }
 
 /** Startup context for the web GUI header. */

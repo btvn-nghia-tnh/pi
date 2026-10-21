@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasWidgets, modalLogText } from "../src/components/session-panel.ts";
+import { hasWidgets } from "../src/components/session-panel.ts";
 
 test("hasWidgets only counts structured non-overlay widgets", () => {
 	const base = { widgets: new Map(), collapsedWidgets: new Set() } as never;
@@ -241,13 +241,158 @@ test("subagent card scroll fix + modal CSS pins (batch-4 B2/B4)", async () => {
 	assert.ok(css.includes(".c-modal-steer-textarea"), "steer textarea style exists");
 });
 
-test("modalLogText: trims trailing blank lines and keeps body verbatim", () => {
-	assert.equal(modalLogText("line one\nline two\n\n"), "line one\nline two");
-	assert.equal(modalLogText("  indented\n"), "  indented");
+// ---------------------------------------------------------------------
+// Batch-6: session scoping, live snapshot, card re-render signature,
+// and the chat-transcript projection the modal renders
+// ---------------------------------------------------------------------
+
+test("filterRunsForSession keeps only the active session's runs", async () => {
+	const { filterRunsForSession } = await import("../src/components/session-panel.ts");
+	const runs = [
+		{ id: "a", sessionId: "s1" },
+		{ id: "b", sessionId: "s2" },
+		{ id: "c" }, // unattributed — dropped while filtering
+	];
+	assert.deepEqual(
+		filterRunsForSession(runs, "s1").map((run) => run.id),
+		["a"],
+	);
+	// No session file yet (pre-connect): everything passes through.
+	assert.equal(filterRunsForSession(runs, undefined).length, 3);
+	assert.deepEqual(filterRunsForSession(undefined, "s1"), []);
 });
 
-test("modalLogText: empty and whitespace-only logs get the placeholder", () => {
-	const placeholder = "(transcript empty — the runner hasn't emitted output yet)";
-	assert.equal(modalLogText(""), placeholder);
-	assert.equal(modalLogText("  \n\t\n"), placeholder);
+test("parseAsyncSnapshot decodes the PI_SUBAGENT_ASYNC_JSON line", async () => {
+	const { parseAsyncSnapshot } = await import("../src/components/session-panel.ts");
+	const payload = {
+		kind: "pi-subagents.async-status-snapshot",
+		version: 1,
+		runs: [
+			{
+				id: "ffca06ca-bc73",
+				label: "reviewer, reviewer, reviewer, +1 more",
+				state: "running",
+				children: [
+					{ id: "rev_t2", label: "rev_t2", state: "running" },
+					{ id: "rev_t4", label: "rev_t4", state: "complete" },
+				],
+			},
+		],
+	};
+	const snapshot = parseAsyncSnapshot([`PI_SUBAGENT_ASYNC_JSON:${JSON.stringify(payload)}`]);
+	assert.equal(snapshot?.runs.length, 1);
+	assert.equal(snapshot?.runs[0]?.label, "reviewer, reviewer, reviewer, +1 more");
+	assert.equal(snapshot?.runs[0]?.children?.length, 2);
+	// Tolerant: no prefix line, garbage JSON, or missing lines → undefined.
+	assert.equal(parseAsyncSnapshot(["plain widget line"]), undefined);
+	assert.equal(parseAsyncSnapshot(["PI_SUBAGENT_ASYNC_JSON:{oops"]), undefined);
+	assert.equal(parseAsyncSnapshot(undefined), undefined);
+	// Payload without runs still decodes to an empty list (never throws).
+	assert.deepEqual(parseAsyncSnapshot(["PI_SUBAGENT_ASYNC_JSON:{}"]), { runs: [] });
+});
+
+test("subagentRowsSignature: stable on equal data, changes on any visible field", async () => {
+	const { subagentRows, subagentRowsSignature } = await import("../src/components/session-panel.ts");
+	const now = Date.parse("2026-10-21T10:00:00.000Z");
+	const base = subagentRows([{ id: "run-1", state: "running", task: "fix", updatedAt: now - 60_000 }], now);
+	assert.equal(subagentRowsSignature(base), subagentRowsSignature([...base]));
+	// The row's updated label changes when the run gets newer data.
+	const fresher = subagentRows([{ id: "run-1", state: "running", task: "fix", updatedAt: now - 1_000 }], now);
+	assert.notEqual(subagentRowsSignature(base), subagentRowsSignature(fresher));
+	// Snapshot labels participate too (they repaint the activity line).
+	assert.notEqual(subagentRowsSignature(base, new Map([["run-1", "reviewer, +1 more"]])), subagentRowsSignature(base));
+});
+
+test("buildTranscriptItemView mirrors the chat item shape (message + toolCards map)", async () => {
+	const { buildTranscriptItemView } = await import("../src/components/session-panel.ts");
+	const views = buildTranscriptItemView({
+		runId: "run-1",
+		dir: "/tmp/run-1",
+		state: "running",
+		items: [
+			{
+				kind: "user",
+				id: "u-0",
+				message: { role: "user", content: [{ type: "text", text: "do it" }] },
+				toolCards: [],
+			},
+			{
+				kind: "assistant",
+				id: "a-0",
+				message: {
+					role: "assistant",
+					content: [
+						{ type: "thinking", thinking: "hmm" },
+						{ type: "toolCall", id: "call-1", name: "read", arguments: { path: "x" } },
+					],
+				},
+				toolCards: [
+					{
+						toolCallId: "call-1",
+						toolName: "read",
+						args: { path: "x" },
+						result: { role: "toolResult", content: [{ type: "text", text: "file body" }] },
+						isError: false,
+						running: false,
+					},
+				],
+			},
+		],
+		truncated: false,
+		lineCount: 12,
+	});
+	assert.deepEqual(
+		views.map((view) => view.kind),
+		["user", "assistant"],
+	);
+	assert.equal(views[0]?.streaming, false);
+	const cards = views[1]?.toolCards;
+	assert.equal(cards?.size, 1);
+	const card = cards?.get("call-1");
+	assert.equal(card?.toolName, "read");
+	assert.equal(card?.expanded, false); // collapses by default in the modal
+	assert.equal(card?.isError, false);
+	assert.deepEqual(card?.args, { path: "x" });
+	// Cards without an id are skipped (nothing to key them by).
+	const sparse = buildTranscriptItemView({
+		runId: "r",
+		dir: "/tmp/r",
+		state: "complete",
+		items: [
+			{
+				kind: "assistant",
+				id: "a-1",
+				message: {},
+				toolCards: [{ toolCallId: "", toolName: "x", args: {}, isError: false, running: false }],
+			},
+		],
+		truncated: false,
+		lineCount: 1,
+	});
+	assert.equal(sparse[0]?.toolCards.size, 0);
+});
+
+test("transcriptSignature: skips repaints when the payload did not grow", async () => {
+	const { transcriptSignature } = await import("../src/components/session-panel.ts");
+	assert.equal(transcriptSignature(undefined), "");
+	const base = {
+		runId: "r",
+		dir: "/tmp/r",
+		state: "running",
+		items: [
+			{ kind: "user" as const, id: "u-0", message: {}, toolCards: [] },
+			{ kind: "assistant" as const, id: "a-0", message: {}, toolCards: [] },
+		],
+		truncated: false,
+		lineCount: 4,
+	};
+	assert.equal(transcriptSignature(base), transcriptSignature({ ...base }));
+	assert.notEqual(
+		transcriptSignature(base),
+		transcriptSignature({
+			...base,
+			items: [...base.items, { kind: "assistant", id: "a-1", message: {}, toolCards: [] }],
+		}),
+	);
+	assert.notEqual(transcriptSignature(base), transcriptSignature({ ...base, state: "complete" }));
 });

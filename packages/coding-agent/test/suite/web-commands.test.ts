@@ -907,4 +907,56 @@ describe("web commands", () => {
 			expect(v3?.success).toBe(false);
 		});
 	});
+
+	describe("subagent transcript / session scoping", () => {
+		/** One run dir in the discovered on-disk format (status.json + events.jsonl). */
+		function makeRun(root: string, id: string, events: Array<Record<string, unknown>>): string {
+			const dir = join(root, id);
+			mkdirSync(dir, { recursive: true });
+			writeFileSync(
+				join(dir, "status.json"),
+				JSON.stringify({ runId: id, state: "complete", sessionId: "/sessions/master.jsonl" }),
+			);
+			writeFileSync(join(dir, "events.jsonl"), `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
+			return dir;
+		}
+
+		it("projects a run transcript end to end through handleCommand", async () => {
+			const { core, tempDir } = await fixture();
+			const root = join(tempDir, "subagent-runs");
+			makeRun(root, "run-1", [
+				{ type: "message_end", message: { role: "user", content: [{ type: "text", text: "do it" }] } },
+				{ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "done" }] } },
+			]);
+			const response = await core.handleCommand({
+				type: "subagent_transcript",
+				runId: "run-1",
+				roots: [root],
+			});
+			const data = responseData(response) as { items: Array<{ kind: string }>; state: string };
+			expect(data.state).toBe("complete");
+			expect(data.items.map((item) => item.kind)).toEqual(["user", "assistant"]);
+		});
+
+		it("answers an rpc error for an unknown run", async () => {
+			const { core, tempDir } = await fixture();
+			const response = await core.handleCommand({
+				type: "subagent_transcript",
+				runId: "missing-run",
+				roots: [join(tempDir, "empty-runs")],
+			});
+			expect(response?.success).toBe(false);
+		});
+
+		it("scopes subagent_status by sessionPath", async () => {
+			const { core } = await fixture();
+			const response = await core.handleCommand({
+				type: "subagent_status",
+				sessionPath: "/no/such/session.jsonl",
+			});
+			const data = responseData(response) as { runs: unknown[] };
+			// Every run on disk records a sessionId, so a bogus path matches nothing.
+			expect(data.runs).toEqual([]);
+		});
+	});
 });

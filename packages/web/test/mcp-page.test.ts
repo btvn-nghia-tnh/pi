@@ -126,6 +126,15 @@ test("mcpCard maps statuses to labels, tones, and meta", () => {
 	assert.equal(failedFresh.meta, "last failed 45s ago");
 });
 
+test("mcpCard: failed servers offer sign-in too (expired OAuth token remedy)", () => {
+	// Owner bug: failed auth landed the server in "failed", where the card
+	// offered no sign-in button — re-running /mcp-auth was type-by-hand only.
+	const failed = mcpCard({ name: "serpdive", status: "failed", failedAgoSeconds: 10800 });
+	assert.deepEqual(failed.actionsAvailable, ["reconnect", "set-enabled", "sign-in"]);
+	assert.equal(mcpCard(servers[0]!).actionsAvailable.includes("sign-in"), false);
+	assert.deepEqual(mcpCard(servers[2]!).actionsAvailable, ["reconnect", "set-enabled", "sign-in"]);
+});
+
 test("mcpCard: transport hint is honored, canControl defaults on", () => {
 	const card = mcpCard(servers[0]!, { transport: "http", canControl: false });
 	assert.equal(card.transport, "http");

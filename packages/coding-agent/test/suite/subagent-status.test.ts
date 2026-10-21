@@ -286,6 +286,39 @@ describe("listSubagentRuns", () => {
 		expect(typeof runs[0].updatedAt).toBe("number");
 		expect(runs[0].updatedAt).toBeGreaterThan(0);
 	});
+
+	it("passes status.json sessionId through as sessionId", () => {
+		makeRun(root, "run-1", { status: runStatus({ sessionId: "/sessions/a.jsonl" }) });
+		const { runs } = listSubagentRuns({ roots: [root] });
+		expect(runs[0].sessionId).toBe("/sessions/a.jsonl");
+	});
+
+	it("leaves sessionId undefined when status.json has none", () => {
+		makeRun(root, "run-1", { status: runStatus() });
+		const { runs } = listSubagentRuns({ roots: [root] });
+		expect(runs[0].sessionId).toBeUndefined();
+	});
+
+	it("filters runs to a single session when sessionPath is given", () => {
+		makeRun(root, "run-a", { status: runStatus({ sessionId: "/sessions/a.jsonl" }) });
+		makeRun(root, "run-b", { status: runStatus({ sessionId: "/sessions/b.jsonl" }) });
+		makeRun(root, "run-unknown-session", { status: runStatus() });
+		const { runs } = listSubagentRuns({ roots: [root], sessionPath: "/sessions/a.jsonl" });
+		expect(runs.map((run) => run.id)).toEqual(["run-a"]);
+	});
+
+	it("drops runs without a recorded sessionId while filtering", () => {
+		makeRun(root, "run-unknown-session", { status: runStatus() });
+		const { runs } = listSubagentRuns({ roots: [root], sessionPath: "/sessions/a.jsonl" });
+		expect(runs).toEqual([]);
+	});
+
+	it("keeps the machine-wide list when sessionPath is absent", () => {
+		makeRun(root, "run-a", { status: runStatus({ sessionId: "/sessions/a.jsonl" }) });
+		makeRun(root, "run-b", { status: runStatus({ sessionId: "/sessions/b.jsonl" }) });
+		const { runs } = listSubagentRuns({ roots: [root] });
+		expect(runs).toHaveLength(2);
+	});
 });
 
 describe("subagent_status web command", () => {
@@ -312,5 +345,34 @@ describe("subagent_status web command", () => {
 			expect(typeof run.dir).toBe("string");
 			expect(typeof run.state).toBe("string");
 		}
+	});
+
+	it("scopes the scan by sessionPath (no match answers with no runs)", async () => {
+		const handler = createWebCommandHandler();
+		const core = {
+			getSession: () => ({ sessionManager: { getCwd: () => process.cwd() } }),
+			getRuntime: () => ({}),
+		} as never;
+		const response = (await handler(
+			{ type: "subagent_status", sessionPath: "/no/such/session.jsonl" } as never,
+			core as unknown as RpcCore,
+		)) as { success: boolean; data: { runs: unknown[] } };
+		expect(response.success).toBe(true);
+		// Every run on disk records a sessionId, so a bogus path matches nothing.
+		expect(response.data.runs).toEqual([]);
+	});
+
+	it("rejects a non-string sessionPath", async () => {
+		const handler = createWebCommandHandler();
+		const core = {
+			getSession: () => ({ sessionManager: { getCwd: () => process.cwd() } }),
+			getRuntime: () => ({}),
+		} as never;
+		const response = (await handler(
+			{ type: "subagent_status", sessionPath: 42 } as never,
+			core as unknown as RpcCore,
+		)) as { success: boolean; error?: string };
+		expect(response.success).toBe(false);
+		expect(response.error).toBe("sessionPath must be a string");
 	});
 });

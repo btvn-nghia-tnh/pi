@@ -102,7 +102,8 @@ export type ClientCommand =
 	  })
 	| (RpcCommandBase & { type: "mcp_config_list"; cwds: string[] })
 	| (RpcCommandBase & { type: "mcp_test"; server: string; scope: "project" | "global"; cwd?: string })
-	| (RpcCommandBase & { type: "subagent_status" })
+	| (RpcCommandBase & { type: "subagent_status"; sessionPath?: string })
+	| (RpcCommandBase & { type: "subagent_transcript"; runId: string; roots?: string[] })
 	| (RpcCommandBase & {
 			type: "subagent_steer";
 			runId: string;
@@ -166,6 +167,42 @@ export type ClientCommand =
 
 export interface StatPathsData {
 	results: Array<{ input: string; path: string; exists: boolean; kind?: "file" | "dir"; size?: number }>;
+}
+
+/**
+ * `subagent_transcript` response (backend projection, lane A): the
+ * run's events.jsonl projected into chat items the modal renders with the
+ * regular transcript renderers. Blocks are bounded server-side; `truncated`
+ * flags any clip (bytes, long blocks, or the item cap).
+ */
+export interface SubagentTranscriptToolCard {
+	toolCallId: string;
+	toolName: string;
+	args: unknown;
+	/** The toolResult message record when the run produced one. */
+	result?: unknown;
+	isError: boolean;
+	running: boolean;
+}
+
+export interface SubagentTranscriptItem {
+	kind: "user" | "assistant";
+	id: string;
+	/** Agent message record verbatim (role, content blocks, usage, model…). */
+	message: Record<string, unknown>;
+	toolCards: SubagentTranscriptToolCard[];
+}
+
+export interface SubagentTranscriptResponse {
+	runId: string;
+	/** Absolute run directory on the server. */
+	dir: string;
+	state: string;
+	/** Master session file that spawned the run, when recorded. */
+	sessionFile?: string;
+	items: SubagentTranscriptItem[];
+	truncated: boolean;
+	lineCount: number;
 }
 
 export interface NotebookStreamOutput {

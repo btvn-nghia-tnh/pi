@@ -31,6 +31,12 @@ export interface SubagentStatusRun {
 	dir: string;
 	/** "running" | "complete" | "failed" | … (extension-defined) | "unknown". */
 	state: string;
+	/**
+	 * Absolute path of the master session .jsonl that spawned this run
+	 * (status.json `sessionId`). The Subagents card scopes its list to the
+	 * active session via this field; absent on runs that never recorded it.
+	 */
+	sessionId?: string;
 	/** Agent of the current/first step (e.g. "worker", "reviewer"). */
 	agent?: string;
 	/** Prompt head (≤80 chars, single line). */
@@ -74,6 +80,13 @@ export interface SubagentStatusResult {
 export interface SubagentStatusOptions {
 	/** Explicit run roots (tests). Defaults to every `{tmpdir()}/pi-subagents-<uid>/async-subagent-runs`. */
 	roots?: string[];
+	/**
+	 * Master session file to scope the scan to (sessionPath filter): only runs
+	 * whose status.json `sessionId` equals this absolute path are returned.
+	 * Runs without a recorded sessionId are dropped while filtering. Absent →
+	 * the full machine-wide scan on every discovered root.
+	 */
+	sessionPath?: string;
 }
 
 /** Default discovery: every `{tmpdir()}/pi-subagents-<uid>/async-subagent-runs` that exists. */
@@ -299,12 +312,14 @@ function collectRun(runDir: string): SubagentStatusRun {
 	let model: string | undefined;
 	let updatedAt: number | undefined;
 	let task: string | undefined;
+	let sessionId: string | undefined;
 	if (status) {
 		state = typeof status.state === "string" ? status.state : undefined;
 		startedAt = typeof status.startedAt === "number" ? status.startedAt : undefined;
 		agent = typeof step?.agent === "string" ? step.agent : undefined;
 		model = typeof step?.model === "string" ? step.model : undefined;
 		updatedAt = typeof status.lastUpdate === "number" ? status.lastUpdate : undefined;
+		sessionId = typeof status.sessionId === "string" ? status.sessionId : undefined;
 		if (typeof status.lastActivityAt === "number") {
 			updatedAt = Math.max(updatedAt ?? 0, status.lastActivityAt);
 		}
@@ -328,6 +343,7 @@ function collectRun(runDir: string): SubagentStatusRun {
 		id,
 		dir: runDir,
 		state: state ?? "unknown",
+		sessionId: sessionId ?? undefined,
 		agent: agent ?? undefined,
 		task: task ?? undefined,
 		taskFull: taskFullFromEvents(runDir),
@@ -380,5 +396,7 @@ export function listSubagentRuns(options: SubagentStatusOptions = {}): SubagentS
 		if (aRunning !== bRunning) return aRunning - bRunning;
 		return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
 	});
-	return { roots, runs };
+	const scoped =
+		options.sessionPath !== undefined ? runs.filter((run) => run.sessionId === options.sessionPath) : runs;
+	return { roots, runs: scoped };
 }

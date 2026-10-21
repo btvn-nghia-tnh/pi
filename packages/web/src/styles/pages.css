@@ -1006,35 +1006,22 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
-/* Batch-5: inline run transcript (replaces the old preview link). */
-.c-modal-log-wrap {
+/* Batch-6: run transcript renders with the main chat renderers (user /
+ * assistant / tool cards — those classes live in main.css). This block only
+ * owns the scroll container and the gap between items. */
+.c-modal-chat {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
-	border-top: 1px dashed var(--c-hairline);
-	padding-top: 8px;
+	gap: 10px;
 	min-height: 0;
-}
-.c-modal-log-head {
-	font: 400 10px var(--font-mono);
-	color: var(--c-dim);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-.c-modal-log {
-	margin: 0;
-	max-height: 46vh;
+	max-height: 50vh;
 	overflow-y: auto;
 	overscroll-behavior: contain;
-	background: var(--c-bg);
-	border: 1px solid var(--c-hairline);
-	border-radius: 8px;
-	padding: 8px 10px;
-	font: 400 10.5px/1.5 var(--font-mono);
-	color: var(--c-text-2);
-	white-space: pre-wrap;
-	word-break: break-word;
+	border-top: 1px dashed var(--c-hairline);
+	padding-top: 8px;
+}
+.c-modal-chat > .transcript-item {
+	flex: 0 0 auto;
 }
 .c-modal-steering {
 	font: 400 10.5px var(--font-mono);

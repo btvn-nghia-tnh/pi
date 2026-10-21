@@ -46,6 +46,7 @@ import { McpTestError, testMcpServer } from "./mcp-test.ts";
 import { OfficeParseError, parseDocx, parseXlsx, type SpreadsheetLimits } from "./office-parsers.ts";
 import { listSubagentRuns } from "./subagent-status.ts";
 import { SubagentSteerError, steerSubagentRun, stopSubagentRun } from "./subagent-steer.ts";
+import { readSubagentTranscript, SubagentTranscriptError } from "./subagent-transcript.ts";
 import { getUsageSummary } from "./usage-summary.ts";
 import { shareSessionHeadless } from "./web-share.ts";
 
@@ -718,8 +719,14 @@ export function createWebCommandHandler(): WebCommandHandler {
 			}
 
 			case "subagent_status": {
+				// Optional session scoping: the Subagents card only shows runs the
+				// ACTIVE session spawned (status.json sessionId == sessionPath).
+				const sessionPath = command.sessionPath;
+				if (sessionPath !== undefined && typeof sessionPath !== "string") {
+					return rpcError(id, "subagent_status", "sessionPath must be a string");
+				}
 				// Tolerance lives inside the scanner: never throws for junk runs.
-				const data = listSubagentRuns();
+				const data = listSubagentRuns(sessionPath !== undefined ? { sessionPath } : {});
 				return {
 					id,
 					type: "response",
@@ -727,6 +734,32 @@ export function createWebCommandHandler(): WebCommandHandler {
 					success: true,
 					data,
 				};
+			}
+
+			case "subagent_transcript": {
+				// Project the run's events.jsonl into chat items for the detail modal
+				// (bounded; shared contract with modes/web/subagent-transcript.ts).
+				try {
+					const data = readSubagentTranscript({
+						runId: command.runId,
+						...(command.roots !== undefined ? { roots: command.roots } : {}),
+					});
+					return {
+						id,
+						type: "response",
+						command: "subagent_transcript",
+						success: true,
+						data,
+					};
+				} catch (error) {
+					const message =
+						error instanceof SubagentTranscriptError ||
+						error instanceof SubagentSteerError ||
+						error instanceof Error
+							? error.message
+							: String(error);
+					return rpcError(id, "subagent_transcript", message);
+				}
 			}
 
 			case "subagent_steer": {

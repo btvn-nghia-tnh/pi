@@ -388,8 +388,10 @@ export class App {
 				onNavigate: navigate,
 				openPreview,
 				pushToast,
-				// Lane F: /mcp-auth sign-in fallback drafts the command in chat.
+				// Lane F: /mcp-auth sign-in fallback runs the command in chat
+				// (auto-run); the editor draft stays as the no-runCommand fallback.
 				promptDraft: (text: string) => this.promptDraft(text),
+				runCommand: (text: string) => this.runSlashCommand(text),
 			},
 			usage: {
 				connection: () => this.connection,
@@ -413,6 +415,25 @@ export class App {
 		this.router?.navigate({ page: "chat" });
 	}
 
+	/**
+	 * Auto-run a slash command in the active chat session: switch to Chat and
+	 * send it as a prompt (the server echoes the user message + command output
+	 * through the normal agent events, so no editor round-trip is needed).
+	 * Used by the MCP sign-in fallback (`/mcp-auth <server>`).
+	 * request() settles after the prompt preflight, so a rejection (e.g. the
+	 * session is mid-stream) falls back to the editor draft instead of silently
+	 * dropping the command — the sign-in must never look like it did nothing.
+	 */
+	private runSlashCommand(text: string): void {
+		this.router?.navigate({ page: "chat" });
+		const connection = this.connection;
+		if (!connection) {
+			this.promptDraft(text);
+			return;
+		}
+		connection.request({ type: "prompt", message: text }).catch(() => this.promptDraft(text));
+	}
+
 	/** Batch-4 B6: open the local MCP manager modal from the status-bar chip. */
 	private openMcpLocal(): void {
 		if (!this.mcpLocalModal) {
@@ -424,6 +445,7 @@ export class App {
 				openPreview: (path) => void this.openPreview(path, this.activeSessionId),
 				pushToast: (message, level) => this.store.pushNotification(message, level),
 				promptDraft: (text) => this.promptDraft(text),
+				runCommand: (text) => this.runSlashCommand(text),
 			});
 		}
 		this.mcpLocalModal.open();

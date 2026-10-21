@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { localMcpRows } from "../src/components/mcp-local-modal.ts";
+import { localMcpRows, rowOffersSignIn } from "../src/components/mcp-local-modal.ts";
 import type { McpConfigEntry } from "../src/pages/mcp.ts";
 
 const entries: McpConfigEntry[] = [
@@ -51,4 +51,13 @@ test("localMcpRows: live flag matches by name across all cwds, disabled stays in
 	assert.equal(rows[0].live, true);
 	assert.equal(rows[0].transport, "stdio");
 	assert.equal(rows[0].disabled, false);
+});
+
+test("rowOffersSignIn: needs-auth and failed both offer sign-in", () => {
+	// Owner bug: failed auth left the row without an auth affordance.
+	assert.equal(rowOffersSignIn({ status: "needs-auth", needsAuth: true }), true);
+	assert.equal(rowOffersSignIn({ status: "failed", needsAuth: false }), true);
+	assert.equal(rowOffersSignIn({ status: "connected", needsAuth: false }), false);
+	assert.equal(rowOffersSignIn({ status: "not-connected", needsAuth: false }), false);
+	assert.equal(rowOffersSignIn(undefined), false);
 });
