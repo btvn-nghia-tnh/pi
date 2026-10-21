@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasWidgets } from "../src/components/session-panel.ts";
+import { hasWidgets, modalLogText } from "../src/components/session-panel.ts";
 
 test("hasWidgets only counts structured non-overlay widgets", () => {
 	const base = { widgets: new Map(), collapsedWidgets: new Set() } as never;
@@ -239,4 +239,15 @@ test("subagent card scroll fix + modal CSS pins (batch-4 B2/B4)", async () => {
 	assert.ok(css.includes(".c-modal-sheet"), "modal sheet exists");
 	assert.ok(/\.c-modal-sheet\s*\{[^}]*max-height:\s*min\(720px,\s*80vh\)/.test(css), "modal sheet capped at 80vh");
 	assert.ok(css.includes(".c-modal-steer-textarea"), "steer textarea style exists");
+});
+
+test("modalLogText: trims trailing blank lines and keeps body verbatim", () => {
+	assert.equal(modalLogText("line one\nline two\n\n"), "line one\nline two");
+	assert.equal(modalLogText("  indented\n"), "  indented");
+});
+
+test("modalLogText: empty and whitespace-only logs get the placeholder", () => {
+	const placeholder = "(transcript empty — the runner hasn't emitted output yet)";
+	assert.equal(modalLogText(""), placeholder);
+	assert.equal(modalLogText("  \n\t\n"), placeholder);
 });

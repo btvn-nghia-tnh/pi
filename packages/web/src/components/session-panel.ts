@@ -14,6 +14,7 @@ import type { PiConnection } from "../connection.ts";
 import { clearElement, h } from "../dom.ts";
 import { renderWidget } from "../render/widget-data.ts";
 import type { AppState, Store } from "../state.ts";
+import type { ReadFileData } from "../types.ts";
 import { relativeTime } from "../usage-text.ts";
 
 /** Alias for the store state shape (mirrors status-bar.ts). */
@@ -66,11 +67,13 @@ export interface SubagentStatusResponse {
 	runs: SubagentRun[];
 }
 
-/** Commands the Subagents card can send (batch-4: status poll + steer/stop). */
+/** Commands the Subagents card can send (batch-4: status poll + steer/stop).
+ * Batch-5 adds the transcript read (web `read_file`, text kind). */
 export type SubagentStatusCommand =
 	| { type: "subagent_status" }
 	| { type: "subagent_steer"; runId: string; message: string; mode?: SteerMode }
-	| { type: "subagent_stop"; runId: string; reason?: string };
+	| { type: "subagent_stop"; runId: string; reason?: string }
+	| { type: "read_file"; path: string };
 
 /** Minimal structural slice of PiConnection the poll + modal use. */
 export interface SubagentStatusConnection {
@@ -238,11 +241,22 @@ export interface SubagentDetailModalOpts {
 	pushToast: (message: string, level: "info" | "warning" | "error") => void;
 	/** When provided, "Open output log" links here (app wires preview). */
 	openLog?: (path: string) => void;
+	/**
+	 * Loads the run's raw transcript (batch-5: the modal renders it inline like
+	 * a chat instead of linking out). Rejects → the modal shows the error line.
+	 */
+	loadLog?: (path: string) => Promise<string>;
 }
 
 /**`true` when a run is still alive and steerable (stop/steer make sense). */
 export function isSteerableState(state: string): boolean {
 	return state === "running" || state === "needs-attention";
+}
+
+/** Inline transcript body; placeholder for runs that haven't emitted output yet. */
+export function modalLogText(raw: string): string {
+	const trimmed = raw.trimEnd();
+	return trimmed.trim() === "" ? "(transcript empty — the runner hasn't emitted output yet)" : trimmed;
 }
 
 /** Full-detail overlay for one subagent run. Closes on Esc/scrim/X. */
@@ -253,6 +267,11 @@ export class SubagentDetailModal {
 	private readonly escHandler: (event: KeyboardEvent) => void;
 	private readonly opts: SubagentDetailModalOpts;
 	private readonly shownRunId: string;
+	private readonly logEl: HTMLElement;
+	private readonly logPath: string | undefined;
+	private logPollTimer: ReturnType<typeof setInterval> | undefined;
+	private logInFlight = false;
+	private logFirstLoad = true;
 	private stopArmed = false;
 	private stopRevertTimer: ReturnType<typeof setTimeout> | undefined;
 	private stopButton: HTMLButtonElement | undefined;
@@ -273,19 +292,21 @@ export class SubagentDetailModal {
 			h("div", {}, `updated: ${row.updatedText}`),
 		];
 		if (typeof raw?.lines === "number") metaBits.push(h("div", {}, `${raw.lines} log lines`));
-		if (raw?.dir) {
-			metaBits.push(h("div", { class: "c-modal-dir", title: raw.dir }, raw.dir));
-			if (opts.openLog) {
-				const logPath = `${raw.dir.replace(/\/$/, "")}/output-0.log`;
-				metaBits.push(
-					h(
-						"button",
-						{ class: "c-modal-log-link", title: logPath, onclick: () => opts.openLog?.(logPath) },
-						"open output log",
-					),
-				);
-			}
-		}
+		if (raw?.dir) metaBits.push(h("div", { class: "c-modal-dir", title: raw.dir }, raw.dir));
+
+		// Batch-5: the raw run transcript renders INLINE like a chat — the old
+		// "open output log" preview link is gone (owner: load the log here).
+		this.logEl = h("pre", { class: "c-modal-log" });
+		const logRegion =
+			raw?.dir && opts.loadLog
+				? h(
+						"div",
+						{ class: "c-modal-log-wrap" },
+						h("div", { class: "c-modal-log-head" }, `transcript · ${raw.dir.replace(/\/$/, "")}/output-0.log`),
+						this.logEl,
+					)
+				: undefined;
+		this.logPath = raw?.dir && opts.loadLog ? `${raw.dir.replace(/\/$/, "")}/output-0.log` : undefined;
 
 		this.statusLine = h("div", { class: "c-modal-status-line" });
 		const closeEl = h("button", { class: "c-modal-close", title: "Close (Esc)", "aria-label": "Close" }, "×");
@@ -313,6 +334,7 @@ export class SubagentDetailModal {
 			steeringSummary(raw?.steering)
 				? h("div", { class: "c-modal-steering" }, steeringSummary(raw?.steering) ?? "")
 				: undefined,
+			logRegion,
 			isSteerableState(row.state) ? this.buildActions(row.id) : undefined,
 			this.statusLine,
 		);
@@ -328,6 +350,31 @@ export class SubagentDetailModal {
 		};
 		window.addEventListener("keydown", this.escHandler);
 		document.body.appendChild(this.scrim);
+		if (this.logPath) {
+			void this.refreshLog();
+			if (isSteerableState(row.state)) {
+				this.logPollTimer = setInterval(() => void this.refreshLog(), LOG_POLL_MS);
+			}
+		}
+	}
+
+	/** Fetch the raw transcript; pin to the bottom while the user stays there. */
+	private async refreshLog(): Promise<void> {
+		if (!this.logPath || !this.opts.loadLog || this.logInFlight) return;
+		this.logInFlight = true;
+		const pinned =
+			this.logFirstLoad ||
+			this.logEl.scrollTop + this.logEl.clientHeight >= this.logEl.scrollHeight - LOG_PIN_SLACK_PX;
+		try {
+			const text = modalLogText(await this.opts.loadLog(this.logPath));
+			if (this.logEl.textContent !== text) this.logEl.textContent = text;
+		} catch (error) {
+			this.logEl.textContent = `transcript unavailable: ${(error as Error).message}`;
+		} finally {
+			if (pinned) this.logEl.scrollTop = this.logEl.scrollHeight;
+			this.logFirstLoad = false;
+			this.logInFlight = false;
+		}
 	}
 
 	/** Steer form + inline-confirm Stop; only for live runs. */
@@ -447,6 +494,8 @@ export class SubagentDetailModal {
 	close(): void {
 		if (this.stopRevertTimer) clearTimeout(this.stopRevertTimer);
 		this.stopRevertTimer = undefined;
+		if (this.logPollTimer) clearInterval(this.logPollTimer);
+		this.logPollTimer = undefined;
 		window.removeEventListener("keydown", this.escHandler);
 		this.scrim.remove();
 	}
@@ -494,6 +543,10 @@ export interface SessionPanelOpts {
 }
 
 const DEFAULT_POLL_MS = 3000;
+/** Transcript refresh cadence while a run is live (modal open). */
+const LOG_POLL_MS = 3000;
+/** Bottom-distance under which the transcript view is considered "pinned". */
+const LOG_PIN_SLACK_PX = 24;
 
 export class SessionPanel {
 	readonly element: HTMLElement;
@@ -725,7 +778,21 @@ export class SessionPanel {
 			sendStop: (id) => this.sendSubagentCommand(id, { type: "subagent_stop" }),
 			pushToast: (message, level) => this.opts.store.pushNotification(message, level),
 			openLog: this.opts.openPreview,
+			loadLog: (path) => this.loadRunLog(path),
 		});
+	}
+
+	/** Raw transcript read (web `read_file` command, text kind). */
+	private async loadRunLog(path: string): Promise<string> {
+		const connection = this.opts.connection;
+		if (!connection) throw new Error("not connected");
+		const data = (await connection.request({ type: "read_file", path })) as ReadFileData;
+		if (data?.kind !== "text") throw new Error(`unexpected log format: ${data?.kind ?? "unknown"}`);
+		const text = data.text ?? "";
+		if (data.truncated === true) {
+			return `${text}\n… (truncated — ${data.shownLines ?? "?"}/${data.totalLines ?? "?"} lines shown)`;
+		}
+		return text;
 	}
 
 	/** Request helper for the steer/stop commands (server contract, batch-4 T3). */

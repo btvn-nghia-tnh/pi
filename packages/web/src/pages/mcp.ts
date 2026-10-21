@@ -426,121 +426,133 @@ export interface AddServerFormDeps {
 }
 
 /**
- * Anchored add-server form (same workflow from batch 2): pick transport,
- * fill name/command/args or url, submit as an mcp_config_add request.
+ * Standalone add-server form body (batch-5 extraction): pick transport, fill
+ * name/command/args or url, submit as an mcp_config_add request. The caller
+ * owns the placement — the global page anchors it in a popover, the local
+ * modal swaps its body view to it (a popover would sit under the modal layer).
  * Project-scope adds are guarded — they land in the ACTIVE session's project,
- * so the dialog refuses rather than corrupting another project's config.
+ * so the form refuses rather than corrupting another project's config.
+ */
+export function buildAddServerForm(
+	target: { scope: "project" | "global"; cwd?: string },
+	deps: AddServerFormDeps,
+	ui: { onDone(): void; onCancel(): void },
+): HTMLElement {
+	let transport: AddServerTransport = "stdio";
+	const addingTo = target.scope === "global" ? "the pi global config" : `${basenameOf(target.cwd ?? "")}/.pi/mcp.json`;
+
+	const nameInput = h("input", {
+		class: "c-popover-search",
+		placeholder: "server name — e.g. github",
+	}) as HTMLInputElement;
+	const transportSelect = h(
+		"select",
+		{ class: "c-popover-search" },
+		h("option", { value: "stdio" }, "stdio (local command)"),
+		h("option", { value: "http" }, "http (remote URL)"),
+	) as HTMLSelectElement;
+	transportSelect.addEventListener("change", () => {
+		transport = transportSelect.value === "http" ? "http" : "stdio";
+		syncTransportRows();
+	});
+
+	const commandInput = h("input", {
+		class: "c-popover-search",
+		placeholder: "command — e.g. npx -y some-mcp-server",
+	}) as HTMLInputElement;
+	const argsInput = h("input", {
+		class: "c-popover-search",
+		placeholder: "args (comma-separated, optional)",
+	}) as HTMLInputElement;
+	const urlInput = h("input", {
+		class: "c-popover-search",
+		placeholder: "https://host/mcp",
+	}) as HTMLInputElement;
+
+	const stdioRows = h("div", {}, label("command"), commandInput, label("args"), argsInput);
+	const httpRows = h("div", {}, label("url"), urlInput);
+	const syncTransportRows = (): void => {
+		stdioRows.style.display = transport === "stdio" ? "" : "none";
+		httpRows.style.display = transport === "http" ? "" : "none";
+	};
+	syncTransportRows();
+
+	function label(text: string): HTMLElement {
+		return h("div", { class: "c-usage-sub", style: "margin-top:8px" }, text);
+	}
+
+	async function submit(): Promise<void> {
+		if (target.scope === "project") {
+			const wanted = target.cwd ?? deps.projectCwd();
+			if (!wanted) {
+				deps.pushToast("project unknown — open a session first", "error");
+				return;
+			}
+			if (deps.projectCwd() && wanted !== deps.projectCwd()) {
+				deps.pushToast(
+					`switch to a session in ${basenameOf(wanted)} first — project adds target the active project`,
+					"warning",
+				);
+				return;
+			}
+		}
+		const request = addServerRequest({
+			name: nameInput.value,
+			transport,
+			scope: target.scope,
+			command: commandInput.value,
+			argsText: argsInput.value,
+			url: urlInput.value,
+		});
+		if ("error" in request) {
+			deps.pushToast(request.error, "error");
+			return;
+		}
+		const connection = deps.connection();
+		if (!connection) {
+			deps.pushToast("not connected — try again once the session is up", "error");
+			return;
+		}
+		try {
+			const data = await connection.request<{ path: string }>({ type: "mcp_config_add", ...request });
+			deps.pushToast(`added to ${data.path} — applies on next session start`, "info");
+			ui.onDone();
+			deps.onAdded();
+		} catch (error: unknown) {
+			deps.pushToast(`add failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+		}
+	}
+
+	return h(
+		"div",
+		{ class: "cp-add-server-form", style: "display:flex;flex-direction:column;gap:6px;min-width:300px" },
+		h("div", { class: "c-card-title" }, "Add MCP server"),
+		label("name"),
+		nameInput,
+		label("transport"),
+		transportSelect,
+		stdioRows,
+		httpRows,
+		h("span", { class: "c-usage-sub" }, `Adding to ${addingTo} — applies on next session start.`),
+		h(
+			"div",
+			{ style: "display:flex;gap:8px;justify-content:flex-end;margin-top:8px" },
+			h("button", { class: "c-btn", onclick: () => ui.onCancel() }, "Cancel"),
+			h("button", { class: "c-btn c-btn--primary", onclick: () => void submit() }, "Add server"),
+		),
+	);
+}
+
+/**
+ * Anchored add-server form (global page path): anchors the shared form body in
+ * a popover; the local modal uses buildAddServerForm directly inside its body.
  */
 export function openAddServerForm(
 	anchor: HTMLElement,
 	target: { scope: "project" | "global"; cwd?: string },
 	deps: AddServerFormDeps,
 ): void {
-	let transport: AddServerTransport = "stdio";
-	const addingTo = target.scope === "global" ? "the pi global config" : `${basenameOf(target.cwd ?? "")}/.pi/mcp.json`;
-
-	openAnchoredMenu(anchor, (close) => {
-		const nameInput = h("input", {
-			class: "c-popover-search",
-			placeholder: "server name — e.g. github",
-		}) as HTMLInputElement;
-		const transportSelect = h(
-			"select",
-			{ class: "c-popover-search" },
-			h("option", { value: "stdio" }, "stdio (local command)"),
-			h("option", { value: "http" }, "http (remote URL)"),
-		) as HTMLSelectElement;
-		transportSelect.addEventListener("change", () => {
-			transport = transportSelect.value === "http" ? "http" : "stdio";
-			syncTransportRows();
-		});
-
-		const commandInput = h("input", {
-			class: "c-popover-search",
-			placeholder: "command — e.g. npx -y some-mcp-server",
-		}) as HTMLInputElement;
-		const argsInput = h("input", {
-			class: "c-popover-search",
-			placeholder: "args (comma-separated, optional)",
-		}) as HTMLInputElement;
-		const urlInput = h("input", {
-			class: "c-popover-search",
-			placeholder: "https://host/mcp",
-		}) as HTMLInputElement;
-
-		const stdioRows = h("div", {}, label("command"), commandInput, label("args"), argsInput);
-		const httpRows = h("div", {}, label("url"), urlInput);
-		const syncTransportRows = (): void => {
-			stdioRows.style.display = transport === "stdio" ? "" : "none";
-			httpRows.style.display = transport === "http" ? "" : "none";
-		};
-		syncTransportRows();
-
-		function label(text: string): HTMLElement {
-			return h("div", { class: "c-usage-sub", style: "margin-top:8px" }, text);
-		}
-
-		async function submit(): Promise<void> {
-			if (target.scope === "project") {
-				const wanted = target.cwd ?? deps.projectCwd();
-				if (!wanted) {
-					deps.pushToast("project unknown — open a session first", "error");
-					return;
-				}
-				if (deps.projectCwd() && wanted !== deps.projectCwd()) {
-					deps.pushToast(
-						`switch to a session in ${basenameOf(wanted)} first — project adds target the active project`,
-						"warning",
-					);
-					return;
-				}
-			}
-			const request = addServerRequest({
-				name: nameInput.value,
-				transport,
-				scope: target.scope,
-				command: commandInput.value,
-				argsText: argsInput.value,
-				url: urlInput.value,
-			});
-			if ("error" in request) {
-				deps.pushToast(request.error, "error");
-				return;
-			}
-			const connection = deps.connection();
-			if (!connection) {
-				deps.pushToast("not connected — try again once the session is up", "error");
-				return;
-			}
-			try {
-				const data = await connection.request<{ path: string }>({ type: "mcp_config_add", ...request });
-				deps.pushToast(`added to ${data.path} — applies on next session start`, "info");
-				close();
-				deps.onAdded();
-			} catch (error: unknown) {
-				deps.pushToast(`add failed: ${error instanceof Error ? error.message : String(error)}`, "error");
-			}
-		}
-
-		return h(
-			"div",
-			{ class: "cp-add-server-form", style: "display:flex;flex-direction:column;gap:6px;min-width:300px" },
-			h("div", { class: "c-card-title" }, "Add MCP server"),
-			label("name"),
-			nameInput,
-			label("transport"),
-			transportSelect,
-			stdioRows,
-			httpRows,
-			h("span", { class: "c-usage-sub" }, `Adding to ${addingTo} — applies on next session start.`),
-			h(
-				"div",
-				{ style: "display:flex;gap:8px;justify-content:flex-end;margin-top:8px" },
-				h("button", { class: "c-btn", onclick: () => close() }, "Cancel"),
-				h("button", { class: "c-btn c-btn--primary", onclick: () => void submit() }, "Add server"),
-			),
-		);
-	});
+	openAnchoredMenu(anchor, (close) => buildAddServerForm(target, deps, { onDone: close, onCancel: close }));
 }
 
 // ---------------------------------------------------------------------------

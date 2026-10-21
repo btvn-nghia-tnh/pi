@@ -14,12 +14,12 @@
 import type { PiConnection } from "../connection.ts";
 import { clearElement, h } from "../dom.ts";
 import {
+	buildAddServerForm,
 	controlOutcome,
 	type McpConfigEntry,
 	type McpOperation,
 	type McpTestResult,
 	type McpTestState,
-	openAddServerForm,
 	type TestControlHost,
 	testControlEl,
 	testKeyOf,
@@ -165,6 +165,12 @@ export class McpLocalModal {
 	private configLoaded = false;
 	private configError: string | undefined;
 	private readonly testResults = new Map<string, McpTestState>();
+	/** Body view (batch-5): the add form replaces the list inside the modal —
+	 * an anchored popover would render UNDER this modal layer and close with
+	 * any outside click (owner report). */
+	private view: "list" | "add" = "list";
+	/** Live add-form instance; memoized so 3s widget refreshes don't wipe typed input. */
+	private addFormEl: HTMLElement | undefined;
 
 	constructor(deps: McpLocalModalDeps) {
 		this.deps = deps;
@@ -207,6 +213,8 @@ export class McpLocalModal {
 		this.body = undefined;
 		this.configLoaded = false;
 		this.configError = undefined;
+		this.view = "list";
+		this.addFormEl = undefined;
 		this.testResults.clear();
 	}
 
@@ -227,7 +235,7 @@ export class McpLocalModal {
 				{
 					class: "c-btn c-btn--primary",
 					title: "Add a server definition to this project's .pi/mcp.json",
-					onclick: (event) => this.openAdd(event.currentTarget as HTMLElement),
+					onclick: () => this.openAdd(),
 				},
 				iconEl("plus"),
 				"Add server",
@@ -242,21 +250,15 @@ export class McpLocalModal {
 		);
 	}
 
-	private openAdd(anchor: HTMLElement): void {
+	private openAdd(): void {
+		if (this.view === "add") return; // already showing the form (don't wipe typed input)
 		if (!this.cwd) {
 			this.deps.pushToast("project unknown — open a session first", "error");
 			return;
 		}
-		openAddServerForm(
-			anchor,
-			{ scope: "project", cwd: this.cwd },
-			{
-				connection: this.deps.connection,
-				projectCwd: this.deps.projectCwd,
-				pushToast: this.deps.pushToast,
-				onAdded: () => void this.refreshConfig(),
-			},
-		);
+		this.view = "add";
+		this.addFormEl = undefined;
+		this.renderBody();
 	}
 
 	private async refreshAll(): Promise<void> {
@@ -432,6 +434,37 @@ export class McpLocalModal {
 
 	private renderBody(): void {
 		if (!this.body) return;
+		if (this.view === "add" && this.cwd) {
+			// Batch-5: the add form renders INSIDE the modal body; Cancel returns
+			// to the list, a successful add refreshes it (toast comes from the form).
+			// Widget-driven re-renders keep the SAME form node so typed input survives.
+			if (this.addFormEl?.isConnected) return;
+			clearElement(this.body);
+			this.addFormEl = buildAddServerForm(
+				{ scope: "project", cwd: this.cwd },
+				{
+					connection: this.deps.connection,
+					projectCwd: this.deps.projectCwd,
+					pushToast: this.deps.pushToast,
+					onAdded: () => void this.refreshConfig(),
+				},
+				{
+					onDone: () => {
+						this.view = "list";
+						this.addFormEl = undefined;
+						void this.refreshConfig();
+					},
+					onCancel: () => {
+						this.view = "list";
+						this.addFormEl = undefined;
+						this.renderBody();
+					},
+				},
+			);
+			this.body.appendChild(this.addFormEl);
+			return;
+		}
+		this.addFormEl = undefined;
 		clearElement(this.body);
 		if (this.configError) {
 			this.body.appendChild(chipEl(`config list unavailable: ${this.configError}`, { tone: "danger" }));
