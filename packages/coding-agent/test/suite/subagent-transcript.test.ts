@@ -256,6 +256,65 @@ describe("readSubagentTranscript", () => {
 		expect(result.state).toBe("complete");
 	});
 
+	it("scopes the projection to the requested workflow child's session file", () => {
+		const sessionDir = join(root, "child-sessions");
+		mkdirSync(sessionDir, { recursive: true });
+		const fileOne = join(sessionDir, "one.jsonl");
+		const fileTwo = join(sessionDir, "two.jsonl");
+		const entry = (text: string) =>
+			[
+				{ type: "session", version: 3, id: text },
+				{ type: "message", message: { role: "user", content: [{ type: "text", text }] } },
+			]
+				.map((entryRecord) => JSON.stringify(entryRecord))
+				.join("\n");
+		writeFileSync(fileOne, `${entry("task one")}\n`, "utf-8");
+		writeFileSync(fileTwo, `${entry("task two")}\n`, "utf-8");
+		makeRun(root, "wf-parent", {
+			status: runStatus({
+				mode: "workflow",
+				state: "running",
+				steps: [
+					{ agent: "delegate", runId: "c-one", status: "completed", sessionFile: fileOne },
+					{ agent: "delegate", runId: "c-two", status: "running", sessionFile: fileTwo },
+				],
+			}),
+			events: [{ type: "subagent.workflow.started", ts: 1 }],
+		});
+		const scoped = readSubagentTranscript({ runId: "wf-parent", childId: "c-two", roots: [root] });
+		expect(scoped.items).toHaveLength(1);
+		const prompt = (scoped.items[0].message as { content: Array<{ text: string }> }).content[0].text;
+		expect(prompt).toBe("task two");
+		expect(scoped.lineCount).toBe(2);
+
+		const other = readSubagentTranscript({ runId: "wf-parent", childId: "c-one", roots: [root] });
+		const otherPrompt = (other.items[0].message as { content: Array<{ text: string }> }).content[0].text;
+		expect(otherPrompt).toBe("task one");
+	});
+
+	it("answers an honest error for a child the run does not know", () => {
+		const sessionDir = join(root, "child-sessions");
+		mkdirSync(sessionDir, { recursive: true });
+		const fileOne = join(sessionDir, "one.jsonl");
+		writeFileSync(fileOne, `${JSON.stringify({ type: "session", version: 3, id: "s" })}\n`, "utf-8");
+		makeRun(root, "wf-parent", {
+			status: runStatus({
+				mode: "workflow",
+				state: "running",
+				steps: [{ agent: "delegate", runId: "c-one", status: "completed", sessionFile: fileOne }],
+			}),
+			events: [{ type: "subagent.workflow.started", ts: 1 }],
+		});
+		let caught: { code?: string; message?: string } | undefined;
+		try {
+			readSubagentTranscript({ runId: "wf-parent", childId: "ghost", roots: [root] });
+		} catch (error) {
+			caught = error as { code?: string; message?: string };
+		}
+		expect(caught?.code).toBe("unknown-child");
+		expect(caught?.message).toContain("ghost");
+	});
+
 	it("caps items at 400 and marks truncated", () => {
 		const events: Array<Record<string, unknown>> = [userEnd("first")];
 		for (let i = 0; i < 420; i += 1) {
@@ -400,6 +459,38 @@ describe("subagent_transcript web command", () => {
 		)) as { success: boolean; error?: string };
 		expect(response.success).toBe(false);
 		expect(response.error).toContain("No pi-subagents run found");
+	});
+
+	it("threads childId through the web command into the projection", async () => {
+		const sessionDir = join(root, "child-sessions");
+		mkdirSync(sessionDir, { recursive: true });
+		const fileOne = join(sessionDir, "one.jsonl");
+		const records = [
+			{ type: "session", version: 3, id: "s" },
+			{ type: "message", message: { role: "user", content: [{ type: "text", text: "task one" }] } },
+		];
+		writeFileSync(fileOne, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`, "utf-8");
+		makeRun(root, "wf-parent", {
+			status: runStatus({
+				mode: "workflow",
+				state: "running",
+				steps: [{ agent: "delegate", runId: "c-one", status: "completed", sessionFile: fileOne }],
+			}),
+			events: [{ type: "subagent.workflow.started", ts: 1 }],
+		});
+		const response = (await handler(
+			{ type: "subagent_transcript", runId: "wf-parent", childId: "c-one", roots: [root] } as never,
+			core as unknown as RpcCore,
+		)) as { type: string; success: boolean; data: SubagentTranscriptResult };
+		expect(response.success).toBe(true);
+		expect(response.data.items).toHaveLength(1);
+
+		const missing = (await handler(
+			{ type: "subagent_transcript", runId: "wf-parent", childId: "ghost", roots: [root] } as never,
+			core as unknown as RpcCore,
+		)) as { success: boolean; error?: string };
+		expect(missing.success).toBe(false);
+		expect(missing.error).toContain("ghost");
 	});
 
 	it("answers an rpc error for an invalid runId", async () => {

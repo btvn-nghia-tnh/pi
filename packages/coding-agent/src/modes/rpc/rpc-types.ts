@@ -78,6 +78,8 @@ export type RpcCommand =
 			id?: string;
 			type: "subagent_transcript";
 			runId: string;
+			/** Workflow child run id — scope the projection to that child. */
+			childId?: string;
 			/** Optional scan roots — production callers omit (machine scan). */
 			roots?: string[];
 	  }
@@ -86,6 +88,10 @@ export type RpcCommand =
 			type: "subagent_steer";
 			runId: string;
 			message: string;
+			/** Workflow child run id — steer that child instead of the whole run. */
+			childId?: string;
+			/** Optional explicit step index (status.json steps[] position). */
+			index?: number;
 			mode?: "steer" | "follow_up" | "auto";
 			/** Optional scan roots — production callers omit (machine scan). */
 			roots?: string[];
@@ -94,6 +100,10 @@ export type RpcCommand =
 			id?: string;
 			type: "subagent_stop";
 			runId: string;
+			/** Workflow child run id — stop that child instead of the whole run. */
+			childId?: string;
+			/** Optional explicit step index (status.json steps[] position). */
+			index?: number;
 			reason?: string;
 			/** Optional scan roots — production callers omit (machine scan). */
 			roots?: string[];
@@ -699,6 +709,20 @@ export interface RpcSubagentStatusRun {
 	 * runner writes; absent when the run recorded no steering activity.
 	 */
 	steering?: RpcSubagentSteering;
+	/** Workflow child rows: dir id of the parent run (mode "workflow" expands
+	 * its steps[] into per-child rows; single/chain runs have no parent). */
+	parentRunId?: string;
+	/** Workflow child rows: the step's own run id — the steering route key. */
+	childId?: string;
+	/** Workflow child rows: step index inside the parent workflow. */
+	childIndex?: number;
+	/** Workflow child rows: the child's own session .jsonl (modal transcript). */
+	sessionFile?: string;
+	/** Workflow child rows: the step's label / workflowKey ("poet", …). */
+	label?: string;
+	/** Workflow child rows: true while the in-process steering route
+	 * `control/workflow-foreground/<childId>` is live. */
+	syncRoute?: boolean;
 }
 
 /** The runner-written steering block of status.json (batch-4). */
@@ -722,6 +746,10 @@ export interface RpcSubagentSteerResult {
 	requestId: string;
 	runDir: string;
 	requestPath: string;
+	/** Workflow child the request targeted (child steers only). */
+	childId?: string;
+	/** Step index the request targeted (child steers only). */
+	index?: number;
 }
 
 /** Result of subagent_stop. */
@@ -729,6 +757,10 @@ export interface RpcSubagentStopResult {
 	delivered: "requested";
 	runDir: string;
 	stopPath: string;
+	/** Workflow child the stop targeted (child stops only). */
+	childId?: string;
+	/** Step index the stop targeted (child stops only). */
+	index?: number;
 }
 
 /** Result of subagent_status. */

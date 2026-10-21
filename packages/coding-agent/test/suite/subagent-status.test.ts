@@ -321,6 +321,204 @@ describe("listSubagentRuns", () => {
 	});
 });
 
+describe("workflow child expansion", () => {
+	let root: string;
+
+	beforeEach(() => {
+		root = tempRoot("runs");
+	});
+	afterEach(() => {
+		rmSync(root, { recursive: true, force: true });
+	});
+
+	function workflowStatus(
+		children: Array<Record<string, unknown>>,
+		overrides: Record<string, unknown> = {},
+	): Record<string, unknown> {
+		return {
+			lifecycleArtifactVersion: 3,
+			runId: "wf",
+			mode: "workflow",
+			state: "running",
+			startedAt: 1000,
+			lastActivityAt: 1500,
+			lastUpdate: 1500,
+			currentStep: 0,
+			steps: children,
+			...overrides,
+		};
+	}
+
+	function childStep(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+		return {
+			agent: "delegate",
+			runId: "child-step",
+			label: "worker",
+			status: "completed",
+			sessionName: "delegate: làm việc",
+			startedAt: 1000,
+			lastActivityAt: 1200,
+			recentOutput: [],
+			recentTools: [],
+			...overrides,
+		};
+	}
+
+	it("expands a workflow into one row per step child with identities", () => {
+		makeRun(root, "wf-1", {
+			status: workflowStatus([
+				childStep({
+					runId: "child-a",
+					label: "poet",
+					status: "running",
+					sessionName: "delegate: viết thơ",
+					sessionFile: "/s/a.jsonl",
+					lastActivityAt: 900,
+					model: "m1",
+					recentOutput: ["đang viết"],
+					turnCount: 2,
+					toolCount: 4,
+				}),
+				childStep({
+					runId: "child-b",
+					label: "critic",
+					status: "pending",
+					sessionName: "delegate: chấm điểm",
+					lastActivityAt: 800,
+				}),
+				childStep({
+					runId: "child-c",
+					label: "seer",
+					status: "completed",
+					sessionName: "delegate: dự báo",
+					lastActivityAt: 1600,
+				}),
+			]),
+		});
+		const { runs } = listSubagentRuns({ roots: [root] });
+		expect(runs.map((run) => run.id)).toEqual(["child-a", "child-c", "child-b"]);
+		const a = runs[0] as {
+			parentRunId?: string;
+			childId?: string;
+			childIndex?: number;
+			sessionFile?: string;
+			label?: string;
+			task?: string;
+			activity?: string;
+			state?: string;
+		};
+		expect(a.parentRunId).toBe("wf-1");
+		expect(a.childId).toBe("child-a");
+		expect(a.childIndex).toBe(0);
+		expect(a.sessionFile).toBe("/s/a.jsonl");
+		expect(a.label).toBe("poet");
+		expect(a.task).toBe("viết thơ");
+		expect(a.activity).toBe("đang viết");
+		expect(a.state).toBe("running");
+		const b = runs[2] as { state?: string };
+		expect(b.state).toBe("pending");
+	}, 10_000);
+
+	it("maps step statuses and the needs_attention marker onto card states", () => {
+		makeRun(root, "wf-1", {
+			status: runStatus({
+				mode: "workflow",
+				state: "running",
+				steps: [
+					{ agent: "delegate", runId: "c-run", status: "running", recentOutput: [], recentTools: [] },
+					{ agent: "delegate", runId: "c-pend", status: "queued", recentOutput: [], recentTools: [] },
+					{ agent: "delegate", runId: "c-fail", status: "failed", recentOutput: [], recentTools: [] },
+					{ agent: "delegate", runId: "c-stop", status: "cancelled", recentOutput: [], recentTools: [] },
+					{
+						agent: "delegate",
+						runId: "c-attention",
+						status: "running",
+						activityState: "needs_attention",
+						recentOutput: [],
+						recentTools: [],
+					},
+					{ agent: "delegate", runId: "c-weird", status: "hibernating", recentOutput: [], recentTools: [] },
+				],
+			}),
+		});
+		const { runs } = listSubagentRuns({ roots: [root] });
+		const byId = new Map(runs.map((run) => [run.id, run.state]));
+		expect(byId.get("c-run")).toBe("running");
+		expect(byId.get("c-pend")).toBe("pending");
+		expect(byId.get("c-fail")).toBe("failed");
+		expect(byId.get("c-stop")).toBe("stopped");
+		expect(byId.get("c-attention")).toBe("needs-attention");
+		expect(byId.get("c-weird")).toBe("unknown");
+	}, 10_000);
+
+	it("flags live sync children via control/workflow-foreground and not finished ones", () => {
+		const runDir = makeRun(root, "wf-live", {
+			status: workflowStatus([
+				childStep({ runId: "c-live", status: "running" }),
+				childStep({ runId: "c-gone", status: "completed" }),
+				{ agent: "delegate", status: "running", recentOutput: [], recentTools: [] },
+			]),
+		});
+		mkdirSync(join(runDir, "control", "workflow-foreground", "c-live"), { recursive: true });
+		const { runs } = listSubagentRuns({ roots: [root] });
+		const live = runs.find((run) => run.id === "c-live");
+		const gone = runs.find((run) => run.id === "c-gone");
+		const unnamed = runs.find((run) => run.id === "wf-live#2");
+		expect(live?.syncRoute).toBe(true);
+		expect(gone?.syncRoute).toBeUndefined();
+		expect(unnamed?.childIndex).toBe(2);
+		expect(unnamed?.childId).toBeUndefined();
+		expect(unnamed?.parentRunId).toBe("wf-live");
+	}, 10_000);
+
+	it("session-scoping keeps only the active session's children (sessionId passes through)", () => {
+		makeRun(root, "wf-a", {
+			status: workflowStatus([childStep({ runId: "a-1" }), childStep({ runId: "a-2" })], {
+				sessionId: "/sessions/a.jsonl",
+			}),
+		});
+		makeRun(root, "wf-b", {
+			status: workflowStatus([childStep({ runId: "b-1" })], { sessionId: "/sessions/b.jsonl" }),
+		});
+		const { runs } = listSubagentRuns({ roots: [root], sessionPath: "/sessions/a.jsonl" });
+		expect(runs.map((run) => run.id).sort()).toEqual(["a-1", "a-2"]);
+		for (const run of runs) expect(run.sessionId).toBe("/sessions/a.jsonl");
+	}, 10_000);
+
+	it("falls back to the parent row when a workflow recorded no steps", () => {
+		makeRun(root, "wf-empty", { status: workflowStatus([], { state: "failed" }) });
+		const { runs } = listSubagentRuns({ roots: [root] });
+		expect(runs).toHaveLength(1);
+		expect(runs[0].id).toBe("wf-empty");
+		expect(runs[0].state).toBe("failed");
+		expect(runs[0].parentRunId).toBeUndefined();
+	}, 10_000);
+
+	it("leaves single and chain modes as one directory row", () => {
+		makeRun(root, "run-single", {
+			status: runStatus({
+				mode: "single",
+				steps: [
+					{ agent: "worker", sessionName: "worker: t", status: "complete", recentOutput: [], recentTools: [] },
+				],
+			}),
+		});
+		makeRun(root, "run-chain", {
+			status: runStatus({
+				mode: "chain",
+				steps: [
+					{ agent: "worker", sessionName: "worker: t", status: "complete", recentOutput: [], recentTools: [] },
+					{ agent: "reviewer", sessionName: "reviewer: t", status: "complete", recentOutput: [], recentTools: [] },
+				],
+			}),
+		});
+		const { runs } = listSubagentRuns({ roots: [root] });
+		expect(runs.map((run) => run.id).sort()).toEqual(["run-chain", "run-single"]);
+		expect(runs.find((run) => run.id === "run-chain")?.steps).toBe(2);
+		expect(runs.every((run) => run.parentRunId === undefined)).toBe(true);
+	}, 10_000);
+});
+
 describe("subagent_status web command", () => {
 	it("answers with the scanner payload through the handler", async () => {
 		const handler = createWebCommandHandler();

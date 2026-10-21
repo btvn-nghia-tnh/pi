@@ -222,6 +222,78 @@ test("isSteerableState: running and needs-attention only", async () => {
 	assert.equal(isSteerableState("unknown"), false);
 });
 
+test("subagentRows: workflow child rows project label, pending/stopped tones", async () => {
+	const { subagentRows } = await import("../src/components/session-panel.ts");
+	const now = Date.parse("2026-10-21T04:30:00.000Z");
+	const rows = subagentRows(
+		[
+			{
+				id: "child-poet",
+				state: "running",
+				task: "viết thơ",
+				label: "poet",
+				parentRunId: "wf-1",
+				childId: "child-poet",
+				childIndex: 0,
+				updatedAt: now - 10_000,
+			},
+			{ id: "child-critic", state: "pending", task: "chấm điểm", label: "critic", updatedAt: now - 5_000 },
+			{ id: "child-seer", state: "stopped", task: "dự báo", label: "seer", updatedAt: now - 1_000 },
+		],
+		now,
+	);
+	assert.equal(rows.length, 3);
+	// Running first, then updatedAt descending (seer 1s ago > critic 5s ago).
+	assert.deepEqual(
+		rows.map((row) => row.id),
+		["child-poet", "child-seer", "child-critic"],
+	);
+	const poet = rows[0];
+	assert.equal(poet.label, "poet");
+	assert.equal(poet.tone, "accent");
+	assert.equal(rows[1].tone, "dim");
+	assert.equal(rows[2].tone, "dim");
+	assert.equal(rows[1].state, "stopped");
+	assert.equal(rows[2].state, "pending");
+});
+
+test("subagentCommandTarget: child rows route to the parent dir + child identity", async () => {
+	const { subagentCommandTarget } = await import("../src/components/session-panel.ts");
+	const child = subagentCommandTarget(
+		{ id: "child-poet", parentRunId: "wf-1", childId: "child-poet", childIndex: 0 },
+		"child-poet",
+	);
+	assert.deepEqual(child, { runId: "wf-1", childId: "child-poet", index: 0 });
+
+	const childNoRunId = subagentCommandTarget({ id: "wf-1#2", parentRunId: "wf-1", childIndex: 2 }, "wf-1#2");
+	assert.deepEqual(childNoRunId, { runId: "wf-1", index: 2 });
+
+	const wholeRun = subagentCommandTarget({ id: "run-9", state: "running" }, "run-9");
+	assert.deepEqual(wholeRun, { runId: "run-9" });
+
+	const noRaw = subagentCommandTarget(undefined, "run-7");
+	assert.deepEqual(noRaw, { runId: "run-7" });
+});
+
+test("isSteerableState: pending children are steerable, terminal states are not", async () => {
+	const { isSteerableState } = await import("../src/components/session-panel.ts");
+	assert.equal(isSteerableState("running"), true);
+	assert.equal(isSteerableState("needs-attention"), true);
+	assert.equal(isSteerableState("pending"), true);
+	assert.equal(isSteerableState("complete"), false);
+	assert.equal(isSteerableState("stopped"), false);
+	assert.equal(isSteerableState("failed"), false);
+	assert.equal(isSteerableState("unknown"), false);
+});
+
+test("subagentRowsSignature: reacts to a child's label change", async () => {
+	const { subagentRows, subagentRowsSignature } = await import("../src/components/session-panel.ts");
+	const now = Date.parse("2026-10-21T04:30:00.000Z");
+	const base = subagentRows([{ id: "child-a", state: "running", label: "poet", updatedAt: now }], now);
+	const relabeled = subagentRows([{ id: "child-a", state: "running", label: "seer", updatedAt: now }], now);
+	assert.notEqual(subagentRowsSignature(base), subagentRowsSignature(relabeled));
+});
+
 test("subagent card scroll fix + modal CSS pins (batch-4 B2/B4)", async () => {
 	const { readFileSync } = await import("node:fs");
 	const css = readFileSync(new URL("../src/styles/pages.css", import.meta.url), "utf8");

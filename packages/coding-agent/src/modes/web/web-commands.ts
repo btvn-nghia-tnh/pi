@@ -738,10 +738,15 @@ export function createWebCommandHandler(): WebCommandHandler {
 
 			case "subagent_transcript": {
 				// Project the run's events.jsonl into chat items for the detail modal
-				// (bounded; shared contract with modes/web/subagent-transcript.ts).
+				// (bounded; shared contract with modes/web/subagent-transcript.ts). A
+				// childId scopes a workflow child row to its own session transcript.
+				if (command.childId !== undefined && typeof command.childId !== "string") {
+					return rpcError(id, "subagent_transcript", "childId must be a string");
+				}
 				try {
 					const data = readSubagentTranscript({
 						runId: command.runId,
+						...(command.childId !== undefined ? { childId: command.childId } : {}),
 						...(command.roots !== undefined ? { roots: command.roots } : {}),
 					});
 					return {
@@ -764,12 +769,25 @@ export function createWebCommandHandler(): WebCommandHandler {
 
 			case "subagent_steer": {
 				// Writes into the run's control inbox (pi-subagents v0.61.0 file
-				// protocol); the runner consumes the request on its next sweep.
+				// protocol); the runner consumes the request on its next sweep. A
+				// childId routes to one workflow child (the in-process route inbox
+				// when the route is live, else targetIndex for the detached runner).
+				if (command.childId !== undefined && typeof command.childId !== "string") {
+					return rpcError(id, "subagent_steer", "childId must be a string");
+				}
+				if (
+					command.index !== undefined &&
+					(typeof command.index !== "number" || !Number.isInteger(command.index))
+				) {
+					return rpcError(id, "subagent_steer", "index must be an integer");
+				}
 				try {
-					const data = steerSubagentRun({
+					const data = await steerSubagentRun({
 						runId: command.runId,
 						message: command.message,
 						...(command.mode !== undefined ? { mode: command.mode } : {}),
+						...(command.childId !== undefined ? { childId: command.childId } : {}),
+						...(command.index !== undefined ? { index: command.index } : {}),
 						...(command.roots !== undefined ? { roots: command.roots } : {}),
 					});
 					return {
@@ -787,10 +805,21 @@ export function createWebCommandHandler(): WebCommandHandler {
 			}
 
 			case "subagent_stop": {
+				if (command.childId !== undefined && typeof command.childId !== "string") {
+					return rpcError(id, "subagent_stop", "childId must be a string");
+				}
+				if (
+					command.index !== undefined &&
+					(typeof command.index !== "number" || !Number.isInteger(command.index))
+				) {
+					return rpcError(id, "subagent_stop", "index must be an integer");
+				}
 				try {
 					const data = stopSubagentRun({
 						runId: command.runId,
 						...(command.reason !== undefined ? { reason: command.reason } : {}),
+						...(command.childId !== undefined ? { childId: command.childId } : {}),
+						...(command.index !== undefined ? { index: command.index } : {}),
 						...(command.roots !== undefined ? { roots: command.roots } : {}),
 					});
 					return {

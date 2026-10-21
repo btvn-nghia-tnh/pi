@@ -9,9 +9,13 @@
  * contract) while the panel is visible, SCOPED to the active session: each
  * run records the master session file that spawned it, and the card asks for
  * `sessionPath` so switching sessions swaps the list instead of showing every
- * run on the machine. The pi-subagents widget snapshot ("subagent-async",
- * its raw `PI_SUBAGENT_ASYNC_JSON:` line is blocklisted from the composer)
- * enriches the card live: workflow labels + running-step counts between polls.
+ * run on the machine. Workflow EXPAND into one row per child step — the
+ * children are what the user watches and steers — so all subagents of the
+ * session appear at once; child rows carry parentRunId/childId/childIndex and
+ * commands target { runId: parent, childId, index }. The pi-subagents widget
+ * snapshot ("subagent-async", its raw `PI_SUBAGENT_ASYNC_JSON:` line is
+ * blocklisted from the composer) enriches the card live: workflow labels +
+ * running-step counts between polls.
  */
 
 import type { PiConnection } from "../connection.ts";
@@ -54,6 +58,18 @@ export interface SubagentRun {
 	sessionId?: string;
 	/** Batch-4 (backend T3): steering bookkeeping straight from status.json. */
 	steering?: SubagentSteeringBlock;
+	/** Workflow child rows: dir id of the parent run (commands carry it as runId). */
+	parentRunId?: string;
+	/** Workflow child rows: the step's own run id — the child steering route key. */
+	childId?: string;
+	/** Workflow child rows: step index inside the parent workflow. */
+	childIndex?: number;
+	/** Workflow child rows: the child's own session .jsonl (modal transcript). */
+	sessionFile?: string;
+	/** Workflow child rows: the step's label / workflowKey ("poet", …). */
+	label?: string;
+	/** Workflow child rows: true while the in-process steering route is live. */
+	syncRoute?: boolean;
 }
 
 /** Steering counters block (mirrors status.json `steering`). */
@@ -106,6 +122,9 @@ const STATE_TONES: Record<string, "accent" | "ok" | "danger" | "warn" | "dim"> =
 	complete: "ok",
 	failed: "danger",
 	"needs-attention": "warn",
+	// Children not started yet / hung up before finishing paint dim (no pulse).
+	pending: "dim",
+	stopped: "dim",
 };
 
 /** Projected, display-ready subagent row. */
@@ -123,6 +142,8 @@ export interface SubagentRowView {
 	updatedText: string;
 	dir?: string;
 	lines?: number;
+	/** Workflow children: the step's label / workflowKey ("poet", …). */
+	label?: string;
 }
 
 /**
@@ -152,6 +173,7 @@ export function subagentRows(runs: SubagentRun[] | undefined, now: number): Suba
 			updatedText: relativeTime(toIso(run.updatedAt), now, { invalidText: "—" }),
 			dir: run.dir,
 			lines: typeof run.lines === "number" ? run.lines : undefined,
+			label: run.label ? clampText(run.label, 24) : undefined,
 		});
 	}
 	rows.sort((a, b) => {
@@ -227,7 +249,8 @@ export function parseAsyncSnapshot(lines: string[] | undefined): { runs: AsyncSn
 export function subagentRowsSignature(rows: SubagentRowView[], labels?: ReadonlyMap<string, string>): string {
 	return rows
 		.map(
-			(row) => `${row.id}:${row.state}:${row.updatedText}:${row.task}:${row.activity}:${labels?.get(row.id) ?? ""}`,
+			(row) =>
+				`${row.id}:${row.state}:${row.updatedText}:${row.task}:${row.activity}:${row.label ?? ""}:${labels?.get(row.id) ?? ""}`,
 		)
 		.join("|");
 }
@@ -386,9 +409,31 @@ export function transcriptSignature(result: SubagentTranscriptResponse | undefin
 	return `${result.state}|${result.lineCount}|${result.items.length}|${last?.id ?? ""}|${result.truncated ? 1 : 0}`;
 }
 
+/**
+ * Command wiring for a card row: workflow CHILD rows route commands to their
+ * parent run dir (runId) plus childId/index so the server targets the exact
+ * child; whole-run rows reference themselves. Pure — unit-tested.
+ */
+export function subagentCommandTarget(
+	raw: SubagentRun | undefined,
+	rowId: string,
+): { runId: string; childId?: string; index?: number } {
+	const parentRunId = raw?.parentRunId;
+	if (parentRunId === undefined) return { runId: rowId };
+	const childId = raw?.childId;
+	const childIndex = raw?.childIndex;
+	return {
+		runId: parentRunId,
+		...(childId !== undefined ? { childId } : {}),
+		...(childIndex !== undefined ? { index: childIndex } : {}),
+	};
+}
+
 /** `true` when a run is still alive and steerable (stop/steer make sense). */
 export function isSteerableState(state: string): boolean {
-	return state === "running" || state === "needs-attention";
+	// Children that have not started yet are still steerable: the runner routes
+	// their requests as "scheduled" the moment the child spins up.
+	return state === "running" || state === "needs-attention" || state === "pending";
 }
 
 /** Full-detail overlay for one subagent run. Closes on Esc/scrim/X. */
@@ -473,7 +518,9 @@ export class SubagentDetailModal {
 			h(
 				"div",
 				{ class: "c-modal-head" },
-				h("span", { class: "c-modal-title", title: row.id }, `Subagent ${shortRunId(row.id)}`),
+				// Workflow children prefer their lane label (poet/critic/…) over
+				// the raw uuid; the title attribute keeps the full identity.
+				h("span", { class: "c-modal-title", title: row.id }, `Subagent ${row.label ?? shortRunId(row.id)}`),
 				closeEl,
 			),
 			h("div", { class: "c-modal-state" }, ...stateParts),
@@ -982,11 +1029,15 @@ export class SessionPanel {
 	}
 
 	private subagentRowEl(row: SubagentRowView, label?: string): HTMLElement {
+		// Workflow children show their lane label (poet/critic/…) as a prefix
+		// chip so parallel siblings stay distinguishable at a glance.
+		const taskText = row.task || row.id;
 		const head = h(
 			"div",
 			{ class: "c-subagent-row-head" },
 			h("span", { class: `c-subagent-dot tone-${row.tone}${row.state === "running" ? " is-pulsing" : ""}` }),
-			h("span", { class: "c-subagent-task", title: row.task }, row.task || row.id),
+			row.label ? h("span", { class: "c-subagent-row-label" }, `${row.label}·`) : undefined,
+			h("span", { class: "c-subagent-task", title: taskText }, taskText),
 		);
 		const metaBits: HTMLElement[] = [];
 		if (row.model) metaBits.push(h("span", { class: "c-subagent-model" }, row.model));
@@ -1041,24 +1092,43 @@ export class SessionPanel {
 		});
 	}
 
-	/** Chat transcript for the modal (projected from the run's event stream). */
-	private async loadTranscript(runId: string): Promise<SubagentTranscriptResponse> {
+	/** Chat transcript for the modal (child rows scope to the child's session). */
+	private async loadTranscript(rowId: string): Promise<SubagentTranscriptResponse> {
 		const connection = this.opts.connection;
 		if (!connection) throw new Error("not connected");
-		return (await connection.request({ type: "subagent_transcript", runId })) as SubagentTranscriptResponse;
+		const target = subagentCommandTarget(this.subagentRawRuns.get(rowId), rowId);
+		return (await connection.request({
+			type: "subagent_transcript",
+			runId: target.runId,
+			...(target.childId !== undefined ? { childId: target.childId } : {}),
+		})) as SubagentTranscriptResponse;
 	}
 
 	/** Request helper for the steer/stop commands (server contract, batch-4 T3). */
 	private sendSubagentCommand(
-		runId: string,
+		rowId: string,
 		payload: { type: "subagent_steer"; message: string; mode: SteerMode } | { type: "subagent_stop" },
 	): Promise<unknown> {
 		const connection = this.opts.connection;
 		if (!connection) return Promise.reject(new Error("not connected"));
+		const target = subagentCommandTarget(this.subagentRawRuns.get(rowId), rowId);
 		if (payload.type === "subagent_steer") {
-			return connection.request({ type: "subagent_steer", runId, message: payload.message, mode: payload.mode });
+			return connection.request({
+				type: "subagent_steer",
+				runId: target.runId,
+				...(target.childId !== undefined ? { childId: target.childId } : {}),
+				...(target.index !== undefined ? { index: target.index } : {}),
+				message: payload.message,
+				mode: payload.mode,
+			});
 		}
-		return connection.request({ type: "subagent_stop", runId, reason: "requested from the web console" });
+		return connection.request({
+			type: "subagent_stop",
+			runId: target.runId,
+			...(target.childId !== undefined ? { childId: target.childId } : {}),
+			...(target.index !== undefined ? { index: target.index } : {}),
+			reason: "requested from the web console",
+		});
 	}
 
 	// ------------------------------------------------------------------

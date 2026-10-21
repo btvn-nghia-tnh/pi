@@ -103,15 +103,35 @@ export type ClientCommand =
 	| (RpcCommandBase & { type: "mcp_config_list"; cwds: string[] })
 	| (RpcCommandBase & { type: "mcp_test"; server: string; scope: "project" | "global"; cwd?: string })
 	| (RpcCommandBase & { type: "subagent_status"; sessionPath?: string })
-	| (RpcCommandBase & { type: "subagent_transcript"; runId: string; roots?: string[] })
+	| (RpcCommandBase & {
+			type: "subagent_transcript";
+			runId: string;
+			/** Workflow child run id — scope the projection to that child. */
+			childId?: string;
+			roots?: string[];
+	  })
 	| (RpcCommandBase & {
 			type: "subagent_steer";
+			/** Run directory id (workflow child rows pass the PARENT dir id + childId). */
 			runId: string;
+			/** Workflow child run id — steer that child instead of the whole run. */
+			childId?: string;
+			/** Optional explicit step index (status.json steps[] position). */
+			index?: number;
 			message: string;
 			mode?: "steer" | "follow_up" | "auto";
 			source?: string;
 	  })
-	| (RpcCommandBase & { type: "subagent_stop"; runId: string; reason?: string })
+	| (RpcCommandBase & {
+			type: "subagent_stop";
+			/** Run directory id (workflow child rows pass the PARENT dir id + childId). */
+			runId: string;
+			/** Workflow child run id — stop that child instead of the whole run. */
+			childId?: string;
+			/** Optional explicit step index (status.json steps[] position). */
+			index?: number;
+			reason?: string;
+	  })
 	| (RpcCommandBase & {
 			type: "mcp_test";
 			server: string;

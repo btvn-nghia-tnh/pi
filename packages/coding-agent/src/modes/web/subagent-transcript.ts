@@ -71,9 +71,9 @@ export interface SubagentTranscriptResult {
  */
 export class SubagentTranscriptError extends Error {
 	/** Stable machine reason. */
-	readonly code: "invalid-run-id" | "unknown-run";
+	readonly code: "invalid-run-id" | "invalid-child-id" | "unknown-run" | "unknown-child";
 
-	constructor(code: "invalid-run-id" | "unknown-run", message: string) {
+	constructor(code: "invalid-run-id" | "invalid-child-id" | "unknown-run" | "unknown-child", message: string) {
 		super(message);
 		this.name = "SubagentTranscriptError";
 		this.code = code;
@@ -145,11 +145,13 @@ interface RunStatusInfo {
 	sessionFile?: string;
 	/** Per-step session transcripts (chain/workflow runs only). */
 	stepSessionFiles: string[];
+	/** Per-step run ids (steps[].runId) aligned with the steps[], when recorded. */
+	stepRunIds: Array<string | undefined>;
 }
 
 /** status.json subset the transcript result needs; absent/garbage → defaults. */
 function readRunStatus(runDir: string): RunStatusInfo {
-	const fallback: RunStatusInfo = { state: "unknown", stepSessionFiles: [] };
+	const fallback: RunStatusInfo = { state: "unknown", stepSessionFiles: [], stepRunIds: [] };
 	try {
 		const path = join(runDir, "status.json");
 		if (!existsSync(path)) return fallback;
@@ -158,8 +160,11 @@ function readRunStatus(runDir: string): RunStatusInfo {
 		const record = parsed as JsonRecord;
 		const steps = Array.isArray(record.steps) ? (record.steps as unknown[]) : [];
 		const stepSessionFiles: string[] = [];
+		const stepRunIds: Array<string | undefined> = [];
 		for (const step of steps) {
 			const stepRecord = asRecord(step);
+			const runId = asString(stepRecord?.runId);
+			stepRunIds.push(runId);
 			const sessionFile = asString(stepRecord?.sessionFile);
 			if (sessionFile && existsSync(sessionFile) && !stepSessionFiles.includes(sessionFile)) {
 				stepSessionFiles.push(sessionFile);
@@ -169,6 +174,7 @@ function readRunStatus(runDir: string): RunStatusInfo {
 			state: typeof record.state === "string" ? record.state : "unknown",
 			sessionFile: typeof record.sessionId === "string" ? record.sessionId : undefined,
 			stepSessionFiles,
+			stepRunIds,
 		};
 	} catch {
 		return fallback;
@@ -466,19 +472,83 @@ function createProjector(clip: ClipState): Projector {
 	};
 }
 
+// ------------------------------------------------------------------
+// child scoping (workflow child rows)
+// ------------------------------------------------------------------
+
+/** Child run id gates the same way runId does — it never reaches the fs layer. */
+function validateChildId(childId: unknown): string {
+	if (
+		typeof childId !== "string" ||
+		childId.length === 0 ||
+		/\s/.test(childId) ||
+		childId.includes("/") ||
+		childId.includes("\\")
+	) {
+		throw new SubagentTranscriptError("invalid-child-id", "childId must be a non-empty child run id");
+	}
+	return childId;
+}
+
+/**
+ * Restrict a run's session sources to one workflow child. Returns the child's
+ * session file list; throws unknown-child when the run records no such child —
+ * an honest error beats silently projecting a sibling's transcript.
+ */
+function scopeStepSessionFiles(
+	runDir: string,
+	info: RunStatusInfo,
+	childId: string,
+): { state: string; sessionFile?: string; stepSessionFiles: string[] } {
+	try {
+		if (!existsSync(join(runDir, "status.json"))) return { ...info, stepSessionFiles: [] };
+		const parsed = JSON.parse(readFileSync(join(runDir, "status.json"), "utf-8")) as unknown;
+		const record =
+			parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as JsonRecord) : undefined;
+		const steps = Array.isArray(record?.steps) ? (record.steps as unknown[]) : [];
+		for (const step of steps) {
+			const stepRecord = asRecord(step);
+			if (asString(stepRecord?.runId) !== childId) continue;
+			const sessionFile = asString(stepRecord?.sessionFile);
+			return {
+				state: info.state,
+				sessionFile: info.sessionFile,
+				stepSessionFiles: sessionFile !== undefined && existsSync(sessionFile) ? [sessionFile] : [],
+			};
+		}
+	} catch {
+		// Fall through to the unknown-child error below.
+	}
+	throw new SubagentTranscriptError("unknown-child", `Run has no child with id ${childId}`);
+}
+
 /**
  * Project one run's transcript into chat items. Never throws for junk content;
  * only invalid-run-id / unknown-run surface as SubagentTranscriptError.
+ *
+ * With `childId` (workflow child rows), the projection scopes to THAT child:
+ * events.jsonl is skipped entirely — chain/workflow runs write no per-child
+ * message events there — and only the child's own session file is projected.
  */
-export function readSubagentTranscript(options: { runId: unknown; roots?: string[] }): SubagentTranscriptResult {
+export function readSubagentTranscript(options: {
+	runId: unknown;
+	/** Workflow child run id — scope the projection to that child (optional). */
+	childId?: unknown;
+	roots?: string[];
+}): SubagentTranscriptResult {
 	const runId = validateRunId(options.runId);
+	const childId =
+		options.childId !== undefined && options.childId !== null ? validateChildId(options.childId) : undefined;
 	const dir = resolveRunDir(runId, options.roots);
-	const { state, sessionFile, stepSessionFiles } = readRunStatus(dir);
+	const status = readRunStatus(dir);
+	const { state, sessionFile, stepSessionFiles } =
+		childId !== undefined ? scopeStepSessionFiles(dir, status, childId) : status;
 	const clip: ClipState = { truncated: false };
 	const projector = createProjector(clip);
 	let lineCount = 0;
 
-	const eventSource = readJsonLines(join(dir, "events.jsonl"), clip);
+	const eventSource =
+		childId !== undefined ? { records: [], count: 0 } : readJsonLines(join(dir, "events.jsonl"), clip);
 	lineCount += eventSource.count;
 	for (const event of eventSource.records) {
 		const type = asString(event.type);

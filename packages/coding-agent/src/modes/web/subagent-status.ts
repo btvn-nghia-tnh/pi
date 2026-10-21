@@ -2,6 +2,12 @@
  * subagent_status: enumerate live + recent pi-subagents runs from their on-disk
  * protocol (web console right-panel "Subagents" card, user issue batch 3).
  *
+ * Workflow runs (mode "workflow") expand into one entry per step child — the
+ * children are the subagents the user watches and steers. Each child carries
+ * parentRunId/childIndex/childId plus a `syncRoute` flag while the in-process
+ * steering route (`control/workflow-foreground/<childId>`) is live. Single and
+ * chain runs keep the one-entry-per-directory shape.
+ *
  * Investigation summary (read-only probe of /tmp/pi-subagents-uid-<uid>/async-subagent-runs):
  * - Each run lives in `<root>/<runId>/` (best-effort, all optional):
  *   - `status.json` — THE source. Shape: { runId, state: "running"|"complete"|"failed"|…,
@@ -68,6 +74,20 @@ export interface SubagentStatusRun {
 	 * that never steered. Never synthesized from the control inbox.
 	 */
 	steering?: Record<string, unknown>;
+	/** Workflow child expansion: dir id of the parent run this step belongs to. */
+	parentRunId?: string;
+	/** Workflow child expansion: the step's own run id (status.json steps[].runId)
+	 * — the key pi-subagents uses for the per-child steering route. */
+	childId?: string;
+	/** Workflow child expansion: step index inside the parent workflow. */
+	childIndex?: number;
+	/** Workflow child expansion: the child's own session file (steps[].sessionFile). */
+	sessionFile?: string;
+	/** Workflow child expansion: the step's label / workflowKey ("poet", …). */
+	label?: string;
+	/** Workflow child expansion: true while the in-process steering route
+	 * `control/workflow-foreground/<childId>` exists (live sync child). */
+	syncRoute?: boolean;
 }
 
 export interface SubagentStatusResult {
@@ -102,6 +122,13 @@ function discoverRoots(): string[] {
 		return [];
 	}
 	return candidates;
+}
+
+/** Exported discovery for command helpers that resolve runs by directory
+ * name (steer/stop/transcript) — they must NOT depend on the row projection,
+ * which expands workflows into per-child rows. */
+export function discoverSubagentRunRoots(): string[] {
+	return discoverRoots();
 }
 
 interface JsonRecord {
@@ -260,9 +287,8 @@ function taskFullFromEvents(runDir: string): string | undefined {
 	return undefined;
 }
 
-/** Activity line: recentOutput tail, else last recent tool. */
-function activityFromStatus(status: JsonRecord): string | undefined {
-	const step = activeStepOf(status);
+/** Activity line of one step record: recentOutput tail, else last recent tool. */
+function activityFromStep(step: JsonRecord | undefined): string | undefined {
 	const outputs = Array.isArray(step?.recentOutput) ? (step?.recentOutput as unknown[]) : [];
 	for (let i = outputs.length - 1; i >= 0; i--) {
 		const line = clampLine(typeof outputs[i] === "string" ? (outputs[i] as string) : undefined, 120);
@@ -301,8 +327,85 @@ function dirMtimeMs(path: string): number | undefined {
 	}
 }
 
-/** Collect one run directory into a status entry; never throws. */
-function collectRun(runDir: string): SubagentStatusRun {
+/** Map a step's status/activityState onto the card's state vocabulary. */
+const CHILD_STATE_BY_STATUS: Record<string, string> = {
+	running: "running",
+	started: "running",
+	pending: "pending",
+	queued: "pending",
+	completed: "complete",
+	complete: "complete",
+	failed: "failed",
+	rejected: "failed",
+	stopped: "stopped",
+	cancelled: "stopped",
+	paused: "stopped",
+};
+
+function childStateFromStep(step: JsonRecord): string {
+	const activityState = typeof step.activityState === "string" ? step.activityState : "";
+	if (activityState === "needs_attention" || activityState === "needs-attention") return "needs-attention";
+	const status = typeof step.status === "string" ? step.status : "";
+	return CHILD_STATE_BY_STATUS[status] ?? "unknown";
+}
+
+/** Directory pi-subagents registers per live in-process (sync) workflow child. */
+export function workflowForegroundRouteDir(runDir: string, childId: string): string {
+	return join(runDir, "control", "workflow-foreground", childId);
+}
+
+/** Project one workflow step (status.json steps[i]) into a child row. */
+function childRunFromStep(base: SubagentStatusRun, runDir: string, rawStep: unknown, index: number): SubagentStatusRun {
+	const step = rawStep && typeof rawStep === "object" && !Array.isArray(rawStep) ? (rawStep as JsonRecord) : {};
+	const agent = typeof step.agent === "string" ? step.agent : undefined;
+	const childId = typeof step.runId === "string" && step.runId ? step.runId : undefined;
+	const sessionFile = typeof step.sessionFile === "string" && step.sessionFile ? step.sessionFile : undefined;
+	const label =
+		typeof step.label === "string" && step.label
+			? step.label
+			: typeof step.workflowKey === "string" && step.workflowKey
+				? step.workflowKey
+				: undefined;
+	const steering =
+		step.steering && typeof step.steering === "object" && !Array.isArray(step.steering)
+			? (step.steering as Record<string, unknown>)
+			: undefined;
+	const updatedAt =
+		typeof step.lastActivityAt === "number"
+			? step.lastActivityAt
+			: typeof step.updatedAt === "number"
+				? step.updatedAt
+				: base.updatedAt;
+	const syncRoute = childId !== undefined ? existsSync(workflowForegroundRouteDir(runDir, childId)) : false;
+	const task = taskFromStep(step, agent);
+	// Steps without a runId (older runners) stay addressable by parent dir + index
+	// through the async targetIndex protocol.
+	return {
+		id: childId ?? `${base.id}#${index}`,
+		dir: runDir,
+		state: childStateFromStep(step),
+		sessionId: base.sessionId,
+		...(agent !== undefined ? { agent } : {}),
+		...(task !== undefined ? { task } : {}),
+		...(typeof step.model === "string" ? { model: step.model } : {}),
+		...(typeof step.startedAt === "number" ? { startedAt: step.startedAt } : {}),
+		updatedAt,
+		activity: activityFromStep(step),
+		...(typeof step.turnCount === "number" ? { turnCount: step.turnCount } : {}),
+		...(typeof step.toolCount === "number" ? { toolCount: step.toolCount } : {}),
+		parentRunId: base.id,
+		...(childId !== undefined ? { childId } : {}),
+		childIndex: index,
+		...(sessionFile !== undefined ? { sessionFile } : {}),
+		...(label !== undefined ? { label } : {}),
+		...(syncRoute ? { syncRoute: true } : {}),
+		...(steering !== undefined ? { steering } : {}),
+	};
+}
+
+/** Collect one run directory into status entries; never throws. Workflow runs
+ * expand into one entry per step child; other modes keep the single entry. */
+function collectRun(runDir: string): SubagentStatusRun[] {
 	const id = basename(runDir);
 	const status = readJson(join(runDir, "status.json"));
 	const step = status ? activeStepOf(status) : undefined;
@@ -334,12 +437,12 @@ function collectRun(runDir: string): SubagentStatusRun {
 	updatedAt = updatedAt ?? dirMtimeMs(runDir);
 	const turnCount = status && typeof status.turnCount === "number" ? status.turnCount : undefined;
 	const toolCount = status && typeof status.toolCount === "number" ? status.toolCount : undefined;
-	const steps = status && Array.isArray(status.steps) ? (status.steps as unknown[]).length : undefined;
+	const steps = status && Array.isArray(status.steps) ? (status.steps as unknown[]) : undefined;
 	const steering =
 		status && typeof status.steering === "object" && status.steering !== null && !Array.isArray(status.steering)
 			? (status.steering as Record<string, unknown>)
 			: undefined;
-	return {
+	const base: SubagentStatusRun = {
 		id,
 		dir: runDir,
 		state: state ?? "unknown",
@@ -350,13 +453,19 @@ function collectRun(runDir: string): SubagentStatusRun {
 		model,
 		startedAt,
 		updatedAt,
-		activity: status ? activityFromStatus(status) : undefined,
+		activity: status ? activityFromStep(step) : undefined,
 		lines: outputLines(runDir),
 		turnCount,
 		toolCount,
-		steps,
+		steps: steps !== undefined ? steps.length : undefined,
 		...(steering !== undefined ? { steering } : {}),
 	};
+	// Workflow runs show their CHILDREN (the subagents the user steers), not the
+	// umbrella row: a 4-child workflow renders 4 rows, one per live child.
+	if (status && status.mode === "workflow" && steps !== undefined && steps.length > 0) {
+		return steps.map((rawStep, index) => childRunFromStep(base, runDir, rawStep, index));
+	}
+	return [base];
 }
 
 /** Enumerate subagent runs. Tolerant of every failure; malformed dirs surface as state:"unknown". */
@@ -383,7 +492,7 @@ export function listSubagentRuns(options: SubagentStatusOptions = {}): SubagentS
 		}
 		for (const entry of entries) {
 			try {
-				runs.push(collectRun(join(root, entry.name)));
+				runs.push(...collectRun(join(root, entry.name)));
 			} catch {
 				runs.push({ id: entry.name, dir: join(root, entry.name), state: "unknown" });
 			}
