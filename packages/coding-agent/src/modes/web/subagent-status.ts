@@ -20,7 +20,7 @@
  * still appears with state:"unknown". Sort: running first, then by updatedAt desc.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -35,6 +35,14 @@ export interface SubagentStatusRun {
 	agent?: string;
 	/** Prompt head (≤80 chars, single line). */
 	task?: string;
+	/**
+	 * Full task text for the detail modal (review wave, T2 P1-2): the runner
+	 * truncates status.json's `sessionName`-derived `task`, so the readable
+	 * prompt comes from events.jsonl's first user message. The wrapper block
+	 * ("Task: You are a delegated subagent…") is stripped when the actual
+	 * task follows a `\nTask:\n` marker. Capped at 4000 chars.
+	 */
+	taskFull?: string;
 	/** e.g. "bioturing/glm-5.1:high" when recorded. */
 	model?: string;
 	startedAt?: number;
@@ -174,6 +182,71 @@ function taskFromStep(step: JsonRecord | undefined, agent: string | undefined): 
 	return clampLine(stripped, 80);
 }
 
+const MAX_TASK_FULL = 4000;
+const TASK_FULL_HEAD_BYTES = 128 * 1024;
+
+/** First parsed jsonl lines of a file, reading only a bounded head slice. */
+function headJsonLines(path: string, byteLimit: number): JsonRecord[] {
+	try {
+		if (!existsSync(path)) return [];
+		const fd = openSync(path, "r");
+		try {
+			const buffer = Buffer.alloc(byteLimit);
+			const read = readSync(fd, buffer, 0, byteLimit, 0);
+			const text = buffer.subarray(0, read).toString("utf-8");
+			// Drop a trailing partial line (head slice can cut one in half).
+			const lastNewline = text.lastIndexOf("\n");
+			const complete = lastNewline >= 0 ? text.slice(0, lastNewline) : "";
+			return complete
+				.split("\n")
+				.filter((line) => line.trim().length > 0)
+				.map((line) => {
+					try {
+						return JSON.parse(line) as JsonRecord;
+					} catch {
+						return null;
+					}
+				})
+				.filter((record): record is JsonRecord => record !== null);
+		} finally {
+			closeSync(fd);
+		}
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * Full prompt text from the first user message in events.jsonl (review wave
+ * T2 P1-2). status.json's `task` is pre-truncated by the runner, so the modal
+ * needs this to show the real prompt. Wrapper preamble is stripped when the
+ * delegated task follows `\nTask:\n`.
+ */
+function taskFullFromEvents(runDir: string): string | undefined {
+	for (const event of headJsonLines(join(runDir, "events.jsonl"), TASK_FULL_HEAD_BYTES)) {
+		if (event.type !== "message_start") continue;
+		const message = event.message;
+		if (!message || typeof message !== "object" || Array.isArray(message)) continue;
+		const record = message as JsonRecord;
+		if (record.role !== "user") continue;
+		const content = Array.isArray(record.content) ? (record.content as unknown[]) : [];
+		const parts: string[] = [];
+		for (const block of content) {
+			if (block && typeof block === "object" && !Array.isArray(block)) {
+				const b = block as JsonRecord;
+				if (b.type === "text" && typeof b.text === "string" && b.text.trim().length > 0) parts.push(b.text);
+			}
+		}
+		const text = parts.join("\n").trim();
+		if (text.length === 0) continue;
+		const marker = text.lastIndexOf("\nTask:\n");
+		const body = (marker >= 0 ? text.slice(marker + "\nTask:\n".length) : text).trim();
+		if (body.length === 0) continue;
+		return body.length > MAX_TASK_FULL ? `${body.slice(0, MAX_TASK_FULL - 1)}…` : body;
+	}
+	return undefined;
+}
+
 /** Activity line: recentOutput tail, else last recent tool. */
 function activityFromStatus(status: JsonRecord): string | undefined {
 	const step = activeStepOf(status);
@@ -257,6 +330,7 @@ function collectRun(runDir: string): SubagentStatusRun {
 		state: state ?? "unknown",
 		agent: agent ?? undefined,
 		task: task ?? undefined,
+		taskFull: taskFullFromEvents(runDir),
 		model,
 		startedAt,
 		updatedAt,

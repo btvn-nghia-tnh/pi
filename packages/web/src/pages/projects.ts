@@ -168,7 +168,6 @@ const TABLE_GRID =
 	"display:grid;grid-template-columns:30px 1fr 76px 84px 110px auto;column-gap:10px;align-items:center";
 
 /** Left list width: defaults, drag bounds, storage key (issue batch 3). */
-const PROJECTS_LIST_WIDTH = 308;
 const PROJECTS_LIST_MIN = 220;
 const PROJECTS_LIST_MAX = 480;
 const PROJECTS_LIST_KEY = "pi-web-projects-w";
@@ -226,7 +225,6 @@ export function createProjectsPage(deps: ProjectsPageDeps, opts: ProjectsPageOpt
 	};
 	const resizer: PanelResizerHandle = makePanelResizer({
 		onWidth: applyListWidth,
-		initial: PROJECTS_LIST_WIDTH,
 		min: PROJECTS_LIST_MIN,
 		max: PROJECTS_LIST_MAX,
 		storageKey: PROJECTS_LIST_KEY,

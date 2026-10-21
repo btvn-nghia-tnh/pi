@@ -131,7 +131,6 @@ export function createChatPage(deps: ChatAppDeps): ChatPage {
 	// resizes; the onWidth closure evaluates after `pageRoot` is created.
 	const sidebarResizer = makePanelResizer({
 		onWidth: (px) => pageRoot.style.setProperty("--chat-sidebar-w", `${px}px`),
-		initial: 264,
 		min: 200,
 		max: 480,
 		storageKey: "pi-web-sidebar-w",
@@ -188,7 +187,6 @@ export function createChatPage(deps: ChatAppDeps): ChatPage {
 	const rightResizer = makePanelResizer({
 		side: "right",
 		onWidth: (px) => pageRoot.style.setProperty("--chat-right-w", `${px}px`),
-		initial: 340,
 		min: 260,
 		max: 560,
 		storageKey: "pi-web-right-w",
@@ -235,9 +233,9 @@ export function createChatPage(deps: ChatAppDeps): ChatPage {
 		hosts,
 		mount(): void {
 			// The sidebar is app-owned; mount it when it first lands in the
-			// column (idempotent across page remounts). Resizers were removed by
-			// unmount's destroy() — both re-attach here (the module's destroy only
-			// unhooks listeners + elements; re-attaching restores the handle).
+			// column (idempotent across page remounts). Resizers detach in
+			// unmount (destroy keeps their listeners attached) — re-append here
+			// restores the live handle on every remount.
 			const current = deps.sidebar();
 			if (current && current.element.parentElement !== sidebarHost) {
 				sidebarHost.replaceChildren(current.element, sidebarResizer.el);

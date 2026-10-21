@@ -33,6 +33,8 @@ export interface SubagentRun {
 	agent?: string;
 	/** ≤80 chars from the backend; re-clamped defensively. */
 	task?: string;
+	/** Full task prompt from the backend (modal only; review wave T2 P1-2). */
+	taskFull?: string;
 	model?: string;
 	startedAt?: number | string;
 	updatedAt?: number | string;
@@ -65,19 +67,6 @@ export interface SubagentSteeringRecent {
 export interface SubagentStatusResponse {
 	roots?: string[];
 	runs: SubagentRun[];
-}
-
-/** Commands the Subagents card can send (batch-4: status poll + steer/stop).
- * Batch-5 adds the transcript read (web `read_file`, text kind). */
-export type SubagentStatusCommand =
-	| { type: "subagent_status" }
-	| { type: "subagent_steer"; runId: string; message: string; mode?: SteerMode }
-	| { type: "subagent_stop"; runId: string; reason?: string }
-	| { type: "read_file"; path: string };
-
-/** Minimal structural slice of PiConnection the poll + modal use. */
-export interface SubagentStatusConnection {
-	request<T = unknown>(command: SubagentStatusCommand): Promise<T>;
 }
 
 /** ``undefined`` timestamps → ""; epoch numbers → ISO; strings pass through. */
@@ -115,6 +104,8 @@ export interface SubagentRowView {
 	state: string;
 	tone: "accent" | "ok" | "danger" | "warn" | "dim";
 	task: string;
+	/** Full prompt for the modal (falls back to `task` when the backend sent none). */
+	taskFull: string;
 	activity: string;
 	model?: string;
 	startedText: string;
@@ -143,6 +134,7 @@ export function subagentRows(runs: SubagentRun[] | undefined, now: number): Suba
 			state: state in STATE_TONES ? state : "unknown",
 			tone: STATE_TONES[state] ?? "dim",
 			task: clampText(run.task, 80),
+			taskFull: clampText(run.taskFull ?? run.task, 4000),
 			activity: clampText(run.activity, 120),
 			model: run.model ? clampText(run.model, 40) : undefined,
 			startedText: relativeTime(toIso(run.startedAt), now, { invalidText: "—" }),
@@ -191,7 +183,18 @@ export function shortRunId(id: string): string {
 
 /** Human line for the steer response (server T3: {delivered, requestId?, reason?}). */
 export function steerOutcomeText(response: unknown): string {
-	const data = (response ?? {}) as { delivered?: string; requestId?: string; reason?: string };
+	const data = (response ?? {}) as {
+		delivered?: string;
+		requestId?: string;
+		reason?: string;
+		ack?: { state?: string; message?: string };
+	};
+	// Batch-4 review P1-1: a request that queued fine but whose runner ack came
+	// back `failed` is a failure — surface it instead of a green "queued".
+	if (data.ack?.state === "failed") {
+		const detail = data.ack.message ?? data.reason;
+		return `Steer failed${detail ? `: ${detail}` : ""}.`;
+	}
 	if (data.delivered === "failed") {
 		return `Steer failed${data.reason ? `: ${data.reason}` : ""}.`;
 	}
@@ -199,6 +202,12 @@ export function steerOutcomeText(response: unknown): string {
 		return `Steer queued${data.requestId ? ` (request ${shortRunId(data.requestId)})` : ""} — watch the steering line.`;
 	}
 	return "Steer sent.";
+}
+
+/** True when the steer response is a real failure (delivery or runner ack). */
+export function steerOutcomeFailed(response: unknown): boolean {
+	const data = (response ?? {}) as { delivered?: string; ack?: { state?: string } };
+	return data.delivered === "failed" || data.ack?.state === "failed";
 }
 
 /** Human line for the stop response ({delivered: "requested" | "failed"}). */
@@ -322,7 +331,11 @@ export class SubagentDetailModal {
 				closeEl,
 			),
 			h("div", { class: "c-modal-state" }, ...stateParts),
-			h("div", { class: "c-modal-task", title: raw?.task ?? row.task }, raw?.task ?? row.task ?? "(no task text)"),
+			h(
+				"div",
+				{ class: "c-modal-task", title: row.taskFull },
+				row.taskFull || row.task || "(no task text)",
+			),
 			row.activity
 				? h(
 						"div",
@@ -445,7 +458,7 @@ export class SubagentDetailModal {
 		try {
 			const response = await this.opts.sendSteer(runId, message, mode);
 			const text = steerOutcomeText(response);
-			const failed = (response as { delivered?: string } | undefined)?.delivered === "failed";
+			const failed = steerOutcomeFailed(response);
 			this.setStatus(text, failed ? " is-error" : " is-ok");
 			this.opts.pushToast(text, failed ? "warning" : "info");
 			if (!failed) textarea.value = "";
@@ -534,7 +547,7 @@ export interface SessionPanelOpts {
 	 * polls `subagent_status` every 3s while visible. Absent → no card, no
 	 * poll (the integration wires `connection` through app.ts).
 	 */
-	connection?: PiConnection | SubagentStatusConnection;
+	connection?: PiConnection;
 	/** Poll cadence in ms; overridable for tests. Default 3000. */
 	subagentPollMs?: number;
 	/** Batch-4 (B4): optional file-preview opener the run modal can use —
@@ -802,13 +815,10 @@ export class SessionPanel {
 	): Promise<unknown> {
 		const connection = this.opts.connection;
 		if (!connection) return Promise.reject(new Error("not connected"));
-		// The request union widens server-side (T3); the panel-level slice accepts it.
-		const request = connection.request.bind(connection) as (command: SubagentStatusCommand) => Promise<unknown>;
-		const mode = payload.type === "subagent_steer" ? payload.mode : undefined;
-		const reason = payload.type === "subagent_stop" ? "requested from the web console" : undefined;
-		return payload.type === "subagent_steer"
-			? request({ type: "subagent_steer", runId, message: payload.message, mode })
-			: request({ type: "subagent_stop", runId, reason });
+		if (payload.type === "subagent_steer") {
+			return connection.request({ type: "subagent_steer", runId, message: payload.message, mode: payload.mode });
+		}
+		return connection.request({ type: "subagent_stop", runId, reason: "requested from the web console" });
 	}
 
 	// ------------------------------------------------------------------

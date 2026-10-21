@@ -980,7 +980,10 @@
 	border: 1px solid var(--c-hairline);
 	border-radius: 8px;
 	padding: 8px 10px;
-	max-height: 220px;
+	/* Review wave (T2 P1-2): the modal now carries the FULL prompt (taskFull,
+	 * up to 4k chars) — bound its height and let it scroll instead of pushing
+	 * the steer form out of the sheet. */
+	max-height: 22vh;
 	overflow-y: auto;
 	overscroll-behavior: contain;
 }

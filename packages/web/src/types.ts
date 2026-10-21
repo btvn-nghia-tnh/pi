@@ -104,6 +104,14 @@ export type ClientCommand =
 	| (RpcCommandBase & { type: "mcp_test"; server: string; scope: "project" | "global"; cwd?: string })
 	| (RpcCommandBase & { type: "subagent_status" })
 	| (RpcCommandBase & {
+			type: "subagent_steer";
+			runId: string;
+			message: string;
+			mode?: "steer" | "follow_up" | "auto";
+			source?: string;
+	  })
+	| (RpcCommandBase & { type: "subagent_stop"; runId: string; reason?: string })
+	| (RpcCommandBase & {
 			type: "mcp_test";
 			server: string;
 			scope: "project" | "global";

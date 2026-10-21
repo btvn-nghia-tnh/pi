@@ -12,8 +12,6 @@ import { h } from "../dom.ts";
 export interface PanelResizerOpts {
 	/** Called with the clamped width during drags and on boot restore. */
 	onWidth(px: number): void;
-	/** Initial width in px used when nothing is stored. */
-	initial: number;
 	/** Minimum width in px (default 200). */
 	min?: number;
 	/** Maximum width in px (default 480). */
@@ -41,7 +39,13 @@ export interface PanelResizerOpts {
 
 export interface PanelResizerHandle {
 	readonly el: HTMLElement;
-	/** Cancels any in-flight drag, removes listeners + element. Call on unmount. */
+	/**
+	 * Detaches the handle from the DOM while keeping its event listeners — the
+	 * same handle can be re-appended later (pages unmount/remount across route
+	 * switches and re-append this element). Review wave: the previous version
+	 * removed the listeners here, which silently killed every resizer after the
+	 * first page remount (chat sidebar + right panel both froze).
+	 */
 	destroy(): void;
 }
 
@@ -61,7 +65,9 @@ export function readStoredPanelWidth(key: string, min: number, max: number): num
 		if (!Number.isFinite(parsed)) return undefined;
 		return clampPanelWidth(parsed, min, max);
 	} catch {
-		// Storage unavailable (private mode / disabled) — caller falls back to initial.
+		// Storage unavailable (private mode / disabled) — caller falls back to
+		// its CSS-var default (the `initial` option was dropped in the review
+		// wave: makePanelResizer never used it, callers apply CSS defaults).
 		return undefined;
 	}
 }
@@ -128,11 +134,11 @@ export function makePanelResizer(opts: PanelResizerOpts): PanelResizerHandle {
 	return {
 		el,
 		destroy(): void {
+			// Listeners stay attached: `el` is reusable across remounts (see the
+			// PanelResizerHandle.destroy doc — removing them killed the handle
+			// after the first remount).
 			resizing = false;
-			el.removeEventListener("pointerdown", onPointerDown as EventListener);
-			el.removeEventListener("pointermove", onPointerMove as EventListener);
-			el.removeEventListener("pointerup", endResize as EventListener);
-			el.removeEventListener("lostpointercapture", endResize as EventListener);
+			el.classList.remove("is-dragging");
 			el.remove();
 		},
 	};
