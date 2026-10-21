@@ -1706,10 +1706,6 @@ export class App {
 	private connectedBase: ConnectedPayload = { type: "connected", version: "", messages: [] };
 
 	/** Refresh the sidebar's disk session list (all projects). */
-	// ---- issue batch 3 (lane C): sync project-roots feed for the MCP page ----
-	/** All known project cwds (disk sessions union open slots), stable order. */
-	private knownProjectCwds: string[] = [];
-
 	private refreshSessionsList(): void {
 		void this.connection
 			?.request<{
@@ -1737,15 +1733,6 @@ export class App {
 						messageCount: session.messageCount,
 					})),
 				);
-				const cwdSet = new Set<string>();
-				for (const session of sessions) {
-					if (session.cwd) cwdSet.add(session.cwd);
-				}
-				for (const store of this.sessionStores.values()) {
-					const cwd = store.getState().contextInfo?.cwd;
-					if (cwd) cwdSet.add(cwd);
-				}
-				this.knownProjectCwds = [...cwdSet];
 			})
 			.catch(() => {});
 	}

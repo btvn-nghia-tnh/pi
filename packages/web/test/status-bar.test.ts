@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { lastAssistantUsage, statusBarProjector } from "../src/components/status-bar.ts";
+import { isMcpStatusChip, lastAssistantUsage, statusBarProjector } from "../src/components/status-bar.ts";
 import { contextLabel } from "../src/usage-text.ts";
 
 const baseState = {
@@ -142,4 +142,13 @@ test("lastAssistantUsage scans items newest-first and skips zero-usage assistant
 	} as never as Parameters<typeof statusBarProjector>[0];
 	const usage = lastAssistantUsage(state);
 	assert.equal(usage?.totalTokens, 100_000);
+});
+
+test("isMcpStatusChip matches the MCP fleet line with and without the plug emoji (batch-4 B6)", () => {
+	assert.equal(isMcpStatusChip("🔌 MCP: 2 servers enabled (1 connected)"), true);
+	assert.equal(isMcpStatusChip("MCP: 5 servers enabled (1 connected)"), true);
+	assert.equal(isMcpStatusChip("  🔌 MCP — 0 servers disabled  "), true);
+	assert.equal(isMcpStatusChip("Ⓜ ask 🔒"), false);
+	assert.equal(isMcpStatusChip("mcpi unrelated"), false);
+	assert.equal(isMcpStatusChip(""), false);
 });

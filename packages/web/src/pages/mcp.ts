@@ -1,12 +1,11 @@
 /**
- * MCP page (spec §3.4, mockup 04-mcp.svg): live-status tiles + server cards
- * (enable/disable toggles + reconnect + sign-in, control fallback per spec
- * §6.2 / R18), and CONFIGURED SERVERS grouped per project and for the pi
- * global config (mcp_config_list): every scope block lists its file-backed
- * entries (transport, disabled, live badge, on-disk reveal) and carries its
- * own Add button. Adds for a project other than the active one are guarded —
- * mcp_config_add writes to the ACTIVE session's project, so the dialog
- * refuses rather than corrupting another project's config.
+ * MCP page (spec §3.4, mockup 04-mcp.svg) — GLOBAL manager (batch-4 B6):
+ * live-status tiles + fleet cards (enable/disable toggles + reconnect +
+ * sign-in, control fallback per spec §6.2 / R18) and the GLOBAL config
+ * layer (mcp_config_list): file-backed entries (transport, disabled, live
+ * badge, on-disk reveal) with its own Add button. The PROJECT override layer
+ * (.pi/mcp.json) moved to the status-bar-chip modal
+ * (components/mcp-local-modal.ts).
  */
 
 import { chipEl, iconEl, openAnchoredMenu, pillEl, toggleEl } from "../components/kit.ts";
@@ -303,40 +302,27 @@ function basenameOf(path: string): string {
 }
 
 /**
- * Group config entries into per-project sections (cwds order) with the global
- * section last. Orphaned project entries (cwd absent from cwds) are dropped.
- * Live names flow ONLY to the section matching the active cwd — global rows
- * never get live chips (project override shadowing makes a global name
- * ambiguous until the adapter reports per-source data).
+ * Global-only CONFIG section (batch-4 B6): the page manages the GLOBAL
+ * layer exclusively — the project override layer moved to the status-bar
+ * chip modal. Live chips stay off global rows (project override shadowing
+ * makes a global name ambiguous until the adapter reports per-source data).
  */
-export function sectionsFromEntries(
-	entries: McpConfigEntry[],
-	cwds: string[],
-	activeCwd: string | undefined,
-	liveNames: string[] = [],
-): McpSectionData[] {
-	const sections: McpSectionData[] = [];
-	const seen = new Set<string>();
-	for (const cwd of cwds) {
-		if (!cwd || seen.has(cwd)) continue;
-		seen.add(cwd);
-		sections.push({
-			scope: "project",
-			cwd,
-			title: basenameOf(cwd),
-			pathHint: `${cwd.replace(/\/+$/, "")}/.pi/mcp.json`,
-			entries: entries.filter((entry) => entry.scope === "project" && entry.cwd === cwd),
-			liveNames: cwd === activeCwd ? [...liveNames] : [],
-		});
-	}
-	sections.push({
+export function globalSectionFromEntries(entries: McpConfigEntry[]): McpSectionData {
+	return {
 		scope: "global",
 		title: "Global",
 		pathHint: "pi global config",
 		entries: entries.filter((entry) => entry.scope === "global"),
 		liveNames: [],
-	});
-	return sections;
+	};
+}
+
+/** First global config file path seen in the entries (reveal target). Pure. */
+export function globalConfigPath(entries: McpConfigEntry[]): string | undefined {
+	for (const entry of entries) {
+		if (entry.scope === "global") return entry.path;
+	}
+	return undefined;
 }
 
 /** Transport label from a raw config definition (command wins over url). */
@@ -369,6 +355,195 @@ export function addServerRequest(form: AddServerForm): AddServerRequest {
 }
 
 // ---------------------------------------------------------------------------
+// Shared test-connection control (page + local modal)
+// ---------------------------------------------------------------------------
+
+/**
+ * Row/card-local test control shared by the page and the local modal
+ * (Lane F origin, batch-4 extraction): before firing — a "test" button
+ * (disabled when the row targets a project but no project cwd is known);
+ * after firing — the result pill plus a small re-run affordance.
+ */
+export interface TestControlHost {
+	/** Fire the probe for this row; the host tracks busy/result state. */
+	onTest(payload: { server: string; scope: "project" | "global"; cwd?: string }): void;
+	/** State for a slot key (testKeyOf); undefined when never tested. */
+	resultOf(key: string): McpTestState | undefined;
+}
+
+export function testControlEl(
+	host: TestControlHost,
+	payload: { server: string; scope: "project" | "global"; cwd?: string },
+): HTMLElement {
+	const key = testKeyOf(payload.scope, payload.cwd, payload.server);
+	const state = host.resultOf(key);
+	const rerunControl = h(
+		"button",
+		{ class: "c-btn", title: `test ${payload.server} again`, onclick: () => host.onTest(payload) },
+		iconEl("refresh"),
+	);
+	if (state) {
+		const pill = testStatePill(state);
+		return h(
+			"span",
+			{ style: "display:inline-flex;align-items:center;gap:4px" },
+			chipEl(pill.label, {
+				tone: pill.tone,
+				mono: true,
+				title: state.kind === "result" ? state.result.detail : undefined,
+			}),
+			state.kind === "busy" ? undefined : rerunControl,
+		);
+	}
+	const disabled = payload.scope === "project" && payload.cwd === undefined;
+	return h(
+		"button",
+		{
+			class: "c-btn",
+			disabled: disabled || undefined,
+			title: disabled
+				? "open a session in this project first"
+				: "Probe this server (MCP initialize handshake, 5s budget)",
+			onclick: disabled ? undefined : () => host.onTest(payload),
+		},
+		iconEl("search"),
+		"test",
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Add-server dialog (shared by the global page and the local modal)
+// ---------------------------------------------------------------------------
+
+/** Narrow deps the dialog needs (batch-4 extraction so the local modal reuses it). */
+export interface AddServerFormDeps {
+	connection(): PiConnection | undefined;
+	/** Active project cwd; project-scope adds are refused without one. */
+	projectCwd(): string | undefined;
+	pushToast(message: string, level: "info" | "warning" | "error"): void;
+	/** Refetch hook — the caller re-reads its config-backed view after a successful add. */
+	onAdded(): void;
+}
+
+/**
+ * Anchored add-server form (same workflow from batch 2): pick transport,
+ * fill name/command/args or url, submit as an mcp_config_add request.
+ * Project-scope adds are guarded — they land in the ACTIVE session's project,
+ * so the dialog refuses rather than corrupting another project's config.
+ */
+export function openAddServerForm(
+	anchor: HTMLElement,
+	target: { scope: "project" | "global"; cwd?: string },
+	deps: AddServerFormDeps,
+): void {
+	let transport: AddServerTransport = "stdio";
+	const addingTo = target.scope === "global" ? "the pi global config" : `${basenameOf(target.cwd ?? "")}/.pi/mcp.json`;
+
+	openAnchoredMenu(anchor, (close) => {
+		const nameInput = h("input", {
+			class: "c-popover-search",
+			placeholder: "server name — e.g. github",
+		}) as HTMLInputElement;
+		const transportSelect = h(
+			"select",
+			{ class: "c-popover-search" },
+			h("option", { value: "stdio" }, "stdio (local command)"),
+			h("option", { value: "http" }, "http (remote URL)"),
+		) as HTMLSelectElement;
+		transportSelect.addEventListener("change", () => {
+			transport = transportSelect.value === "http" ? "http" : "stdio";
+			syncTransportRows();
+		});
+
+		const commandInput = h("input", {
+			class: "c-popover-search",
+			placeholder: "command — e.g. npx -y some-mcp-server",
+		}) as HTMLInputElement;
+		const argsInput = h("input", {
+			class: "c-popover-search",
+			placeholder: "args (comma-separated, optional)",
+		}) as HTMLInputElement;
+		const urlInput = h("input", {
+			class: "c-popover-search",
+			placeholder: "https://host/mcp",
+		}) as HTMLInputElement;
+
+		const stdioRows = h("div", {}, label("command"), commandInput, label("args"), argsInput);
+		const httpRows = h("div", {}, label("url"), urlInput);
+		const syncTransportRows = (): void => {
+			stdioRows.style.display = transport === "stdio" ? "" : "none";
+			httpRows.style.display = transport === "http" ? "" : "none";
+		};
+		syncTransportRows();
+
+		function label(text: string): HTMLElement {
+			return h("div", { class: "c-usage-sub", style: "margin-top:8px" }, text);
+		}
+
+		async function submit(): Promise<void> {
+			if (target.scope === "project") {
+				const wanted = target.cwd ?? deps.projectCwd();
+				if (!wanted) {
+					deps.pushToast("project unknown — open a session first", "error");
+					return;
+				}
+				if (deps.projectCwd() && wanted !== deps.projectCwd()) {
+					deps.pushToast(
+						`switch to a session in ${basenameOf(wanted)} first — project adds target the active project`,
+						"warning",
+					);
+					return;
+				}
+			}
+			const request = addServerRequest({
+				name: nameInput.value,
+				transport,
+				scope: target.scope,
+				command: commandInput.value,
+				argsText: argsInput.value,
+				url: urlInput.value,
+			});
+			if ("error" in request) {
+				deps.pushToast(request.error, "error");
+				return;
+			}
+			const connection = deps.connection();
+			if (!connection) {
+				deps.pushToast("not connected — try again once the session is up", "error");
+				return;
+			}
+			try {
+				const data = await connection.request<{ path: string }>({ type: "mcp_config_add", ...request });
+				deps.pushToast(`added to ${data.path} — applies on next session start`, "info");
+				close();
+				deps.onAdded();
+			} catch (error: unknown) {
+				deps.pushToast(`add failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+			}
+		}
+
+		return h(
+			"div",
+			{ class: "cp-add-server-form", style: "display:flex;flex-direction:column;gap:6px;min-width:300px" },
+			h("div", { class: "c-card-title" }, "Add MCP server"),
+			label("name"),
+			nameInput,
+			label("transport"),
+			transportSelect,
+			stdioRows,
+			httpRows,
+			h("span", { class: "c-usage-sub" }, `Adding to ${addingTo} — applies on next session start.`),
+			h(
+				"div",
+				{ style: "display:flex;gap:8px;justify-content:flex-end;margin-top:8px" },
+				h("button", { class: "c-btn", onclick: () => close() }, "Cancel"),
+				h("button", { class: "c-btn c-btn--primary", onclick: () => void submit() }, "Add server"),
+			),
+		);
+	});
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -381,14 +556,9 @@ export interface McpPageDeps {
 	 * then on every widget refresh. Returns the unsubscribe function.
 	 */
 	subscribeWidget(cb: (data: McpWidgetData | undefined) => void): () => void;
-	/** Project cwd for the config-reveal button (primary slot cwd). */
+	/** Active project cwd (live-card probes + /mcp-auth fallback uses it). */
 	projectCwd(): string | undefined;
-	/**
-	 * Known project directories (list_sessions cwds union + open sessions),
-	 * in stable display order — drives the per-project config sections.
-	 */
-	projectCwds(): string[];
-	/** Router navigation hook (reserved for cross-page links). */
+	/** Router navigation hook (chat fallback for /mcp-auth, cross-page links). */
 	onNavigate(page: "chat" | "home" | "projects" | "usage" | "settings"): void;
 	/** Opens the file preview panel at the given absolute path. */
 	openPreview(path: string): void;
@@ -400,8 +570,6 @@ export interface McpPageDeps {
 	 */
 	promptDraft?(text: string): void;
 }
-
-const CONFIG_OVERRIDE_RELPATH = "/.pi/mcp.json";
 
 export function createMcpPage(deps: McpPageDeps): ShellPage {
 	let widgetData: McpWidgetData | undefined;
@@ -428,9 +596,10 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 		configError = undefined;
 		render();
 		try {
+			// batch-4 B6: the page owns the GLOBAL layer only — no project lookups.
 			const data = await connection.request<{ entries: McpConfigEntry[] }>({
 				type: "mcp_config_list",
-				cwds: deps.projectCwds(),
+				cwds: [],
 			});
 			configEntries = data.entries ?? [];
 			configLoaded = true;
@@ -488,6 +657,12 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 		}
 	}
 
+	// Page-local host wiring for the shared test control (modal has its own).
+	const pageTestHost: TestControlHost = {
+		onTest: (payload) => void runTest(payload),
+		resultOf: (key) => testResults.get(key),
+	};
+
 	/** Fire an mcp_test probe and persist the outcome at the slot key. */
 	async function runTest(payload: { server: string; scope: "project" | "global"; cwd?: string }): Promise<void> {
 		const connection = deps.connection();
@@ -507,166 +682,25 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 		render();
 	}
 
-	/**
-	 * Row/card-local test control (Lane F): before firing — a "test" button
-	 * (disabled when the live card carries no project cwd); after firing — the
-	 * result pill plus a small re-run affordance, replacing the button.
-	 */
-	function testControlEl(payload: { server: string; scope: "project" | "global"; cwd?: string }): HTMLElement {
-		const key = testKeyOf(payload.scope, payload.cwd, payload.server);
-		const state = testResults.get(key);
-		const rerunControl = h(
-			"button",
-			{ class: "c-btn", title: `test ${payload.server} again`, onclick: () => void runTest(payload) },
-			iconEl("refresh"),
-		);
-		if (state) {
-			const pill = testStatePill(state);
-			return h(
-				"span",
-				{ style: "display:inline-flex;align-items:center;gap:4px" },
-				chipEl(pill.label, {
-					tone: pill.tone,
-					mono: true,
-					title: state.kind === "result" ? state.result.detail : undefined,
-				}),
-				state.kind === "busy" ? undefined : rerunControl,
-			);
-		}
-		const disabled = payload.scope === "project" && payload.cwd === undefined;
-		return h(
-			"button",
-			{
-				class: "c-btn",
-				disabled: disabled || undefined,
-				title: disabled
-					? "open a session in this project first"
-					: "Probe this server (MCP initialize handshake, 5s budget)",
-				onclick: disabled ? undefined : () => void runTest(payload),
-			},
-			iconEl("search"),
-			"test",
-		);
-	}
-
+	/** (batch-4 B6) Reveal the GLOBAL config file: first global path from the
+	 * loaded entries, or a hint when the global config is empty/absent. */
 	function revealConfig(): void {
-		const cwd = deps.projectCwd();
-		if (!cwd) {
-			deps.pushToast("project cwd unknown — cannot reveal config", "warning");
+		const path = globalConfigPath(configEntries ?? []);
+		if (!path) {
+			deps.pushToast("no global config file yet — add a server to create it", "warning");
 			return;
 		}
-		deps.openPreview(`${cwd}${CONFIG_OVERRIDE_RELPATH}`);
+		deps.openPreview(path);
 	}
 
 	function openAddServerDialog(anchor: HTMLElement, target: { scope: "project" | "global"; cwd?: string }): void {
-		let transport: AddServerTransport = "stdio";
-		const addingTo =
-			target.scope === "global" ? "the pi global config" : `${basenameOf(target.cwd ?? "")}/.pi/mcp.json`;
-
-		openAnchoredMenu(anchor, (close) => {
-			const nameInput = h("input", {
-				class: "c-popover-search",
-				placeholder: "server name — e.g. github",
-			}) as HTMLInputElement;
-			const transportSelect = h(
-				"select",
-				{ class: "c-popover-search" },
-				h("option", { value: "stdio" }, "stdio (local command)"),
-				h("option", { value: "http" }, "http (remote URL)"),
-			) as HTMLSelectElement;
-			transportSelect.addEventListener("change", () => {
-				transport = transportSelect.value === "http" ? "http" : "stdio";
-				syncTransportRows();
-			});
-
-			const commandInput = h("input", {
-				class: "c-popover-search",
-				placeholder: "command — e.g. npx -y some-mcp-server",
-			}) as HTMLInputElement;
-			const argsInput = h("input", {
-				class: "c-popover-search",
-				placeholder: "args (comma-separated, optional)",
-			}) as HTMLInputElement;
-			const urlInput = h("input", {
-				class: "c-popover-search",
-				placeholder: "https://host/mcp",
-			}) as HTMLInputElement;
-
-			const stdioRows = h("div", {}, label("command"), commandInput, label("args"), argsInput);
-			const httpRows = h("div", {}, label("url"), urlInput);
-			const syncTransportRows = (): void => {
-				stdioRows.style.display = transport === "stdio" ? "" : "none";
-				httpRows.style.display = transport === "http" ? "" : "none";
-			};
-			syncTransportRows();
-
-			function label(text: string): HTMLElement {
-				return h("div", { class: "c-usage-sub", style: "margin-top:8px" }, text);
-			}
-
-			async function submit(): Promise<void> {
-				if (target.scope === "project") {
-					const wanted = target.cwd ?? deps.projectCwd();
-					if (!wanted) {
-						deps.pushToast("project unknown — open a session first", "error");
-						return;
-					}
-					if (deps.projectCwd() && wanted !== deps.projectCwd()) {
-						deps.pushToast(
-							`switch to a session in ${basenameOf(wanted)} first — project adds target the active project`,
-							"warning",
-						);
-						return;
-					}
-				}
-				const request = addServerRequest({
-					name: nameInput.value,
-					transport,
-					scope: target.scope,
-					command: commandInput.value,
-					argsText: argsInput.value,
-					url: urlInput.value,
-				});
-				if ("error" in request) {
-					deps.pushToast(request.error, "error");
-					return;
-				}
-				const connection = deps.connection();
-				if (!connection) {
-					deps.pushToast("not connected — try again once the session is up", "error");
-					return;
-				}
-				try {
-					const data = await connection.request<{ path: string }>({ type: "mcp_config_add", ...request });
-					deps.pushToast(`added to ${data.path} — applies on next session start`, "info");
-					close();
-					void refreshConfig();
-				} catch (error: unknown) {
-					deps.pushToast(`add failed: ${error instanceof Error ? error.message : String(error)}`, "error");
-				}
-			}
-
-			return h(
-				"div",
-				{ class: "cp-add-server-form", style: "display:flex;flex-direction:column;gap:6px;min-width:300px" },
-				h("div", { class: "c-card-title" }, "Add MCP server"),
-				label("name"),
-				nameInput,
-				label("transport"),
-				transportSelect,
-				stdioRows,
-				httpRows,
-				h("span", { class: "c-usage-sub" }, `Adding to ${addingTo} — applies on next session start.`),
-				h(
-					"div",
-					{ style: "display:flex;gap:8px;justify-content:flex-end;margin-top:8px" },
-					h("button", { class: "c-btn", onclick: () => close() }, "Cancel"),
-					h("button", { class: "c-btn c-btn--primary", onclick: () => void submit() }, "Add server"),
-				),
-			);
+		openAddServerForm(anchor, target, {
+			connection: deps.connection,
+			projectCwd: deps.projectCwd,
+			pushToast: deps.pushToast,
+			onAdded: () => void refreshConfig(),
 		});
 	}
-
 	function tileEl(tile: McpTileData): HTMLElement {
 		const card = h(
 			"div",
@@ -715,7 +749,9 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 		);
 		// Lane F: live cards live in the ACTIVE project's circuit (cwd = that
 		// project); without one the probe would target nothing — disable it.
-		actionsRow.appendChild(testControlEl({ server: entry.name, scope: "project", cwd: deps.projectCwd() }));
+		actionsRow.appendChild(
+			testControlEl(pageTestHost, { server: entry.name, scope: "project", cwd: deps.projectCwd() }),
+		);
 		if (card.actionsAvailable.includes("sign-in")) {
 			actionsRow.appendChild(
 				h(
@@ -753,7 +789,7 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 		return h("div", { class: "c-card", style: "flex:1;min-width:320px" }, titleRow, actionsRow, catalog);
 	}
 
-	/** CONFIGURED SERVERS block: per-project sections + global (mcp_config_list). */
+	/** CONFIGURED SERVERS block: the GLOBAL config layer (batch-4 B6). */
 	function configEl(): HTMLElement {
 		const block = h("div", { style: "display:flex;flex-direction:column;gap:12px" });
 		block.appendChild(
@@ -771,8 +807,7 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 				),
 			),
 		);
-		const liveNames = (widgetData?.servers ?? []).map((server) => server.name);
-		const sections = sectionsFromEntries(configEntries ?? [], deps.projectCwds(), deps.projectCwd(), liveNames);
+		const sections = [globalSectionFromEntries(configEntries ?? [])];
 		for (const section of sections) {
 			block.appendChild(sectionEl(section));
 		}
@@ -841,7 +876,7 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 			row.appendChild(chipEl("live", { tone: "ok", title: "running in the active session" }));
 		}
 		row.appendChild(h("span", { style: "flex:1" }));
-		row.appendChild(testControlEl({ server: entry.name, scope: section.scope, cwd: section.cwd }));
+		row.appendChild(testControlEl(pageTestHost, { server: entry.name, scope: section.scope, cwd: section.cwd }));
 		row.appendChild(
 			h(
 				"button",
@@ -862,9 +897,9 @@ export function createMcpPage(deps: McpPageDeps): ShellPage {
 			h("span", { class: "c-page-title" }, "MCP"),
 			h(
 				"button",
-				{ class: "c-btn", title: "Reveal the project Pi MCP override config", onclick: revealConfig },
+				{ class: "c-btn", title: "Reveal the pi global MCP config", onclick: revealConfig },
 				iconEl("file"),
-				".pi/mcp.json",
+				"global config",
 			),
 		);
 		element.appendChild(header);

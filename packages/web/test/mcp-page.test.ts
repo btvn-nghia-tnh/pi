@@ -3,10 +3,11 @@ import test from "node:test";
 import {
 	addServerRequest,
 	controlOutcome,
+	globalConfigPath,
+	globalSectionFromEntries,
 	type McpConfigEntry,
 	mcpCard,
 	mcpTiles,
-	sectionsFromEntries,
 	testKeyOf,
 	testStatePill,
 	toolRows,
@@ -295,8 +296,6 @@ const configEntries: McpConfigEntry[] = [
 	},
 ];
 
-const projectCwds = ["/w/pi", "/w/media", "/w/dotfiles"];
-
 test("transportOf derives stdio/http from the definition, command wins", () => {
 	assert.equal(transportOf({ command: "npx -y gh-mcp" }), "stdio");
 	assert.equal(transportOf({ url: "https://mcp.host/api" }), "http");
@@ -307,66 +306,23 @@ test("transportOf derives stdio/http from the definition, command wins", () => {
 	assert.equal(transportOf(weird), "—");
 });
 
-test("sectionsFromEntries lays out project sections in cwds order, global last", () => {
-	const sections = sectionsFromEntries(configEntries, projectCwds, "/w/pi", ["github", "playwright"]);
-	assert.equal(sections.length, 4);
+test("globalSectionFromEntries keeps only the global layer (batch-4 B6)", () => {
+	const section = globalSectionFromEntries(configEntries);
+	assert.equal(section.scope, "global");
+	assert.equal(section.title, "Global");
+	assert.equal(section.pathHint, "pi global config");
+	assert.deepEqual(section.liveNames, []);
 	assert.deepEqual(
-		sections.map((s) => s.title),
-		["pi", "media", "dotfiles", "Global"],
-	);
-	assert.equal(sections[0].scope, "project");
-	assert.equal(sections[0].pathHint, "/w/pi/.pi/mcp.json");
-	assert.deepEqual(
-		sections[0].entries.map((e) => e.name),
-		["github", "scratch"],
-	);
-	assert.deepEqual(
-		sections[1].entries.map((e) => e.name),
-		["ytdl"],
-	);
-	assert.deepEqual(sections[2].entries, []);
-	assert.equal(sections[3].scope, "global");
-	assert.deepEqual(
-		sections[3].entries.map((e) => e.name),
+		section.entries.map((e) => e.name),
 		["bioturing", "legacy"],
 	);
 });
 
-test("live merging flows only to the section matching the active cwd", () => {
-	const sections = sectionsFromEntries(configEntries, projectCwds, "/w/media", ["ytdl", "github"]);
-	assert.deepEqual(sections[0].liveNames, []); // pi section is not active
-	assert.deepEqual(sections[1].liveNames, ["ytdl", "github"]); // media is active
-	assert.deepEqual(sections[3].liveNames, []); // global rows never get live chips
-
-	const noActive = sectionsFromEntries(configEntries, projectCwds, undefined, ["github"]);
-	assert.deepEqual(noActive[0].liveNames, []);
-});
-
-test("sectionsFromEntries dedupes repeated cwds, drops orphan entries", () => {
-	const ghost: McpConfigEntry = {
-		scope: "project",
-		cwd: "/w/ghost",
-		path: "/w/ghost/.pi/mcp.json",
-		name: "x",
-		definition: {},
-	};
-	const sections = sectionsFromEntries([...configEntries, ghost], ["/w/pi", "/w/pi", "/w/media"], undefined);
-	assert.equal(sections.length, 3); // pi, media, Global
-	assert.deepEqual(
-		sections.map((s) => s.cwd ?? "global"),
-		["/w/pi", "/w/media", "global"],
-	);
-	// the ghost entry (cwd absent from cwds) is dropped, not invented into a section
-	assert.ok(!sections.some((s) => s.entries.some((e) => e.name === "x")));
-});
-
-test("sectionsFromEntries basename handles the filesystem root and slashes", () => {
-	const sections = sectionsFromEntries([], ["/", "/w/pi/"], undefined);
-	assert.equal(sections[0].title, "/");
-	assert.equal(sections[0].pathHint, "/.pi/mcp.json");
-	assert.equal(sections[1].title, "pi");
-	assert.equal(sections[1].pathHint, "/w/pi/.pi/mcp.json");
-	assert.equal(sections.length, 3); // /, /w/pi/, Global
+test("globalConfigPath reveals the first global entry path, undefined when none", () => {
+	assert.equal(globalConfigPath(configEntries), "/home/u/.pi/agent/mcp.json");
+	const projectOnly: McpConfigEntry[] = configEntries.filter((entry) => entry.scope === "project");
+	assert.equal(globalConfigPath(projectOnly), undefined);
+	assert.equal(globalConfigPath([]), undefined);
 });
 
 // ---------------------------------------------------------------------------

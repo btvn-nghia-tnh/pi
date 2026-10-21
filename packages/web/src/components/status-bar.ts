@@ -148,12 +148,24 @@ export function contextMenu(
 }
 
 /**
+ * Batch-4 B6: the sanitized extension-status text that renders the MCP
+ * fleet line ("🔌 MCP: N servers enabled (M connected)") opens the local-MCP
+ * manager modal when onOpenMcpLocal is wired. Pure — unit-tested.
+ */
+export function isMcpStatusChip(text: string): boolean {
+	return /^(?:🔌)?\s*MCP\b/i.test(text.trim());
+}
+
+/**
  * Popover callbacks receive the anchor element so the popover can be
  * positioned on the exact chip/button the user clicked (Task 12 wiring).
  */
 export interface StatusBarOpts {
 	onOpenModels(anchor: HTMLElement): void;
 	onOpenContext(anchor: HTMLElement): void;
+	/** Batch-4 B6: opens the local-MCP manager modal; when provided, the MCP
+	 * extension-status chip becomes clickable. */
+	onOpenMcpLocal?(): void;
 }
 
 export class StatusBarView {
@@ -220,9 +232,15 @@ export class StatusBarView {
 		modelChip.addEventListener("click", () => {
 			this.opts.onOpenModels(modelChip);
 		});
-		const statusChips = parts.statuses.map((s) =>
-			chipEl(s.text, { tone: s.tone === "info" ? "blue" : s.tone, mono: false, title: `extension: ${s.key}` }),
-		);
+		const statusChips = parts.statuses.map((s) => {
+			const mcpChip = this.opts.onOpenMcpLocal !== undefined && isMcpStatusChip(s.text);
+			return chipEl(s.text, {
+				tone: s.tone === "info" ? "blue" : s.tone,
+				mono: false,
+				title: mcpChip ? "Manage this project's local MCP servers" : `extension: ${s.key}`,
+				...(mcpChip ? { onClick: () => this.opts.onOpenMcpLocal?.() } : {}),
+			});
+		});
 		right.replaceChildren(h("span", { class: "c-sb-totals mono" }, parts.rightText), ...statusChips, modelChip);
 	}
 }
