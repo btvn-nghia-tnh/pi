@@ -5,6 +5,7 @@
 
 import { EditorToolbar } from "./components/editor-toolbar.ts";
 import { openAnchoredMenu } from "./components/kit.ts";
+import { McpLocalModal } from "./components/mcp-local-modal.ts";
 import { SessionPanel } from "./components/session-panel.ts";
 import { contextMenu, StatusBarView } from "./components/status-bar.ts";
 import { connect, extensionUiResponse, type PiConnection } from "./connection.ts";
@@ -384,8 +385,6 @@ export class App {
 				connection: () => this.connection,
 				subscribeWidget: (cb: (data: McpWidgetData | undefined) => void) => this.subscribeWidget(cb),
 				projectCwd,
-				// issue batch 3 (lane C): known project roots for per-scope sections.
-				projectCwds: (): string[] => this.knownProjectCwds,
 				onNavigate: navigate,
 				openPreview,
 				pushToast,
@@ -412,6 +411,22 @@ export class App {
 	private promptDraft(text: string): void {
 		this.editor.setText(text);
 		this.router?.navigate({ page: "chat" });
+	}
+
+	/** Batch-4 B6: open the local MCP manager modal from the status-bar chip. */
+	private openMcpLocal(): void {
+		if (!this.mcpLocalModal) {
+			this.mcpLocalModal = new McpLocalModal({
+				connection: () => this.connection,
+				subscribeWidget: (cb: (data: McpWidgetData | undefined) => void) => this.subscribeWidget(cb),
+				// The modal follows the ACTIVE session's cwd (the status bar lives in it).
+				projectCwd: () => this.store.getState().contextInfo?.cwd ?? undefined,
+				openPreview: (path) => void this.openPreview(path, this.activeSessionId),
+				pushToast: (message, level) => this.store.pushNotification(message, level),
+				promptDraft: (text) => this.promptDraft(text),
+			});
+		}
+		this.mcpLocalModal.open();
 	}
 
 	/** Widget feed for MCP/Home: replay + active-store updates, switch-aware. */
@@ -683,6 +698,8 @@ export class App {
 	private toastsHost!: HTMLElement;
 	/** Overlay-widget modal host, likewise rebuilt per active session. */
 	private overlayHost!: HTMLElement;
+	/** Batch-4 B6: status-bar-chip local MCP manager; lazily built, reused. */
+	private mcpLocalModal: McpLocalModal | undefined;
 
 	/** Rebuild the session-bound views for the active store. */
 	private rebuildSessionViews(): void {
@@ -769,6 +786,7 @@ export class App {
 		const statusBar = new StatusBarView(store, {
 			onOpenModels: (anchor) => toolbar.openModelPicker(anchor),
 			onOpenContext: (anchor) => this.openContextMenu(anchor),
+			onOpenMcpLocal: () => this.openMcpLocal(),
 		});
 		hosts.statusBarHost.replaceChildren(statusBar.element);
 
@@ -1695,7 +1713,14 @@ export class App {
 	private refreshSessionsList(): void {
 		void this.connection
 			?.request<{
-				sessions: Array<{ file: string; cwd: string; name?: string; firstMessage?: string; modified?: string }>;
+				sessions: Array<{
+					file: string;
+					cwd: string;
+					name?: string;
+					firstMessage?: string;
+					modified?: string;
+					messageCount?: number;
+				}>;
 			}>({
 				type: "list_sessions",
 				scope: "all",
@@ -1708,6 +1733,8 @@ export class App {
 						cwd: session.cwd,
 						name: session.name?.trim() || session.firstMessage,
 						modified: new Date(session.modified ?? 0).getTime() || 0,
+						// Batch-4 B8: right-meta "N msgs" on chat sidebar rows.
+						messageCount: session.messageCount,
 					})),
 				);
 				const cwdSet = new Set<string>();

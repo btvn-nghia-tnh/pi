@@ -2,11 +2,14 @@
  * Multi-session sidebar: PERMANENTLY project-scoped — only the active
  * session's project renders (flat, no group headers; the Projects page owns
  * cross-project browsing). Open markers, running spinners, open/switch on
- * click, explicit close for open sessions, new-session button, and a
- * persisted whole-sidebar collapse.
+ * click, explicit close for open sessions, and a whole-sidebar collapse.
+ * Batch-4 B8 restyle (projects parity): header row with New + Reload buttons,
+ * a session filter input, and two-line rows (name + project cwd) with a
+ * right meta (`N msgs · relative time`).
  */
 
 import { h } from "../dom.ts";
+import { relativeTime } from "../usage-text.ts";
 
 export interface SidebarSessionInfo {
 	/** Session file path (identity on disk). */
@@ -17,6 +20,8 @@ export interface SidebarSessionInfo {
 	name?: string;
 	/** For sorting (newest first). */
 	modified: number;
+	/** Total messages (list_sessions) — right meta on the row (B8). */
+	messageCount?: number;
 }
 
 export interface SidebarHandlers {
@@ -57,17 +62,30 @@ export function isFlatScope(activeCwd: string | undefined): boolean {
 	return activeCwd !== undefined;
 }
 
+/**
+ * Pure row filter (batch-4 B8): a query matches a session's label (name or
+ * first message), its project cwd, or its file path ("lọc theo title +
+ * cwd + session id", per owner). Empty or whitespace-only queries pass
+ * everything; matching is case-insensitive.
+ */
+export function sessionRowMatches(row: { label: string; title: string; cwd: string }, query: string): boolean {
+	const q = query.trim().toLowerCase();
+	if (!q) return true;
+	return `${row.label} ${row.cwd} ${row.title}`.toLowerCase().includes(q);
+}
+
 export class SidebarView {
 	readonly element: HTMLElement;
 	private readonly handlers: SidebarHandlers;
 	private readonly groupsHost!: HTMLElement;
-	private readonly newListHost!: HTMLElement;
 	/** Sessions from list_sessions (disk). */
 	private sessionsList: SidebarSessionInfo[] = [];
 	/** Open sessions: session id → { sessionPath, cwd, primary }. */
 	private readonly openSessions = new Map<string, { sessionPath?: string; cwd: string; primary?: boolean }>();
 	private activeId: string | undefined;
 	private collapsed = false;
+	/** Session filter query (B8); lowercase, trimmed, updated by the input. */
+	private filterQuery = "";
 	/** Expanded project groups (revealSession target); flat scope ignores them. */
 	private readonly expandedGroups = new Set<string>();
 	private timer: ReturnType<typeof setInterval> | undefined;
@@ -86,14 +104,24 @@ export class SidebarView {
 		}
 		this.element = h("aside", { class: `sidebar${this.collapsed ? " collapsed" : ""}` });
 		this.element.appendChild(this.buildChrome());
+		// B8 list order: chrome buttons → filter input → project scope chip →
+		// scrollable session list (the bottom "+ New session" block is gone —
+		// New lives in the chrome row now, projects-page parity).
+		const filterInput = h("input", {
+			class: "c-popover-search",
+			placeholder: "Filter sessions…",
+			style: "width:100%;box-sizing:border-box",
+		}) as HTMLInputElement;
+		filterInput.addEventListener("input", () => {
+			this.filterQuery = filterInput.value.trim().toLowerCase();
+			this.render();
+		});
+		this.element.appendChild(h("div", { class: "sidebar-filter" }, filterInput));
 		// Head row: fixed project identity (no toggle — permanently scoped).
 		this.scopeHost = h("div", { class: "sidebar-scope" });
 		this.element.appendChild(this.scopeHost);
-		// Order per the layout spec: collapse button row, then scope chips,
-		// then "+ new", then the scrollable session list.
-		this.newListHost = h("div", { class: "sidebar-new" });
 		this.groupsHost = h("div", { class: "sidebar-groups" });
-		this.element.append(this.newListHost, this.groupsHost);
+		this.element.appendChild(this.groupsHost);
 	}
 
 	mount(): void {
@@ -233,11 +261,26 @@ export class SidebarView {
 	}
 
 	private buildChrome(): HTMLElement {
+		// B8 projects parity: [Sessions title] [＋ New] [⟳ reload] [◀ collapse].
+		// New opens a session in the active project's scope (the same flow the
+		// old bottom "+ New session" button — and every block before it — used).
+		const newSession = h(
+			"button",
+			{ class: "c-btn", title: "New session in this project", onclick: () => this.handlers.onNew(this.activeCwd()) },
+			"＋ New",
+		);
 		const toggle = h("button", { class: "sidebar-toggle", title: "Toggle sidebar (Ctrl+B)" }, "◀");
 		toggle.addEventListener("click", () => this.setCollapsed(!this.collapsed));
 		const reload = h("button", { class: "sidebar-toggle", title: "Reload session list" }, "⟳");
 		reload.addEventListener("click", () => this.handlers.onReload());
-		return h("div", { class: "sidebar-chrome" }, h("span", { class: "sidebar-title" }, "Sessions"), reload, toggle);
+		return h(
+			"div",
+			{ class: "sidebar-chrome" },
+			h("span", { class: "sidebar-title" }, "Sessions"),
+			newSession,
+			reload,
+			toggle,
+		);
 	}
 
 	/** Collapse/expand a project group (collapsed by default; expanded set persists). */
@@ -260,7 +303,6 @@ export class SidebarView {
 
 	private render(): void {
 		this.groupsHost.replaceChildren();
-		this.newListHost.replaceChildren();
 		this.renderScope();
 
 		// One entry per visible session: disk sessions merged with open
@@ -268,9 +310,11 @@ export class SidebarView {
 		interface Row {
 			label: string;
 			title: string;
+			cwd: string;
 			openId?: string;
 			primary?: boolean;
 			modified: number;
+			messageCount?: number;
 		}
 		const groups = new Map<string, Row[]>();
 		const pushRow = (cwd: string, row: Row): void => {
@@ -290,9 +334,11 @@ export class SidebarView {
 			pushRow(session.cwd, {
 				label: session.name?.trim() || session.path.split(/[\\/]/).pop() || "session",
 				title: session.path,
+				cwd: session.cwd,
 				openId,
 				primary: openId !== undefined ? this.openSessions.get(openId)?.primary : undefined,
 				modified: session.modified,
+				messageCount: session.messageCount,
 			});
 		}
 		for (const [id, data] of this.openSessions) {
@@ -303,6 +349,7 @@ export class SidebarView {
 			pushRow(data.cwd, {
 				label: "(new session)",
 				title: data.sessionPath ?? "unsaved session",
+				cwd: data.cwd,
 				openId: id,
 				primary: data.primary,
 				modified: Number.MAX_SAFE_INTEGER,
@@ -315,8 +362,11 @@ export class SidebarView {
 			{ activeCwd: this.activeCwd() },
 		);
 		const flat = isFlatScope(this.activeCwd());
-		for (const [cwd, rows] of orderedGroups) {
+		for (const [cwd, allRows] of orderedGroups) {
 			if (!scopedKeys.includes(cwd)) continue;
+			// B8 filter: keep only rows matching the chrome filter input.
+			const rows = allRows.filter((row) => sessionRowMatches(row, this.filterQuery));
+			if (rows.length === 0) continue;
 			rows.sort((a, b) => b.modified - a.modified);
 			if (flat) {
 				// Project scope: flat list — no group header. The scope chip row
@@ -363,20 +413,48 @@ export class SidebarView {
 			this.groupsHost.appendChild(group);
 		}
 
-		if (this.newListHost.childElementCount === 0) {
-			const newButton = h("button", { class: "sidebar-new-btn" }, "+ New session");
-			newButton.addEventListener("click", () => this.handlers.onNew(this.activeCwd()));
-			this.newListHost.appendChild(newButton);
+		if (this.groupsHost.childElementCount === 0) {
+			this.groupsHost.appendChild(
+				h(
+					"div",
+					{ class: "sidebar-empty", style: "padding:10px;color:var(--c-dim);font:400 11px var(--font-ui)" },
+					this.filterQuery
+						? "No sessions match your filter."
+						: "No sessions on disk yet — start a chat to see it here.",
+				),
+			);
 		}
 	}
 
-	private buildRow(row: { label: string; title: string; openId?: string; primary?: boolean }): HTMLElement {
+	private buildRow(row: {
+		label: string;
+		title: string;
+		cwd: string;
+		messageCount?: number;
+		openId?: string;
+		primary?: boolean;
+		modified: number;
+	}): HTMLElement {
 		const isOpen = row.openId !== undefined;
 		const isActive = row.openId !== undefined && row.openId === this.activeId;
 
 		const marker = h("span", { class: "sidebar-marker" }, isOpen ? "●" : "○");
 		const spinner = h("span", { class: "sidebar-spinner" }, "⟳");
-		const name = h("span", { class: "sidebar-session-name" }, row.label);
+		// Two-line layout, projects-page parity (B8): session name over the
+		// project cwd, with a right meta column (`N msgs · <relative time>`).
+		// Unsaved brand-new sessions carry MAX_SAFE_INTEGER as `modified` —
+		// surface those as "now" instead of a far-future date.
+		const relative =
+			row.modified >= Number.MAX_SAFE_INTEGER
+				? "now"
+				: relativeTime(new Date(row.modified).toISOString(), Date.now(), { maxDays: 14 });
+		const metaText = `${row.messageCount !== undefined ? `${row.messageCount} msgs · ` : ""}${relative}`;
+		const mainBlock = h(
+			"div",
+			{ class: "sidebar-row-main" },
+			h("span", { class: "sidebar-session-name" }, row.label),
+			h("span", { class: "sidebar-row-sub" }, row.cwd),
+		);
 
 		const element = h(
 			"div",
@@ -386,7 +464,8 @@ export class SidebarView {
 				title: row.title,
 			},
 			marker,
-			name,
+			mainBlock,
+			h("span", { class: "sidebar-row-meta" }, metaText),
 			spinner,
 		);
 		if (row.openId !== undefined && !row.primary) {

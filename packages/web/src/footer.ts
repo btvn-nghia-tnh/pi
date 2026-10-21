@@ -55,6 +55,18 @@ export class ToastsView {
 	}
 }
 
+/**
+ * Docked-widget blocklist (batch-4 B3): widget keys whose lines-only docked
+ * copy renders as noise above the composer. "pi-modes" (pi-agent-modes
+ * extension) pushes the active mode name (e.g. "ask") as a one-line widget
+ * right on top of the chat input while the status bar already renders the
+ * mode chip (`Ⓜ ask 🔒`) — the owner asked for the docked copy gone (DOM
+ * evidence: `<div class="widget-panel widget-registered" title="pi-modes">ask</div>`);
+ * every other surface keeps showing mode state. Extend the set if more line
+ * widgets prove noisy on the composer.
+ */
+export const DOCK_WIDGET_BLOCKLIST: ReadonlySet<string> = new Set(["pi-modes"]);
+
 export class WidgetAreaView {
 	readonly element: HTMLElement;
 	private readonly store: Store;
@@ -113,6 +125,9 @@ export class WidgetAreaView {
 		}
 		for (const [key, widget] of state.widgets) {
 			if (widget.placement !== this.placement) continue;
+			// Batch-4 B3: blocklisted docked keys (currently "pi-modes") duplicate
+			// state the status bar already carries — skip them entirely.
+			if (DOCK_WIDGET_BLOCKLIST.has(key)) continue;
 			// Structured widgets (any widget.data — including overlay Display) live
 			// in the right session panel / overlay view (spec §3.2.6); the docked
 			// area renders lines-only widgets (Task 12, R12).

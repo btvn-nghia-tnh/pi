@@ -244,7 +244,9 @@
 	background: var(--c-bg);
 }
 .chat-right {
-	flex: 0 0 320px;
+	/* Batch-4 B7: drag-resizable via --chat-right-w (shared panel-resizer,
+	 * persisted `pi-web-right-w`, 260–560px; default 340px). */
+	flex: 0 0 var(--chat-right-w, 340px);
 	overflow-y: auto;
 	border-left: 1px solid var(--c-hairline);
 	background: var(--c-bg-col);

@@ -8,6 +8,7 @@
  * between the main column and the right panel.
  */
 import { iconEl } from "../components/kit.ts";
+import { makePanelResizer, readStoredPanelWidth } from "../components/panel-resizer.ts";
 import { h } from "../dom.ts";
 import type { SidebarView } from "../render/sidebar.ts";
 import type { ShellPage } from "../shell.ts";
@@ -125,34 +126,18 @@ export function createChatPage(deps: ChatAppDeps): ChatPage {
 
 	// Left column: the app-owned sidebar (its own styles, stretched to fill).
 	const sidebarHost = h("aside", { class: "chat-sidebar" });
-	// Horizontal resizer (issue-batch): drives --chat-sidebar-w, persisted.
-	const RESIZER_KEY = "pi-web-sidebar-w";
-	const clampWidth = (width: number): number => Math.max(200, Math.min(480, Math.round(width)));
-	const resizer = h("div", { class: "chat-sidebar-resizer", "aria-hidden": "true" });
-	let resizing = false;
-	const widthFromPointer = (event: PointerEvent): number =>
-		clampWidth(event.clientX - sidebarHost.getBoundingClientRect().left);
-	resizer.addEventListener("pointerdown", (event) => {
-		if (!isDesktopMedia()) return;
-		resizing = true;
-		resizer.classList.add("is-dragging");
-		resizer.setPointerCapture(event.pointerId);
+	// Horizontal resizer (batch-4: unified on the shared panel-resizer module):
+	// drives --chat-sidebar-w, persisted. The handle mounts inside the host it
+	// resizes; the onWidth closure evaluates after `pageRoot` is created.
+	const sidebarResizer = makePanelResizer({
+		onWidth: (px) => pageRoot.style.setProperty("--chat-sidebar-w", `${px}px`),
+		initial: 264,
+		min: 200,
+		max: 480,
+		storageKey: "pi-web-sidebar-w",
+		dragOn: () => isDesktopMedia(),
 	});
-	resizer.addEventListener("pointermove", (event) => {
-		if (!resizing) return;
-		pageRoot.style.setProperty("--chat-sidebar-w", `${widthFromPointer(event)}px`);
-	});
-	const endResize = (event: PointerEvent): void => {
-		if (!resizing) return;
-		resizing = false;
-		resizer.classList.remove("is-dragging");
-		const width = widthFromPointer(event);
-		pageRoot.style.setProperty("--chat-sidebar-w", `${width}px`);
-		window.localStorage.setItem(RESIZER_KEY, String(width));
-	};
-	resizer.addEventListener("pointerup", endResize);
-	resizer.addEventListener("lostpointercapture", (event) => endResize(event as PointerEvent));
-	sidebarHost.appendChild(resizer);
+	sidebarHost.appendChild(sidebarResizer.el);
 	const sidebar = deps.sidebar();
 	if (sidebar) sidebarHost.appendChild(sidebar.element);
 	// Tapping a session row (inside the sidebar groups host) closes the drawer.
@@ -196,6 +181,22 @@ export function createChatPage(deps: ChatAppDeps): ChatPage {
 	// display:none — the host carries the is-panel-empty flag (set by
 	// SessionPanel) that hides the tab while the column is empty anyway.
 	const rightHost = h("div", { class: "chat-right-host" }, rightToggle, right);
+	// Drag-resize for the right column (batch-4 B7): the handle rides the
+	// panel's LEFT edge and drives --chat-right-w (persisted, 260–560px).
+	// The drag gate mirrors the CSS: under 1280px the column is hidden and a
+	// collapsed panel has no visible edge to grab.
+	const rightResizer = makePanelResizer({
+		side: "right",
+		onWidth: (px) => pageRoot.style.setProperty("--chat-right-w", `${px}px`),
+		initial: 340,
+		min: 260,
+		max: 560,
+		storageKey: "pi-web-right-w",
+		// .chat-right clips via overflow-y:auto — keep the nub fully inside.
+		edgeOffset: "0px",
+		dragOn: () => window.matchMedia("(min-width: 1280px)").matches && !right.classList.contains("is-collapsed"),
+	});
+	right.appendChild(rightResizer.el);
 
 	// `chat-console` scopes the Task-14 restyle layer (pages.css) to the chat page.
 	const pageRoot = h(
@@ -205,15 +206,12 @@ export function createChatPage(deps: ChatAppDeps): ChatPage {
 		main,
 		scrim,
 	);
-	// Persisted sidebar width (resizer keeps this fresh in localStorage).
-	try {
-		const saved = Number(window.localStorage.getItem("pi-web-sidebar-w") ?? "");
-		if (Number.isFinite(saved) && saved >= 200 && saved <= 480) {
-			pageRoot.style.setProperty("--chat-sidebar-w", `${Math.round(saved)}px`);
-		}
-	} catch {
-		// localStorage unavailable — the CSS 264px default applies.
-	}
+	// Persisted panel widths (the resizers keep these fresh in localStorage —
+	// batch-4 B7 adds the right column alongside the sidebar).
+	const storedSidebarWidth = readStoredPanelWidth("pi-web-sidebar-w", 200, 480);
+	if (storedSidebarWidth !== undefined) pageRoot.style.setProperty("--chat-sidebar-w", `${storedSidebarWidth}px`);
+	const storedRightWidth = readStoredPanelWidth("pi-web-right-w", 260, 560);
+	if (storedRightWidth !== undefined) pageRoot.style.setProperty("--chat-right-w", `${storedRightWidth}px`);
 
 	// The preview column is a flex sibling of chat-main (opens/closes itself
 	// via .is-open; existing CSS sizes it 320-640px).
@@ -237,15 +235,22 @@ export function createChatPage(deps: ChatAppDeps): ChatPage {
 		hosts,
 		mount(): void {
 			// The sidebar is app-owned; mount it when it first lands in the
-			// column (idempotent across page remounts). The resizer stays.
+			// column (idempotent across page remounts). Resizers were removed by
+			// unmount's destroy() — both re-attach here (the module's destroy only
+			// unhooks listeners + elements; re-attaching restores the handle).
 			const current = deps.sidebar();
 			if (current && current.element.parentElement !== sidebarHost) {
-				sidebarHost.replaceChildren(current.element, resizer);
+				sidebarHost.replaceChildren(current.element, sidebarResizer.el);
+			} else if (sidebarResizer.el.parentElement !== sidebarHost) {
+				sidebarHost.appendChild(sidebarResizer.el);
 			}
+			if (rightResizer.el.parentElement !== right) right.appendChild(rightResizer.el);
 			document.addEventListener("keydown", onKeydown);
 		},
 		unmount(): void {
 			document.removeEventListener("keydown", onKeydown);
+			sidebarResizer.destroy();
+			rightResizer.destroy();
 		},
 	};
 	return page;
