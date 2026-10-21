@@ -45,6 +45,7 @@ import { McpConfigWriteError, writeMcpServerEnabled } from "./mcp-config-write.t
 import { McpTestError, testMcpServer } from "./mcp-test.ts";
 import { OfficeParseError, parseDocx, parseXlsx, type SpreadsheetLimits } from "./office-parsers.ts";
 import { listSubagentRuns } from "./subagent-status.ts";
+import { SubagentSteerError, steerSubagentRun, stopSubagentRun } from "./subagent-steer.ts";
 import { getUsageSummary } from "./usage-summary.ts";
 import { shareSessionHeadless } from "./web-share.ts";
 
@@ -726,6 +727,51 @@ export function createWebCommandHandler(): WebCommandHandler {
 					success: true,
 					data,
 				};
+			}
+
+			case "subagent_steer": {
+				// Writes into the run's control inbox (pi-subagents v0.61.0 file
+				// protocol); the runner consumes the request on its next sweep.
+				try {
+					const data = steerSubagentRun({
+						runId: command.runId,
+						message: command.message,
+						...(command.mode !== undefined ? { mode: command.mode } : {}),
+						...(command.roots !== undefined ? { roots: command.roots } : {}),
+					});
+					return {
+						id,
+						type: "response",
+						command: "subagent_steer",
+						success: true,
+						data,
+					};
+				} catch (error) {
+					const message =
+						error instanceof SubagentSteerError || error instanceof Error ? error.message : String(error);
+					return rpcError(id, "subagent_steer", message);
+				}
+			}
+
+			case "subagent_stop": {
+				try {
+					const data = stopSubagentRun({
+						runId: command.runId,
+						...(command.reason !== undefined ? { reason: command.reason } : {}),
+						...(command.roots !== undefined ? { roots: command.roots } : {}),
+					});
+					return {
+						id,
+						type: "response",
+						command: "subagent_stop",
+						success: true,
+						data,
+					};
+				} catch (error) {
+					const message =
+						error instanceof SubagentSteerError || error instanceof Error ? error.message : String(error);
+					return rpcError(id, "subagent_stop", message);
+				}
 			}
 
 			case "delete_session": {

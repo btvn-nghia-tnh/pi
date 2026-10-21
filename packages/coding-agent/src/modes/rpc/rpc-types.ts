@@ -76,6 +76,23 @@ export type RpcCommand =
 	| { id?: string; type: "subagent_status" }
 	| {
 			id?: string;
+			type: "subagent_steer";
+			runId: string;
+			message: string;
+			mode?: "steer" | "follow_up" | "auto";
+			/** Optional scan roots — production callers omit (machine scan). */
+			roots?: string[];
+	  }
+	| {
+			id?: string;
+			type: "subagent_stop";
+			runId: string;
+			reason?: string;
+			/** Optional scan roots — production callers omit (machine scan). */
+			roots?: string[];
+	  }
+	| {
+			id?: string;
 			type: "mcp_config_add";
 			scope: "project" | "global";
 			server: string;
@@ -301,6 +318,8 @@ export type RpcResponse =
 	| { id?: string; type: "response"; command: "mcp_config_list"; success: true; data: RpcMcpConfigListResult }
 	| { id?: string; type: "response"; command: "mcp_test"; success: true; data: RpcMcpTestResult }
 	| { id?: string; type: "response"; command: "subagent_status"; success: true; data: RpcSubagentStatusResult }
+	| { id?: string; type: "response"; command: "subagent_steer"; success: true; data: RpcSubagentSteerResult }
+	| { id?: string; type: "response"; command: "subagent_stop"; success: true; data: RpcSubagentStopResult }
 	| { id?: string; type: "response"; command: "export_html"; success: true; data: { path: string } }
 	| { id?: string; type: "response"; command: "switch_session"; success: true; data: { cancelled: boolean } }
 	| { id?: string; type: "response"; command: "fork"; success: true; data: { text: string; cancelled: boolean } }
@@ -657,6 +676,43 @@ export interface RpcSubagentStatusRun {
 	turnCount?: number;
 	toolCount?: number;
 	steps?: number;
+	/**
+	 * Steering window the runner maintains inside status.json (batch-4):
+	 * counters (requested/scheduled/pending/delivered/failed/recovered) plus
+	 * a `recent` array of request records. Pure pass-through of the block the
+	 * runner writes; absent when the run recorded no steering activity.
+	 */
+	steering?: RpcSubagentSteering;
+}
+
+/** The runner-written steering block of status.json (batch-4). */
+export interface RpcSubagentSteering {
+	requested?: number;
+	scheduled?: number;
+	pending?: number;
+	delivered?: number;
+	failed?: number;
+	recovered?: number;
+	/** Newest steering request records (messagePreview, targets, ids, timestamps). */
+	recent?: Array<Record<string, unknown>>;
+	/** The runner owns this shape; unknown keys pass through untouched. */
+	[key: string]: unknown;
+}
+
+/** Result of subagent_steer. */
+export interface RpcSubagentSteerResult {
+	delivered: "queued" | "delivered";
+	ack?: { state: string; message?: string; ts?: number };
+	requestId: string;
+	runDir: string;
+	requestPath: string;
+}
+
+/** Result of subagent_stop. */
+export interface RpcSubagentStopResult {
+	delivered: "requested";
+	runDir: string;
+	stopPath: string;
 }
 
 /** Result of subagent_status. */

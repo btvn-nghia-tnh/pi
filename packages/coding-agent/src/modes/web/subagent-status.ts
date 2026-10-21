@@ -47,6 +47,13 @@ export interface SubagentStatusRun {
 	toolCount?: number;
 	/** Steps in the chain (1 for single-mode runs). */
 	steps?: number;
+	/**
+	 * Steering window the runner itself maintains inside status.json
+	 * (batch-4 steer): counters + recent request records. Pure pass-through of
+	 * the `steering` block the runner writes; absent on runners/older runs
+	 * that never steered. Never synthesized from the control inbox.
+	 */
+	steering?: Record<string, unknown>;
 }
 
 export interface SubagentStatusResult {
@@ -240,6 +247,10 @@ function collectRun(runDir: string): SubagentStatusRun {
 	const turnCount = status && typeof status.turnCount === "number" ? status.turnCount : undefined;
 	const toolCount = status && typeof status.toolCount === "number" ? status.toolCount : undefined;
 	const steps = status && Array.isArray(status.steps) ? (status.steps as unknown[]).length : undefined;
+	const steering =
+		status && typeof status.steering === "object" && status.steering !== null && !Array.isArray(status.steering)
+			? (status.steering as Record<string, unknown>)
+			: undefined;
 	return {
 		id,
 		dir: runDir,
@@ -254,6 +265,7 @@ function collectRun(runDir: string): SubagentStatusRun {
 		turnCount,
 		toolCount,
 		steps,
+		...(steering !== undefined ? { steering } : {}),
 	};
 }
 
