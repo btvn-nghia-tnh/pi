@@ -773,6 +773,10 @@ export class App {
 			hosts.editorHost.replaceChildren(this.editor.element);
 		}
 
+		const openSessionPreview = (path: string): void => {
+			this.openPreview(path, sessionId);
+		};
+
 		// Page-scoped trio — bound to this session's store, rebuilt per switch.
 		const toolbar = new EditorToolbar({
 			connection,
@@ -790,7 +794,7 @@ export class App {
 		});
 		hosts.statusBarHost.replaceChildren(statusBar.element);
 
-		const panel = new SessionPanel({ store, connection });
+		const panel = new SessionPanel({ store, connection, openPreview: openSessionPreview });
 		hosts.panelHost.replaceChildren(panel.element);
 
 		transcript.mount(hosts.transcriptWrap);
